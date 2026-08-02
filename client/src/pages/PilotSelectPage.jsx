@@ -75,7 +75,7 @@ export default function PilotSelectPage() {
     >
       <div style={{ width: 720, maxWidth: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
-          <div style={{ width: 12, height: 12, background: 'var(--accent)' }} />
+          <img src="/logo-ferum-vox.webp" alt="" width={28} height={28} style={{ display: 'block' }} />
           <div className="title-font" style={{ fontSize: 26, letterSpacing: 3 }}>
             ВИБІР ПІЛОТА
           </div>

@@ -74,11 +74,11 @@ export default function LoginPage() {
       }}
     >
       <div style={{ width: 460, maxWidth: '100%' }}>
-        <div
-          className="title-font"
-          style={{ fontSize: 26, letterSpacing: 3, marginBottom: 18 }}
-        >
-          FERUM-VOX // MEMBER CARD
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 18 }}>
+          <img src="/logo-ferum-vox.webp" alt="" width={40} height={40} style={{ display: 'block' }} />
+          <div className="title-font" style={{ fontSize: 26, letterSpacing: 3 }}>
+            FERUM-VOX // MEMBER CARD
+          </div>
         </div>
 
         <div className="card">
