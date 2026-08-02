@@ -1,0 +1,11 @@
+{
+  "name": "ompcon-pilot-tracker",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "npm run dev --prefix client",
+    "install:all": "npm install --prefix client",
+    "build": "npm run build --prefix client",
+    "preview": "npm run preview --prefix client"
+  }
+}
