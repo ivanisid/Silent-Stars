@@ -1,14 +1,22 @@
 import { supabase } from './supabaseClient';
 import { createDefaultPilotState } from './pilot/pilotDefaults';
 
-// Supabase Auth rejects reserved/fake-looking TLDs (.local, .test, .example, .invalid) as
-// malformed, so a real-shaped-but-unregistered domain is used instead. No mail is ever sent to
-// it: the `register` edge function creates accounts pre-confirmed via the admin API, so nobody
-// has to click an email link — just nickname + password.
+// Supabase Auth requires a real-shaped email, and its local part must be plain ASCII — a
+// Cyrillic (or any non-Latin) nickname fails format validation if used directly. So the
+// nickname is hashed into an ASCII-only address instead; this also sidesteps reserved/fake-
+// looking TLDs (.local, .test, etc.) being rejected. No mail is ever sent here: the `register`
+// edge function creates accounts pre-confirmed via the admin API — must derive the SAME hash
+// as supabase/functions/register/index.ts so register/login agree on the address.
 const EMAIL_DOMAIN = 'ferumvox-pilots.app';
 
-function nickToEmail(nick) {
-  return `${nick.trim().toLowerCase()}@${EMAIL_DOMAIN}`;
+async function nickToEmail(nick) {
+  const norm = nick.trim().toLowerCase();
+  const bytes = new TextEncoder().encode(norm);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+  const hex = Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  return `${hex}@${EMAIL_DOMAIN}`;
 }
 
 async function readFunctionError(error) {
@@ -53,7 +61,7 @@ export const api = {
   login: async (nick, password) => {
     const trimmedNick = nick.trim();
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: nickToEmail(trimmedNick),
+      email: await nickToEmail(trimmedNick),
       password,
     });
     if (error) throw mapAuthError(error, 'login');
