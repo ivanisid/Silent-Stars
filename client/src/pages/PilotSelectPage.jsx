@@ -23,6 +23,12 @@ export default function PilotSelectPage() {
   const [importBusy, setImportBusy] = useState(false);
   const fileInputRef = useRef(null);
 
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editCallsign, setEditCallsign] = useState('');
+  const [editError, setEditError] = useState('');
+  const [editBusy, setEditBusy] = useState(false);
+
   async function reload() {
     setLoading(true);
     try {
@@ -66,6 +72,38 @@ export default function PilotSelectPage() {
     if (!window.confirm('Видалити цього пілота назавжди?')) return;
     await api.deletePilot(id);
     reload();
+  }
+
+  function startEdit(p, e) {
+    e.stopPropagation();
+    setEditingId(p.id);
+    setEditName(p.name);
+    setEditCallsign(p.callsign);
+    setEditError('');
+  }
+
+  function cancelEdit(e) {
+    e.stopPropagation();
+    setEditingId(null);
+    setEditError('');
+  }
+
+  async function saveEdit(id, e) {
+    e.stopPropagation();
+    if (!editName.trim()) return setEditError("Введіть ім'я");
+    if (!editCallsign.trim()) return setEditError('Введіть позивний');
+
+    setEditBusy(true);
+    setEditError('');
+    try {
+      await api.updatePilot(id, { name: editName.trim(), callsign: editCallsign.trim() });
+      setEditingId(null);
+      await reload();
+    } catch (err) {
+      setEditError(err.message);
+    } finally {
+      setEditBusy(false);
+    }
   }
 
   async function handleImportFile(e) {
@@ -160,54 +198,106 @@ export default function PilotSelectPage() {
               Пілотів ще немає — створіть першого нижче.
             </div>
           )}
-          {pilots.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => navigate(`/pilots/${p.id}`)}
-              type="button"
-              style={{
-                display: 'block',
-                width: '100%',
-                boxSizing: 'border-box',
-                textAlign: 'left',
-                cursor: 'pointer',
-                padding: '16px 20px',
-                background: '#0e1622',
-                color: 'var(--text)',
-                border: '1px solid var(--panel-border)',
-                fontFamily: "'Share Tech Mono',monospace",
-                position: 'relative',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', paddingRight: 90 }}>
-                <span className="title-font" style={{ fontSize: 20, letterSpacing: 1 }}>{p.callsign}</span>
-                <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{p.name}</span>
-                {p.status === 'archive' && (
-                  <span style={{ fontSize: 10, color: 'var(--danger)', letterSpacing: 1 }}>АРХІВ</span>
-                )}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-dimmer)', marginTop: 6, lineHeight: 1.5, textAlign: 'left' }}>
-                {p.background}
-              </div>
-              <span
-                onClick={(e) => remove(p.id, e)}
-                role="button"
-                tabIndex={-1}
+          {pilots.map((p) => {
+            const isEditing = editingId === p.id;
+            return (
+              <button
+                key={p.id}
+                onClick={() => !isEditing && navigate(`/pilots/${p.id}`)}
+                type="button"
                 style={{
-                  position: 'absolute',
-                  top: 14,
-                  right: 16,
-                  fontSize: 11,
-                  color: 'var(--text-dimmer)',
-                  letterSpacing: 1,
-                  padding: '4px 8px',
-                  border: '1px solid var(--input-border)',
+                  display: 'block',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  textAlign: 'left',
+                  cursor: isEditing ? 'default' : 'pointer',
+                  padding: '16px 20px',
+                  background: '#0e1622',
+                  color: 'var(--text)',
+                  border: '1px solid var(--panel-border)',
+                  fontFamily: "'Share Tech Mono',monospace",
+                  position: 'relative',
                 }}
               >
-                ВИДАЛИТИ
-              </span>
-            </button>
-          ))}
+                {isEditing ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 90 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder="Ім'я"
+                        style={{ flex: 1, minWidth: 140, padding: '7px 9px', fontSize: 14 }}
+                      />
+                      <input
+                        type="text"
+                        value={editCallsign}
+                        onChange={(e) => setEditCallsign(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder="Позивний"
+                        style={{ flex: 1, minWidth: 140, padding: '7px 9px', fontSize: 14 }}
+                      />
+                    </div>
+                    {editError && <div className="error-box">{editError}</div>}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn" type="button" disabled={editBusy} onClick={(e) => saveEdit(p.id, e)}>
+                        ЗБЕРЕГТИ
+                      </button>
+                      <button className="btn-ghost" type="button" onClick={cancelEdit}>
+                        СКАСУВАТИ
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', paddingRight: 90 }}>
+                      <span className="title-font" style={{ fontSize: 20, letterSpacing: 1 }}>{p.callsign}</span>
+                      <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{p.name}</span>
+                      {p.status === 'archive' && (
+                        <span style={{ fontSize: 10, color: 'var(--danger)', letterSpacing: 1 }}>АРХІВ</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-dimmer)', marginTop: 6, lineHeight: 1.5, textAlign: 'left' }}>
+                      {p.background}
+                    </div>
+                  </>
+                )}
+                {!isEditing && (
+                  <div style={{ position: 'absolute', top: 14, right: 16, display: 'flex', gap: 6 }}>
+                    <span
+                      onClick={(e) => startEdit(p, e)}
+                      role="button"
+                      tabIndex={-1}
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--text-dimmer)',
+                        letterSpacing: 1,
+                        padding: '4px 8px',
+                        border: '1px solid var(--input-border)',
+                      }}
+                    >
+                      РЕДАГУВАТИ
+                    </span>
+                    <span
+                      onClick={(e) => remove(p.id, e)}
+                      role="button"
+                      tabIndex={-1}
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--text-dimmer)',
+                        letterSpacing: 1,
+                        padding: '4px 8px',
+                        border: '1px solid var(--input-border)',
+                      }}
+                    >
+                      ВИДАЛИТИ
+                    </span>
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <div className="card">
