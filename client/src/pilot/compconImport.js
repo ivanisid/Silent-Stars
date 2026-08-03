@@ -86,6 +86,23 @@ function mapMech(m) {
   };
 }
 
+// Some campaigns keep multiple mech "slots" for one character by saving separate COMP/CON
+// pilots per build (same name, different callsign per mech, since COMP/CON ties talents/skills
+// to a single pilot save). Re-importing another such file for an already-known pilot (matched by
+// name) should only add/refresh that mech, not touch anything else already tracked on the pilot.
+export function mergeMechsByName(existingMechs, importedMechs) {
+  const result = [...(existingMechs || [])];
+  (importedMechs || []).forEach((incoming) => {
+    const idx = result.findIndex((m) => m.name.trim().toLowerCase() === incoming.name.trim().toLowerCase());
+    if (idx >= 0) {
+      result[idx] = { ...incoming, id: result[idx].id };
+    } else {
+      result.push(incoming);
+    }
+  });
+  return result;
+}
+
 export function isCompconPilotExport(json) {
   return !!json && json.EXPORT_TYPE === 'Save Pilot' && !!json.data;
 }

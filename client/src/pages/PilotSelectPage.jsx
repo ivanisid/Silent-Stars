@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
-import { mapCompconPilot } from '../pilot/compconImport';
+import { mapCompconPilot, mergeMechsByName } from '../pilot/compconImport';
+import { pushLog } from '../pilot/logic';
 
 export default function PilotSelectPage() {
   const { user, logout } = useAuth();
@@ -78,8 +79,24 @@ export default function PilotSelectPage() {
       const text = await file.text();
       const json = JSON.parse(text);
       const mapped = mapCompconPilot(json);
-      const created = await api.createPilot({ name: mapped.name, callsign: mapped.callsign, background: mapped.background });
-      await api.updatePilot(created.id, { state: mapped.state });
+
+      // Same character, different COMP/CON save per mech build (campaign has multiple mech
+      // slots) — merge the mech(s) into the existing pilot instead of creating a duplicate.
+      const existing = pilots.find((p) => p.name.trim().toLowerCase() === mapped.name.trim().toLowerCase());
+
+      if (existing) {
+        const full = await api.getPilot(existing.id);
+        const mechNames = mapped.state.mechs.map((m) => m.name).join(', ') || '—';
+        const newState = {
+          ...full.state,
+          mechs: mergeMechsByName(full.state.mechs, mapped.state.mechs),
+          actionLog: pushLog(full.state.actionLog, `Мех(и) підтягнуто з COMP/CON («${mapped.callsign}»): ${mechNames}`),
+        };
+        await api.updatePilot(existing.id, { state: newState });
+      } else {
+        const created = await api.createPilot({ name: mapped.name, callsign: mapped.callsign, background: mapped.background });
+        await api.updatePilot(created.id, { state: mapped.state });
+      }
       await reload();
     } catch (err) {
       setImportError(err instanceof SyntaxError ? 'Файл не є коректним JSON.' : err.message);
