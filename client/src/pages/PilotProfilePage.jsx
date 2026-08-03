@@ -5,6 +5,7 @@ import { pilotReducer } from '../pilot/reducer';
 import { MISSION_DOWNTIME_DATA, WEEKLY_DOWNTIME_DATA } from '../pilot/constants';
 
 import Header from '../pilot/components/Header.jsx';
+import SyncTools from '../pilot/components/SyncTools.jsx';
 import ManaPanel from '../pilot/components/ManaPanel.jsx';
 import DcStorePanel from '../pilot/components/DcStorePanel.jsx';
 import ShopDrawer from '../pilot/components/ShopDrawer.jsx';
@@ -109,6 +110,8 @@ export default function PilotProfilePage() {
       <Header pilot={pilot} state={state} dispatch={dispatch} onSaveMeta={saveMeta} saveStatus={saveStatus} />
 
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px 0 24px', display: 'flex', flexDirection: 'column', gap: 26 }}>
+        <SyncTools dispatch={dispatch} />
+
         <div style={{ display: 'flex', gap: 26, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 320 }}>
             <ManaPanel state={state} dispatch={dispatch} />

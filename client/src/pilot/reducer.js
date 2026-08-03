@@ -13,6 +13,7 @@ import {
   skillCapMax,
   skillCapUsed,
 } from './logic';
+import { mergeMechsByName } from './compconImport';
 
 const ALL_DOWNTIME_DATA = [...MISSION_DOWNTIME_DATA, ...WEEKLY_DOWNTIME_DATA];
 
@@ -800,6 +801,33 @@ export function pilotReducer(state, action) {
       return { ...state, narrative: action.value };
     case 'CLEAR_LOG':
       return { ...state, actionLog: [] };
+
+    // ---------- External sync (Adventure League CSV / COMP/CON JSON) ----------
+    case 'IMPORT_ADVENTURE_LOG': {
+      const { manaTotal, levelFound, historyLabels, entryCount } = action.payload;
+      let next = {
+        ...state,
+        mana: {
+          ...state.mana,
+          balance: manaTotal,
+          history: historyLabels.slice(-4).reverse().map((label) => ({ label })),
+        },
+      };
+      let msg = `Синхронізовано з Adventure League CSV (${entryCount} записів): мана → ${manaTotal}`;
+      if (levelFound) {
+        next = { ...next, games: GAMES_TABLE[clamp(levelFound, 2, 12) - 2] };
+        msg += `, рівень → ${levelFound}`;
+      }
+      return log(next, msg);
+    }
+    case 'MERGE_COMPCON_MECHS': {
+      const { mechs, callsign } = action.payload;
+      const names = mechs.map((m) => m.name).join(', ') || '—';
+      return log(
+        { ...state, mechs: mergeMechsByName(state.mechs, mechs) },
+        `Мех(и) підтягнуто з COMP/CON («${callsign}»): ${names}`,
+      );
+    }
 
     default:
       return state;

@@ -2,6 +2,28 @@
 
 ## Post-launch changes (post-implementation, not in the original prototype)
 
+- **Pilot-profile sync tools** (`client/src/pilot/components/SyncTools.jsx`, rendered at the top
+  of the profile page): two buttons for updating an *already open* pilot from an external file,
+  as opposed to the pilot-select screen's import (which creates/merges a whole new pilot).
+  - **«ОНОВИТИ РІВЕНЬ/МАНУ З CSV»** — parses an Adventure-League-style character log CSV export
+    (`client/src/pilot/csvImport.js`, `parseAdventureLeagueCsv`/`summarizeAdventureLeagueLog`).
+    The export stacks three tables in one file with no section markers: character-info, a
+    log-entry table (`CharacterLogEntry`/`PurchaseLogEntry`/`TradeLogEntry` rows sharing one
+    17-column schema — `type,adventure_title,session_num,date_played,session_length_hours,
+    player_level,xp_gained,gp_gained,downtime_gained,renown_gained,num_secret_missions,
+    location_played,dm_name,dm_dci_number,notes,date_dmed,campaign_id`), and a `MAGIC ITEM` table
+    interleaved via its own row-type tag (different 7-column schema, skipped entirely). Only
+    `gp_gained` (→ mana) and `player_level` (→ games/LL, same `GAMES_TABLE` snap as COMP/CON
+    import) are used, per explicit request — everything else in the log (xp/downtime/renown) is
+    ignored. `IMPORT_ADVENTURE_LOG` **replaces** `mana.balance` with the summed total (not an
+    incremental add — the CSV is the full ledger each time) and `mana.history` with the last 4
+    non-zero entries; `games` is only touched if `player_level` was non-empty on at least one row
+    (many real exports leave it blank — level tracked via freeform notes instead — in which case
+    games/LL is left alone rather than guessed).
+  - **«ОНОВИТИ МЕХА З COMP/CON JSON»** — same COMP/CON "Save Pilot" parser as the pilot-select
+    import, but applies `mergeMechsByName` directly to the currently-open pilot's `mechs`
+    (`MERGE_COMPCON_MECHS` action) without any name-matching — you're already looking at the
+    target pilot. Everything else on the pilot is untouched, same as the pilot-select merge path.
 - **Publicity/visibility mask removed entirely** — no `state.publicity`, no `PublicityPanel`,
   no `TOGGLE_MASK`/`APPLY_PRESET` actions.
 - **Downtime split into two independently-gated tabs**, each with its own 1-charge pool:
