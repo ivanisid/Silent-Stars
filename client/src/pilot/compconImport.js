@@ -9,14 +9,6 @@ import { clamp, nowTs, skillCapMax } from './logic';
 // this app (mana, DC store, hangar upgrades, skill triggers, projects, contacts) has
 // no COMP/CON source and is left at its normal empty default.
 
-function stripHtml(html) {
-  if (!html) return '';
-  return html
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 function tagValue(tags, id) {
   const t = (tags || []).find((t) => t.id === id);
   return t ? Number(t.val) || 0 : null;
@@ -40,33 +32,6 @@ function collectLimited(mech) {
     const s = sys.data || sys;
     const max = tagValue(s.tags, 'tg_limited');
     if (max) results.push({ name: s.name, current: max, max, destroyed: false });
-  });
-
-  return results;
-}
-
-// Full weapon/system reference list — most Lancer equipment has no ammo-style Limited
-// count, so this is separate from collectLimited() above: a read-only "what's it
-// carrying" list rather than something with trackable charges.
-function collectEquipment(mech) {
-  const results = [];
-  const loadout = mech.loadouts?.[mech.active_loadout_index ?? 0];
-  if (!loadout) return results;
-
-  (loadout.mounts || []).forEach((mount) => {
-    (mount.slots || []).forEach((slot) => {
-      const w = slot.weapon?.data;
-      if (!w) return;
-      const detail = [mount.mount_type, w.type].filter(Boolean).join(' · ');
-      results.push({ name: w.name, detail, kind: 'weapon' });
-    });
-  });
-
-  (loadout.systems || []).forEach((sys) => {
-    const s = sys.data || sys;
-    if (!s?.name) return;
-    const detail = s.sp ? `Система · ${s.sp} SP` : 'Система';
-    results.push({ name: s.name, detail, kind: 'system' });
   });
 
   return results;
@@ -100,20 +65,6 @@ function mapSkillTriggers(skills, cap) {
   return triggers;
 }
 
-function describeTalents(talents) {
-  const names = (talents || [])
-    .filter((t) => t?.data?.name)
-    .map((t) => `${t.data.name} (${t.rank})`);
-  return names.length ? `Таланти: ${names.join(', ')}` : '';
-}
-
-function describeLicenses(licenses) {
-  const names = (licenses || [])
-    .filter((l) => l?.stub?.name)
-    .map((l) => `${l.stub.name} (${l.rank})`);
-  return names.length ? `Ліцензії: ${names.join(', ')}` : '';
-}
-
 function mapMech(m) {
   const frameStats = m.frameData?.stats || {};
   const hpMax = frameStats.hp || 10;
@@ -132,7 +83,6 @@ function mapMech(m) {
     corePower: m.corePower ?? true,
     overcharge: 0,
     limited: collectLimited(m),
-    equipment: collectEquipment(m),
   };
 }
 
@@ -149,20 +99,11 @@ export function mapCompconPilot(json) {
   const level = clamp(parseInt(d.level, 10) || 2, 2, 12);
   const games = GAMES_TABLE[level - 2];
 
-  const narrativeParts = [
-    stripHtml(d.history),
-    stripHtml(d.notes),
-    (d.quirks || []).join('; '),
-    describeTalents(d.talents),
-    describeLicenses(d.licenses),
-  ].filter(Boolean);
-
   const bondData = d.bond?.data;
   const state = {
     ...createDefaultPilotState(),
     games,
     status: d.status === 'ACTIVE' ? 'active' : 'archive',
-    narrative: narrativeParts.join('\n\n'),
     stress: clamp(d.bond?.stress || 0, 0, 8),
     bond: {
       archetype: bondData?.name || '',

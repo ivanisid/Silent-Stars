@@ -109,20 +109,6 @@ export default function MechsPanel({ state, dispatch }) {
                 </div>
               </div>
 
-              {m.equipment?.length > 0 && (
-                <div style={{ marginTop: 16 }}>
-                  <div className="field-label">СПОРЯДЖЕННЯ</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {m.equipment.map((eq, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, background: '#0a1420', padding: '6px 10px', fontSize: 12 }}>
-                        <span>{eq.name}</span>
-                        <span style={{ color: 'var(--text-dimmer)' }}>{eq.detail}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div style={{ marginTop: 16 }}>
                 <div className="field-label">ЛІМІТНІ СИСТЕМИ</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
