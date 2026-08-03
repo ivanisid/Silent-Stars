@@ -1,6 +1,6 @@
 import { createDefaultPilotState } from './pilotDefaults';
 import { GAMES_TABLE } from './constants';
-import { clamp, nowTs } from './logic';
+import { clamp, nowTs, skillCapMax } from './logic';
 
 // Imports a "Save Pilot" export from COMP/CON (the Lancer TTRPG companion app).
 // COMP/CON tracks a much richer character sheet than this app (full mech loadouts,
@@ -72,6 +72,48 @@ function collectEquipment(mech) {
   return results;
 }
 
+// COMP/CON pilot skills (Lancer's ~24 fixed named skills, each ranked 0–6) don't map 1:1 onto
+// this app's homebrew Skill Triggers (arbitrary named triggers, level 1–3 giving +2/+4/+6,
+// budget-capped by skillCapMax). Each skill becomes one trigger, rank halved into our 1–3 scale,
+// and the import stops adding once it would exceed this pilot's own cap so the imported sheet
+// stays internally consistent with our own economy.
+function mapSkillTriggers(skills, cap) {
+  const ranked = [...(skills || [])]
+    .filter((s) => s?.data?.name && s.rank > 0)
+    .sort((a, b) => b.rank - a.rank);
+
+  const triggers = [];
+  let used = 0;
+  ranked.forEach((s, i) => {
+    if (used >= cap) return;
+    const level = clamp(Math.round(s.rank / 2) || 1, 1, 3);
+    const fitted = Math.min(level, cap - used);
+    if (fitted < 1) return;
+    triggers.push({
+      id: Date.now() + i,
+      name: s.data.name,
+      desc: (s.data.detail || s.data.description || '').slice(0, 140),
+      level: fitted,
+    });
+    used += fitted;
+  });
+  return triggers;
+}
+
+function describeTalents(talents) {
+  const names = (talents || [])
+    .filter((t) => t?.data?.name)
+    .map((t) => `${t.data.name} (${t.rank})`);
+  return names.length ? `Таланти: ${names.join(', ')}` : '';
+}
+
+function describeLicenses(licenses) {
+  const names = (licenses || [])
+    .filter((l) => l?.stub?.name)
+    .map((l) => `${l.stub.name} (${l.rank})`);
+  return names.length ? `Ліцензії: ${names.join(', ')}` : '';
+}
+
 function mapMech(m) {
   const frameStats = m.frameData?.stats || {};
   const hpMax = frameStats.hp || 10;
@@ -107,7 +149,13 @@ export function mapCompconPilot(json) {
   const level = clamp(parseInt(d.level, 10) || 2, 2, 12);
   const games = GAMES_TABLE[level - 2];
 
-  const narrativeParts = [stripHtml(d.history), stripHtml(d.notes), (d.quirks || []).join('; ')].filter(Boolean);
+  const narrativeParts = [
+    stripHtml(d.history),
+    stripHtml(d.notes),
+    (d.quirks || []).join('; '),
+    describeTalents(d.talents),
+    describeLicenses(d.licenses),
+  ].filter(Boolean);
 
   const bondData = d.bond?.data;
   const state = {
@@ -126,6 +174,7 @@ export function mapCompconPilot(json) {
       current: d.stats?.current?.hp || d.stats?.max?.hp || 6,
       max: d.stats?.max?.hp || 6,
     },
+    skillTriggers: mapSkillTriggers(d.skills, skillCapMax(level, 0)),
     mechs: (d.mechs || []).map(mapMech),
     actionLog: [{ ts: nowTs(), msg: `Імпортовано з COMP/CON (${d.callsign || d.name || 'пілот'})` }],
   };

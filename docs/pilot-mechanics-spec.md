@@ -20,12 +20,18 @@
   (`EXPORT_TYPE: "Save Pilot"`) from the Lancer TTRPG companion app COMP/CON. Only fields with a
   direct equivalent transfer: name/callsign/background, pilot level → games/LL (snapped to
   `GAMES_TABLE`), pilot HP, bond (archetype/xp/powers/stress), and mechs (name, HP from
-  `frameData.stats.hp`, repair cap from `repcap`, core power, and any `tg_limited`-tagged
-  weapons/systems scanned out of the active loadout). Everything homebrew-specific to this app —
-  mana, DC store, hangar upgrades, skill triggers, projects, contacts, publicity — has no COMP/CON
-  source and is left at its normal empty default. COMP/CON doesn't persist current damage/HP-loss
-  in the export (frame stats are recomputed client-side at runtime), so imported mechs/pilot HP
-  always come in at full health regardless of the source character's actual battle state.
+  `frameData.stats.hp`, repair cap from `repcap`, core power, a read-only "СПОРЯДЖЕННЯ" list of
+  every mounted weapon/system for reference, and any `tg_limited`-tagged items among them scanned
+  into the trackable Limited list). COMP/CON's ~24 fixed named pilot skills (0–6 rank each) are
+  mapped one-for-one into this app's homebrew Skill Triggers (rank halved into our 1–3 level
+  scale), stopping once the import would exceed this pilot's own `skillCapMax` so the sheet stays
+  internally consistent. Talents and licenses have no equivalent field in this app, so they're
+  appended as plain reference lines ("Таланти: …", "Ліцензії: …") into the narrative text instead.
+  Everything else homebrew-specific — mana, DC store, hangar upgrades, projects, contacts,
+  publicity — has no COMP/CON source and is left at its normal empty default. COMP/CON doesn't
+  persist current damage/HP-loss in the export (frame stats are recomputed client-side at
+  runtime), so imported mechs/pilot HP always come in at full health regardless of the source
+  character's actual battle state.
 - **Migrated off the local Express/JSON backend onto Supabase** (project `ferum-vox-pilot-tracker`,
   `dmqkxxedabawnhznzlmx`, org `IVAN-SILENT`, region `eu-north-1`) — the React client now talks
   directly to Supabase Postgres + Auth via `@supabase/supabase-js` (`client/src/supabaseClient.js`),
