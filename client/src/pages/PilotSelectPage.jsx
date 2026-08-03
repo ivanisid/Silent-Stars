@@ -119,8 +119,10 @@ export default function PilotSelectPage() {
       const mapped = mapCompconPilot(json);
 
       // Same character, different COMP/CON save per mech build (campaign has multiple mech
-      // slots) — merge the mech(s) into the existing pilot instead of creating a duplicate.
-      const existing = pilots.find((p) => p.name.trim().toLowerCase() === mapped.name.trim().toLowerCase());
+      // slots) — matched by callsign (kept constant per character in Foundry), since the
+      // "name" field is what tends to vary between per-mech COMP/CON saves. Merge the mech(s)
+      // into the existing pilot instead of creating a duplicate.
+      const existing = pilots.find((p) => p.callsign.trim().toLowerCase() === mapped.callsign.trim().toLowerCase());
 
       if (existing) {
         const full = await api.getPilot(existing.id);

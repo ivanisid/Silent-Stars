@@ -54,15 +54,16 @@
   persist current damage/HP-loss in the export (frame stats are recomputed client-side at
   runtime), so imported mechs/pilot HP always come in at full health regardless of the source
   character's actual battle state.
-  - **Same-name merge**: if an imported pilot's `name` matches an already-existing pilot on the
-    account (case-insensitive), the import doesn't create a duplicate — it only merges the
-    imported mech(s) into that pilot's `mechs` array (`mergeMechsByName` in
-    `compconImport.js`, matched by mech name, replacing an existing mech's stats in place or
-    appending a new one) and logs the merge. Everything else on the existing pilot (mana, bond,
-    skill triggers, callsign, etc.) is left untouched — this exists because some campaigns keep
-    multiple mech "slots" per character by saving separate COMP/CON pilots per build (same
-    character, different callsign per mech), so re-importing another such file is meant to just
-    add that mech, not overwrite the character's live campaign data.
+  - **Same-callsign merge**: if an imported pilot's `callsign` matches an already-existing pilot
+    on the account (case-insensitive), the import doesn't create a duplicate — it only merges the
+    imported mech(s) into that pilot's `mechs` array (`mergeMechsByName` in `compconImport.js`,
+    matched by mech name, replacing an existing mech's stats in place or appending a new one) and
+    logs the merge. Everything else on the existing pilot (mana, bond, skill triggers, name, etc.)
+    is left untouched — this exists because some campaigns keep multiple mech "slots" per
+    character by saving separate COMP/CON pilots per build (same callsign held constant, `name`
+    varied per mech — simpler to manage from Foundry), so re-importing another such file is meant
+    to just add that mech, not overwrite the character's live campaign data. Matching moved from
+    `name` to `callsign` for this reason (was name-based initially, flipped per user feedback).
 - **Migrated off the local Express/JSON backend onto Supabase** (project `ferum-vox-pilot-tracker`,
   `dmqkxxedabawnhznzlmx`, org `IVAN-SILENT`, region `eu-north-1`) — the React client now talks
   directly to Supabase Postgres + Auth via `@supabase/supabase-js` (`client/src/supabaseClient.js`),
