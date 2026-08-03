@@ -639,6 +639,7 @@ export function pilotReducer(state, action) {
         corePower: true,
         overcharge: 0,
         limited: [],
+        equipment: [],
       };
       return log(
         { ...state, mechs: [...state.mechs, mech], mechDraft: { name: '', hpMax: '', repairMax: '' } },

@@ -45,6 +45,33 @@ function collectLimited(mech) {
   return results;
 }
 
+// Full weapon/system reference list — most Lancer equipment has no ammo-style Limited
+// count, so this is separate from collectLimited() above: a read-only "what's it
+// carrying" list rather than something with trackable charges.
+function collectEquipment(mech) {
+  const results = [];
+  const loadout = mech.loadouts?.[mech.active_loadout_index ?? 0];
+  if (!loadout) return results;
+
+  (loadout.mounts || []).forEach((mount) => {
+    (mount.slots || []).forEach((slot) => {
+      const w = slot.weapon?.data;
+      if (!w) return;
+      const detail = [mount.mount_type, w.type].filter(Boolean).join(' · ');
+      results.push({ name: w.name, detail, kind: 'weapon' });
+    });
+  });
+
+  (loadout.systems || []).forEach((sys) => {
+    const s = sys.data || sys;
+    if (!s?.name) return;
+    const detail = s.sp ? `Система · ${s.sp} SP` : 'Система';
+    results.push({ name: s.name, detail, kind: 'system' });
+  });
+
+  return results;
+}
+
 function mapMech(m) {
   const frameStats = m.frameData?.stats || {};
   const hpMax = frameStats.hp || 10;
@@ -63,6 +90,7 @@ function mapMech(m) {
     corePower: m.corePower ?? true,
     overcharge: 0,
     limited: collectLimited(m),
+    equipment: collectEquipment(m),
   };
 }
 
