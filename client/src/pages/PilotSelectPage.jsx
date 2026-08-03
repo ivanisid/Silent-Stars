@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
+import { mapCompconPilot } from '../pilot/compconImport';
 
 export default function PilotSelectPage() {
   const { user, logout } = useAuth();
@@ -16,6 +17,10 @@ export default function PilotSelectPage() {
   const [background, setBackground] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const [importError, setImportError] = useState('');
+  const [importBusy, setImportBusy] = useState(false);
+  const fileInputRef = useRef(null);
 
   async function reload() {
     setLoading(true);
@@ -62,6 +67,27 @@ export default function PilotSelectPage() {
     reload();
   }
 
+  async function handleImportFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setImportBusy(true);
+    setImportError('');
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const mapped = mapCompconPilot(json);
+      const created = await api.createPilot({ name: mapped.name, callsign: mapped.callsign, background: mapped.background });
+      await api.updatePilot(created.id, { state: mapped.state });
+      await reload();
+    } catch (err) {
+      setImportError(err instanceof SyntaxError ? 'Файл не є коректним JSON.' : err.message);
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
   return (
     <div
       style={{
@@ -88,6 +114,17 @@ export default function PilotSelectPage() {
         </div>
 
         {loadError && <div className="error-box" style={{ marginBottom: 16 }}>{loadError}</div>}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+          <button className="btn-ghost" type="button" disabled={importBusy} onClick={() => fileInputRef.current?.click()}>
+            {importBusy ? 'ІМПОРТУЄТЬСЯ…' : 'ІМПОРТУВАТИ З COMP/CON'}
+          </button>
+          <span style={{ fontSize: 11, color: 'var(--text-dimmer)' }}>
+            JSON-файл «Export Pilot» з COMP/CON
+          </span>
+          <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={handleImportFile} style={{ display: 'none' }} />
+        </div>
+        {importError && <div className="error-box" style={{ marginBottom: 16 }}>{importError}</div>}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
           {loading && (

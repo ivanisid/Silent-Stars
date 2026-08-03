@@ -15,6 +15,17 @@
   shown as pips + label on the project card, but only advances via the new `ADVANCE_PROJECT`
   action (in the "Прогрес проекту" weekly downtime entry) — it consumes one weekly charge and caps
   at stage 3.
+- **COMP/CON pilot import** (`client/src/pilot/compconImport.js`, wired into the "ІМПОРТУВАТИ З
+  COMP/CON" button on the pilot-select screen): parses a "Save Pilot" JSON export
+  (`EXPORT_TYPE: "Save Pilot"`) from the Lancer TTRPG companion app COMP/CON. Only fields with a
+  direct equivalent transfer: name/callsign/background, pilot level → games/LL (snapped to
+  `GAMES_TABLE`), pilot HP, bond (archetype/xp/powers/stress), and mechs (name, HP from
+  `frameData.stats.hp`, repair cap from `repcap`, core power, and any `tg_limited`-tagged
+  weapons/systems scanned out of the active loadout). Everything homebrew-specific to this app —
+  mana, DC store, hangar upgrades, skill triggers, projects, contacts, publicity — has no COMP/CON
+  source and is left at its normal empty default. COMP/CON doesn't persist current damage/HP-loss
+  in the export (frame stats are recomputed client-side at runtime), so imported mechs/pilot HP
+  always come in at full health regardless of the source character's actual battle state.
 - **Migrated off the local Express/JSON backend onto Supabase** (project `ferum-vox-pilot-tracker`,
   `dmqkxxedabawnhznzlmx`, org `IVAN-SILENT`, region `eu-north-1`) — the React client now talks
   directly to Supabase Postgres + Auth via `@supabase/supabase-js` (`client/src/supabaseClient.js`),
