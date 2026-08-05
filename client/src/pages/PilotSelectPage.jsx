@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { mapCompconPilot, mergeMechsByName } from '../pilot/compconImport';
-import { pushLog } from '../pilot/logic';
+import { pushLog, computeLL, llTier } from '../pilot/logic';
 
 export default function PilotSelectPage() {
   const { user, logout } = useAuth();
@@ -259,6 +259,9 @@ export default function PilotSelectPage() {
                       {p.status === 'archive' && (
                         <span style={{ fontSize: 10, color: 'var(--danger)', letterSpacing: 1 }}>АРХІВ</span>
                       )}
+                      <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1, whiteSpace: 'nowrap' }}>
+                        ТІР {llTier(computeLL(p.games))} · ЛЛ {computeLL(p.games)}
+                      </span>
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-dimmer)', marginTop: 6, lineHeight: 1.5, textAlign: 'left' }}>
                       {p.background}

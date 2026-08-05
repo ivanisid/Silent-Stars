@@ -44,6 +44,7 @@ function toPilotSummary(row) {
     callsign: row.callsign,
     background: row.background,
     status: row.state?.status || 'active',
+    games: row.state?.games || 0,
     updatedAt: row.updated_at,
   };
 }

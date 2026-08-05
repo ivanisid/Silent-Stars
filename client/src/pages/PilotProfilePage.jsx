@@ -122,6 +122,7 @@ export default function PilotProfilePage() {
         </div>
 
         <BondMenu state={state} dispatch={dispatch} />
+        <MechsPanel state={state} dispatch={dispatch} />
         <SkillTriggers state={state} dispatch={dispatch} />
         <ContactsPanel state={state} dispatch={dispatch} />
         <ProjectsPanel state={state} dispatch={dispatch} />
@@ -144,7 +145,6 @@ export default function PilotProfilePage() {
           resetLabel="НОВИЙ ТИЖДЕНЬ"
         />
         <HangarPanel state={state} dispatch={dispatch} />
-        <MechsPanel state={state} dispatch={dispatch} />
         <NarrativeEditor state={state} dispatch={dispatch} />
         <ActionLog state={state} dispatch={dispatch} />
       </div>
