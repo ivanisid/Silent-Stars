@@ -259,9 +259,9 @@ export default function PilotSelectPage() {
                       {p.status === 'archive' && (
                         <span style={{ fontSize: 10, color: 'var(--danger)', letterSpacing: 1 }}>АРХІВ</span>
                       )}
-                      <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1, whiteSpace: 'nowrap' }}>
-                        ТІР {llTier(computeLL(p.games))} · ЛЛ {computeLL(p.games)}
-                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1, marginTop: 4 }}>
+                      ТІР {llTier(computeLL(p.games))} · ЛЛ {computeLL(p.games)}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-dimmer)', marginTop: 6, lineHeight: 1.5, textAlign: 'left' }}>
                       {p.background}
