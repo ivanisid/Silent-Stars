@@ -41,13 +41,18 @@
   COMP/CON" button on the pilot-select screen): parses a "Save Pilot" JSON export
   (`EXPORT_TYPE: "Save Pilot"`) from the Lancer TTRPG companion app COMP/CON. Only fields with a
   direct equivalent transfer: name/callsign/background, pilot level → games/LL (snapped to
-  `GAMES_TABLE`), pilot HP, bond (archetype/xp/powers/stress), and mechs (name, HP from
-  `frameData.stats.hp`, repair cap from `repcap`, core power, and any `tg_limited`-tagged
-  weapons/systems scanned out of the active loadout into the trackable Limited list — non-Limited
-  equipment is intentionally *not* imported anywhere). COMP/CON's ~24 fixed named pilot skills
-  (0–6 rank each) are mapped one-for-one into this app's homebrew Skill Triggers (rank halved into
-  our 1–3 level scale), stopping once the import would exceed this pilot's own `skillCapMax` so
-  the sheet stays internally consistent. Talents, licenses, history/notes/quirks, and everything
+  `GAMES_TABLE`), pilot HP, bond (archetype/xp/powers/stress), and mechs (name, core power, and
+  any `tg_limited`-tagged weapons/systems scanned out of the active loadout into the trackable
+  Limited list — non-Limited equipment is intentionally *not* imported anywhere). Mech HP/repair
+  cap are **not** just `frameData.stats.hp`/`repcap` — those are only the frame's base values;
+  COMP/CON's export doesn't persist the already-summed runtime totals, so the importer applies the
+  Lancer core-rule HASE formula itself: `HP = frameHP + pilotGrit + 2×Hull`,
+  `RepairCap = frameRepcap + floor(Hull÷2)` (`d.mechSkills[0]` is Hull, `d.stats.max.grit` is
+  pilot Grit — confirmed against lancer.wiki.gg). COMP/CON's ~24 fixed named pilot skills (0–6
+  rank each) are mapped one-for-one into this app's homebrew Skill Triggers, rank clamped directly
+  into our 1–3 level scale (rank 1→1, 2→2, 3+→3 — **not** halved, per user feedback that halving
+  under-represented the trained rank), stopping once the import would exceed this pilot's own
+  `skillCapMax` so the sheet stays internally consistent. Talents, licenses, history/notes/quirks, and everything
   else homebrew-specific — mana, DC store, hangar upgrades, projects, contacts, publicity — have
   no COMP/CON source (or are intentionally skipped) and are left at their normal empty default,
   including `narrative` (deliberately not auto-populated from the import). COMP/CON doesn't

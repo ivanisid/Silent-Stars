@@ -39,9 +39,9 @@ function collectLimited(mech) {
 
 // COMP/CON pilot skills (Lancer's ~24 fixed named skills, each ranked 0–6) don't map 1:1 onto
 // this app's homebrew Skill Triggers (arbitrary named triggers, level 1–3 giving +2/+4/+6,
-// budget-capped by skillCapMax). Each skill becomes one trigger, rank halved into our 1–3 scale,
-// and the import stops adding once it would exceed this pilot's own cap so the imported sheet
-// stays internally consistent with our own economy.
+// budget-capped by skillCapMax). Each skill becomes one trigger, its rank clamped directly into
+// our 1–3 scale (rank 1→1, 2→2, 3+→3 — no halving), and the import stops adding once it would
+// exceed this pilot's own cap so the imported sheet stays internally consistent.
 function mapSkillTriggers(skills, cap) {
   const ranked = [...(skills || [])]
     .filter((s) => s?.data?.name && s.rank > 0)
@@ -51,7 +51,7 @@ function mapSkillTriggers(skills, cap) {
   let used = 0;
   ranked.forEach((s, i) => {
     if (used >= cap) return;
-    const level = clamp(Math.round(s.rank / 2) || 1, 1, 3);
+    const level = clamp(s.rank, 1, 3);
     const fitted = Math.min(level, cap - used);
     if (fitted < 1) return;
     triggers.push({
@@ -65,10 +65,15 @@ function mapSkillTriggers(skills, cap) {
   return triggers;
 }
 
-function mapMech(m) {
+// Frame stats (frameData.stats.hp/repcap) are only the frame's base values — COMP/CON adds the
+// pilot's HASE (Hull/Agility/Systems/Engineering) mech-skill points and Grit on top at runtime,
+// and the raw export doesn't persist those already-summed totals. Per the Lancer core rules:
+// Mech HP = Frame HP + Grit + 2×Hull; Repair Cap = Frame Repair Cap + floor(Hull÷2).
+// `mechSkills` is the pilot's HASE array in that fixed order, so mechSkills[0] is Hull.
+function mapMech(m, grit, hull) {
   const frameStats = m.frameData?.stats || {};
-  const hpMax = frameStats.hp || 10;
-  const repairMax = frameStats.repcap || 0;
+  const hpMax = (frameStats.hp || 10) + grit + 2 * hull;
+  const repairMax = (frameStats.repcap || 0) + Math.floor(hull / 2);
   const liveHp = m.stats?.current?.hp;
 
   return {
@@ -133,7 +138,7 @@ export function mapCompconPilot(json) {
       max: d.stats?.max?.hp || 6,
     },
     skillTriggers: mapSkillTriggers(d.skills, skillCapMax(level, 0)),
-    mechs: (d.mechs || []).map(mapMech),
+    mechs: (d.mechs || []).map((m) => mapMech(m, d.stats?.max?.grit || 0, d.mechSkills?.[0] || 0)),
     actionLog: [{ ts: nowTs(), msg: `Імпортовано з COMP/CON (${d.callsign || d.name || 'пілот'})` }],
   };
 
