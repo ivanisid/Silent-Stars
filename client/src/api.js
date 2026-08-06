@@ -114,6 +114,26 @@ export const api = {
     return data;
   },
 
+  // Hidden GM audit: mana/DC operations distilled server-side from pilot_audit_log,
+  // which the player cannot clear (unlike the visible action log). RLS makes this
+  // return an empty list for non-GMs.
+  gmPilotAuditLog: async (pilotId) => {
+    const { data, error } = await supabase.rpc('gm_pilot_resource_log', { p_pilot_id: pilotId });
+    if (error) throw new Error(error.message);
+    return data.map((row) => ({
+      changedAt: row.changed_at,
+      nick: row.changed_by_nick,
+      action: row.action,
+      manaOld: row.mana_old === null ? null : Number(row.mana_old),
+      manaNew: row.mana_new === null ? null : Number(row.mana_new),
+      dcOld: row.dc_old === null ? null : Number(row.dc_old),
+      dcNew: row.dc_new === null ? null : Number(row.dc_new),
+      logOldCount: row.log_old_count,
+      logNewCount: row.log_new_count,
+      logAdded: row.log_added || [],
+    }));
+  },
+
   createPilot: async ({ name, callsign, background }) => {
     const { data, error } = await supabase
       .from('pilots')
