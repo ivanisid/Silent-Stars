@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
+import { useAuth } from '../context/AuthContext.jsx';
 import { pilotReducer } from '../pilot/reducer';
 import { MISSION_DOWNTIME_DATA, WEEKLY_DOWNTIME_DATA } from '../pilot/constants';
 
@@ -17,6 +18,7 @@ import ProjectsPanel from '../pilot/components/ProjectsPanel.jsx';
 import HangarPanel from '../pilot/components/HangarPanel.jsx';
 import MechsPanel from '../pilot/components/MechsPanel.jsx';
 import ActionLog from '../pilot/components/ActionLog.jsx';
+import GmAuditPanel from '../pilot/components/GmAuditPanel.jsx';
 import NarrativeEditor from '../pilot/components/NarrativeEditor.jsx';
 
 import ManaTxModal from '../pilot/components/modals/ManaTxModal.jsx';
@@ -29,6 +31,7 @@ const SAVE_DEBOUNCE_MS = 800;
 
 export default function PilotProfilePage() {
   const { id } = useParams();
+  const { isGm } = useAuth();
   const [pilot, setPilot] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [state, dispatch] = useReducer(pilotReducer, null);
@@ -147,6 +150,7 @@ export default function PilotProfilePage() {
         <HangarPanel state={state} dispatch={dispatch} />
         <NarrativeEditor state={state} dispatch={dispatch} />
         <ActionLog state={state} dispatch={dispatch} />
+        {isGm && <GmAuditPanel pilotId={id} />}
       </div>
 
       <ShopDrawer state={state} dispatch={dispatch} />
