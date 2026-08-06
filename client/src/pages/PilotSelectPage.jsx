@@ -164,6 +164,9 @@ export default function PilotSelectPage() {
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{user?.nick}</span>
+            <button className="btn-ghost" onClick={() => navigate('/board')} type="button">
+              ДОШКА ІГОР
+            </button>
             {isGm && (
               <button
                 className="btn-ghost"
