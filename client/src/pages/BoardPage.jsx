@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import NavDrawer from '../components/NavDrawer.jsx';
@@ -301,8 +300,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
 }
 
 export default function BoardPage() {
-  const { user, isGm, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user, isGm } = useAuth();
 
   const [slots, setSlots] = useState([]);
   const [myPilots, setMyPilots] = useState([]);
@@ -355,20 +353,7 @@ export default function BoardPage() {
           <div className="title-font" style={{ fontSize: 26, letterSpacing: 3 }}>
             ДОШКА ІГОР
           </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{user?.nick}</span>
-            <button className="btn-ghost" onClick={() => navigate('/pilots')} type="button">
-              ← ПІЛОТИ
-            </button>
-            {isGm && (
-              <button className="btn-ghost" onClick={() => navigate('/gm')} type="button" style={{ color: GOLD, borderColor: GOLD_DIM }}>
-                ГМ-ПАНЕЛЬ
-              </button>
-            )}
-            <button className="btn-ghost" onClick={logout} type="button">
-              ВИЙТИ
-            </button>
-          </div>
+          <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-dim)' }}>{user?.nick}</div>
         </div>
 
         <div style={{ fontSize: 11, color: 'var(--text-dimmer)', letterSpacing: 1, marginBottom: 24 }}>

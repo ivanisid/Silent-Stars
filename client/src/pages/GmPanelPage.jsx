@@ -22,7 +22,7 @@ function Stat({ label, value, color }) {
 }
 
 export default function GmPanelPage() {
-  const { user, role, isGm, logout } = useAuth();
+  const { user, role, isGm } = useAuth();
   const navigate = useNavigate();
 
   const [pilots, setPilots] = useState([]);
@@ -105,18 +105,7 @@ export default function GmPanelPage() {
           <div className="title-font" style={{ fontSize: 26, letterSpacing: 3, color: '#e2b13c' }}>
             ГМ-ПАНЕЛЬ
           </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{user?.nick}</span>
-            <button className="btn-ghost" onClick={() => navigate('/board')} type="button">
-              ДОШКА ІГОР
-            </button>
-            <button className="btn-ghost" onClick={() => navigate('/pilots')} type="button">
-              ← МОЇ ПІЛОТИ
-            </button>
-            <button className="btn-ghost" onClick={logout} type="button">
-              ВИЙТИ
-            </button>
-          </div>
+          <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-dim)' }}>{user?.nick}</div>
         </div>
 
         <div style={{ fontSize: 11, color: 'var(--text-dimmer)', letterSpacing: 1, marginBottom: 24 }}>
@@ -150,7 +139,7 @@ export default function GmPanelPage() {
                     <button
                       key={p.id}
                       type="button"
-                      onClick={() => navigate(`/pilots/${p.id}`, { state: { from: 'gm' } })}
+                      onClick={() => navigate(`/pilots/${p.id}`)}
                       style={{
                         display: 'block',
                         width: '100%',
