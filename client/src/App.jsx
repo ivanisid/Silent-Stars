@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import PilotSelectPage from './pages/PilotSelectPage.jsx';
 import PilotProfilePage from './pages/PilotProfilePage.jsx';
+import GmPanelPage from './pages/GmPanelPage.jsx';
 
 function RequireAuth({ children }) {
   const { isAuthed, ready } = useAuth();
@@ -28,6 +29,14 @@ export default function App() {
         element={
           <RequireAuth>
             <PilotProfilePage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/gm"
+        element={
+          <RequireAuth>
+            <GmPanelPage />
           </RequireAuth>
         }
       />

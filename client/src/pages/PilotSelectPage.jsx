@@ -6,7 +6,7 @@ import { mapCompconPilot, mergeMechsByName } from '../pilot/compconImport';
 import { pushLog, computeLL, llTier } from '../pilot/logic';
 
 export default function PilotSelectPage() {
-  const { user, logout } = useAuth();
+  const { user, isGm, logout } = useAuth();
   const navigate = useNavigate();
 
   const [pilots, setPilots] = useState([]);
@@ -32,7 +32,7 @@ export default function PilotSelectPage() {
   async function reload() {
     setLoading(true);
     try {
-      const list = await api.listPilots();
+      const list = await api.listPilots(user.id);
       setPilots(list);
       setLoadError('');
     } catch (err) {
@@ -45,7 +45,7 @@ export default function PilotSelectPage() {
   useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user?.id]);
 
   async function create(e) {
     e.preventDefault();
@@ -164,6 +164,16 @@ export default function PilotSelectPage() {
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{user?.nick}</span>
+            {isGm && (
+              <button
+                className="btn-ghost"
+                onClick={() => navigate('/gm')}
+                type="button"
+                style={{ color: '#e2b13c', borderColor: '#6b5320' }}
+              >
+                ГМ-ПАНЕЛЬ
+              </button>
+            )}
             <button className="btn-ghost" onClick={logout} type="button">
               ВИЙТИ
             </button>

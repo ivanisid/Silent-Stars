@@ -40,11 +40,16 @@ function mapAuthError(error, context) {
 function toPilotSummary(row) {
   return {
     id: row.id,
+    userId: row.user_id,
     name: row.name,
     callsign: row.callsign,
     background: row.background,
     status: row.state?.status || 'active',
     games: row.state?.games || 0,
+    hp: row.state?.hp || null,
+    mana: row.state?.mana?.balance ?? 0,
+    stress: row.state?.stress ?? 0,
+    mechCount: row.state?.mechs?.length || 0,
     updatedAt: row.updated_at,
   };
 }
@@ -73,13 +78,40 @@ export const api = {
     await supabase.auth.signOut();
   },
 
-  listPilots: async () => {
+  // Own pilots only. RLS also lets a GM read everyone's pilots, so without the
+  // user_id filter a GM's pilot-select page would list the whole campaign —
+  // other players' characters belong in the GM panel instead.
+  listPilots: async (userId) => {
     const { data, error } = await supabase
       .from('pilots')
-      .select('id, name, callsign, background, state, updated_at')
+      .select('id, user_id, name, callsign, background, state, updated_at')
+      .eq('user_id', userId)
       .order('updated_at', { ascending: false });
     if (error) throw new Error(error.message);
     return data.map(toPilotSummary);
+  },
+
+  getMyRole: async (userId) => {
+    const { data, error } = await supabase.from('profiles').select('role').eq('id', userId).single();
+    if (error) throw new Error(error.message);
+    return data.role;
+  },
+
+  // GM panel: every pilot in the campaign. RLS returns only own pilots for players.
+  gmListAllPilots: async () => {
+    const { data, error } = await supabase
+      .from('pilots')
+      .select('id, user_id, name, callsign, background, state, updated_at')
+      .order('updated_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return data.map(toPilotSummary);
+  },
+
+  // GM panel: nicknames to group pilots by player. RLS returns only the own profile for players.
+  gmListProfiles: async () => {
+    const { data, error } = await supabase.from('profiles').select('id, nick, role');
+    if (error) throw new Error(error.message);
+    return data;
   },
 
   createPilot: async ({ name, callsign, background }) => {
