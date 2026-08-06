@@ -14,8 +14,6 @@ export default function NavDrawer() {
   const location = useLocation();
   const { user, isGm, logout } = useAuth();
 
-  const fromGm = location.state?.from === 'gm';
-
   const items = [
     { label: 'ВИБІР ПІЛОТА', desc: 'Ваші персонажі', to: '/pilots' },
     { label: 'ДОШКА ІГОР', desc: 'Слоти ігор та запис на них', to: '/board' },
@@ -40,7 +38,7 @@ export default function NavDrawer() {
                   type="button"
                   onClick={() => {
                     setOpen(false);
-                    navigate(it.to, fromGm && it.to !== '/gm' ? { state: { from: 'gm' } } : undefined);
+                    navigate(it.to);
                   }}
                   style={{
                     display: 'block',

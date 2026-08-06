@@ -7,7 +7,7 @@ import { pushLog, computeLL, llTier } from '../pilot/logic';
 import NavDrawer from '../components/NavDrawer.jsx';
 
 export default function PilotSelectPage() {
-  const { user, isGm, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [pilots, setPilots] = useState([]);
@@ -163,25 +163,7 @@ export default function PilotSelectPage() {
           <div className="title-font" style={{ fontSize: 26, letterSpacing: 3 }}>
             ВИБІР ПІЛОТА
           </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{user?.nick}</span>
-            <button className="btn-ghost" onClick={() => navigate('/board')} type="button">
-              ДОШКА ІГОР
-            </button>
-            {isGm && (
-              <button
-                className="btn-ghost"
-                onClick={() => navigate('/gm')}
-                type="button"
-                style={{ color: '#e2b13c', borderColor: '#6b5320' }}
-              >
-                ГМ-ПАНЕЛЬ
-              </button>
-            )}
-            <button className="btn-ghost" onClick={logout} type="button">
-              ВИЙТИ
-            </button>
-          </div>
+          <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-dim)' }}>{user?.nick}</div>
         </div>
 
         {loadError && <div className="error-box" style={{ marginBottom: 16 }}>{loadError}</div>}

@@ -1,11 +1,7 @@
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { derivePilotView } from '../derive';
 
 export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus }) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const fromGm = location.state?.from === 'gm';
   const view = derivePilotView(state);
   const [editingMeta, setEditingMeta] = useState(false);
   const [name, setName] = useState(pilot.name);
@@ -28,12 +24,6 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus 
         borderBottom: '2px solid var(--header-border)',
       }}
     >
-      <div style={{ display: 'flex', gap: 16, marginBottom: 10, flexWrap: 'wrap' }}>
-        <button className="btn-ghost" type="button" onClick={() => navigate(fromGm ? '/gm' : '/pilots')}>
-          {fromGm ? '← ГМ-ПАНЕЛЬ' : '← ПІЛОТИ'}
-        </button>
-      </div>
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 16 }}>
         <div style={{ flex: 1, minWidth: 260 }}>
           {!editingMeta ? (
