@@ -114,6 +114,72 @@ export const api = {
     return data;
   },
 
+  // ----- Game board -----
+
+  getMyContestBonus: async (userId) => {
+    const { data, error } = await supabase.from('profiles').select('contest_bonus').eq('id', userId).single();
+    if (error) throw new Error(error.message);
+    return data.contest_bonus;
+  },
+
+  boardList: async () => {
+    const { data, error } = await supabase.rpc('board_list');
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  boardSignup: async (slotId, pilotId) => {
+    const { error } = await supabase.from('game_signups').insert({ slot_id: slotId, pilot_id: pilotId });
+    if (error) {
+      if (error.code === '23505') throw new Error('Ви вже записані на цю гру.');
+      if (error.code === '42501') throw new Error('Запис недоступний — набір закрито або дедлайн минув.');
+      throw new Error(error.message);
+    }
+    return { ok: true };
+  },
+
+  boardWithdraw: async (signupId) => {
+    const { error } = await supabase.from('game_signups').delete().eq('id', signupId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
+  boardRoll: async (signupId) => {
+    const { data, error } = await supabase.rpc('board_roll', { p_signup_id: signupId });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  gmCreateSlot: async ({ title, description, gameAt, signupDeadline, seats }) => {
+    const { error } = await supabase.from('game_slots').insert({
+      title: title.trim(),
+      description: description.trim(),
+      game_at: gameAt,
+      signup_deadline: signupDeadline,
+      seats,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
+  gmCancelSlot: async (slotId) => {
+    const { error } = await supabase.from('game_slots').update({ status: 'cancelled' }).eq('id', slotId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
+  gmDeleteSlot: async (slotId) => {
+    const { error } = await supabase.from('game_slots').delete().eq('id', slotId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
+  gmResolveSlot: async (slotId, approvedSignupIds) => {
+    const { error } = await supabase.rpc('gm_resolve_slot', { p_slot_id: slotId, p_approved: approvedSignupIds });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
   // Hidden GM audit: mana/DC operations distilled server-side from pilot_audit_log,
   // which the player cannot clear (unlike the visible action log). RLS makes this
   // return an empty list for non-GMs.
