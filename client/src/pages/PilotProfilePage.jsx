@@ -19,6 +19,7 @@ import HangarPanel from '../pilot/components/HangarPanel.jsx';
 import MechsPanel from '../pilot/components/MechsPanel.jsx';
 import ActionLog from '../pilot/components/ActionLog.jsx';
 import GmAuditPanel from '../pilot/components/GmAuditPanel.jsx';
+import NavDrawer from '../pilot/components/NavDrawer.jsx';
 import NarrativeEditor from '../pilot/components/NarrativeEditor.jsx';
 
 import ManaTxModal from '../pilot/components/modals/ManaTxModal.jsx';
@@ -154,6 +155,7 @@ export default function PilotProfilePage() {
       </div>
 
       <ShopDrawer state={state} dispatch={dispatch} />
+      <NavDrawer />
 
       <ManaTxModal state={state} dispatch={dispatch} />
       <DcRepairModal state={state} dispatch={dispatch} />
