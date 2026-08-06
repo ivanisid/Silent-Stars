@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { mapCompconPilot, mergeMechsByName } from '../pilot/compconImport';
 import { pushLog, computeLL, llTier } from '../pilot/logic';
+import NavDrawer from '../components/NavDrawer.jsx';
 
 export default function PilotSelectPage() {
   const { user, isGm, logout } = useAuth();
@@ -366,6 +367,7 @@ export default function PilotSelectPage() {
           UNION ADMINISTRATIVE // PILOT ROSTER
         </div>
       </div>
+      <NavDrawer />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { computeLL, llTier } from '../pilot/logic';
+import NavDrawer from '../components/NavDrawer.jsx';
 
 function formatDate(iso) {
   if (!iso) return '—';
@@ -197,6 +198,7 @@ export default function GmPanelPage() {
           UNION ADMINISTRATIVE // GM OVERSIGHT
         </div>
       </div>
+      <NavDrawer />
     </div>
   );
 }
