@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
+import NavDrawer from '../components/NavDrawer.jsx';
 
 const GOLD = '#e2b13c';
 const GOLD_DIM = '#6b5320';
@@ -405,6 +406,7 @@ export default function BoardPage() {
           UNION ADMINISTRATIVE // MISSION BOARD
         </div>
       </div>
+      <NavDrawer />
     </div>
   );
 }

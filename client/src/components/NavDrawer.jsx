@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 
-// Left-side navigation drawer, mirroring the ShopDrawer on the right.
+// Left-side navigation drawer, mirroring the pilot profile's ShopDrawer on the right.
+// Rendered on every authenticated page so navigation is in the same place everywhere.
 
 const GOLD = '#e2b13c';
 const GOLD_DIM = '#6b5320';
@@ -31,27 +32,36 @@ export default function NavDrawer() {
             <div style={{ fontSize: 11, color: '#9dc1e8', marginLeft: 'auto' }}>{user?.nick}</div>
           </div>
           <div style={{ padding: '14px 14px 0 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {items.map((it) => (
-              <button
-                key={it.to}
-                type="button"
-                onClick={() => navigate(it.to, fromGm && it.to !== '/gm' ? { state: { from: 'gm' } } : undefined)}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  textAlign: 'left',
-                  background: it.gold ? '#1a1409' : '#142031',
-                  border: `1px solid ${it.gold ? GOLD_DIM : 'var(--input-border)'}`,
-                  cursor: 'pointer',
-                  padding: '14px 16px',
-                  fontFamily: "'Share Tech Mono',monospace",
-                }}
-              >
-                <div style={{ fontSize: 13, letterSpacing: 2, color: it.gold ? GOLD : 'var(--text-bright)' }}>{it.label}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginTop: 4 }}>{it.desc}</div>
-              </button>
-            ))}
+            {items.map((it) => {
+              const current = location.pathname === it.to;
+              return (
+                <button
+                  key={it.to}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    navigate(it.to, fromGm && it.to !== '/gm' ? { state: { from: 'gm' } } : undefined);
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    textAlign: 'left',
+                    background: it.gold ? '#1a1409' : '#142031',
+                    border: `1px solid ${it.gold ? GOLD_DIM : 'var(--input-border)'}`,
+                    borderLeft: `3px solid ${current ? (it.gold ? GOLD : 'var(--accent)') : 'transparent'}`,
+                    cursor: 'pointer',
+                    padding: '14px 16px',
+                    fontFamily: "'Share Tech Mono',monospace",
+                  }}
+                >
+                  <div style={{ fontSize: 13, letterSpacing: 2, color: it.gold ? GOLD : 'var(--text-bright)' }}>{it.label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginTop: 4 }}>
+                    {current ? 'ви тут' : it.desc}
+                  </div>
+                </button>
+              );
+            })}
           </div>
           <div style={{ marginTop: 'auto', padding: 14 }}>
             <button
