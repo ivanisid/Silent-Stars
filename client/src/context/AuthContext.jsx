@@ -12,6 +12,8 @@ function sessionToUser(session) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
+  // null = role not resolved yet (or logged out); 'player' | 'gm' once fetched.
+  const [role, setRole] = useState(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -25,6 +27,25 @@ export function AuthProvider({ children }) {
 
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setRole(null);
+      return undefined;
+    }
+    let cancelled = false;
+    api
+      .getMyRole(user.id)
+      .then((r) => {
+        if (!cancelled) setRole(r);
+      })
+      .catch(() => {
+        if (!cancelled) setRole('player');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const login = useCallback(async (nick, password) => {
     const { user: u } = await api.login(nick, password);
@@ -42,9 +63,10 @@ export function AuthProvider({ children }) {
   }, []);
 
   const isAuthed = ready && !!user;
+  const isGm = role === 'gm';
 
   return (
-    <AuthContext.Provider value={{ user, isAuthed, ready, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isAuthed, ready, role, isGm, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
