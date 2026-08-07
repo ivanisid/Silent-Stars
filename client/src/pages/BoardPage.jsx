@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
+import { computeLL, llTier } from '../pilot/logic';
 import NavDrawer from '../components/NavDrawer.jsx';
 
 const GOLD = '#e2b13c';
@@ -28,6 +29,8 @@ function CreateSlotForm({ onCreated }) {
   const [gameAt, setGameAt] = useState('');
   const [deadline, setDeadline] = useState('');
   const [seats, setSeats] = useState(4);
+  const [rewardMana, setRewardMana] = useState(0);
+  const [rewardDc, setRewardDc] = useState(0);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -37,6 +40,10 @@ function CreateSlotForm({ onCreated }) {
     if (!deadline) return setError('Вкажіть дату закінчення набору.');
     const seatsNum = Number(seats);
     if (!Number.isInteger(seatsNum) || seatsNum < 1) return setError('Кількість місць — ціле число від 1.');
+    const manaNum = Number(rewardMana);
+    const dcNum = Number(rewardDc);
+    if (!Number.isInteger(manaNum) || manaNum < 0) return setError('Нагорода в мані — ціле число від 0.');
+    if (!Number.isInteger(dcNum) || dcNum < 0) return setError('Нагорода в DC — ціле число від 0.');
     setBusy(true);
     setError('');
     try {
@@ -46,12 +53,16 @@ function CreateSlotForm({ onCreated }) {
         gameAt: new Date(gameAt).toISOString(),
         signupDeadline: new Date(deadline).toISOString(),
         seats: seatsNum,
+        rewardMana: manaNum,
+        rewardDc: dcNum,
       });
       setTitle('');
       setDescription('');
       setGameAt('');
       setDeadline('');
       setSeats(4);
+      setRewardMana(0);
+      setRewardDc(0);
       setOpen(false);
       onCreated();
     } catch (err) {
@@ -96,6 +107,18 @@ function CreateSlotForm({ onCreated }) {
             <div className="field-label">МІСЦЬ</div>
             <input type="number" min={1} max={20} value={seats} onChange={(e) => setSeats(e.target.value)} style={{ width: 70, padding: '8px 10px', fontSize: 13 }} />
           </div>
+          <div>
+            <div className="field-label">НАГОРОДА · МАНА</div>
+            <input type="number" min={0} value={rewardMana} onChange={(e) => setRewardMana(e.target.value)} style={{ width: 90, padding: '8px 10px', fontSize: 13 }} />
+          </div>
+          <div>
+            <div className="field-label">НАГОРОДА · DC</div>
+            <input type="number" min={0} value={rewardDc} onChange={(e) => setRewardDc(e.target.value)} style={{ width: 70, padding: '8px 10px', fontSize: 13 }} />
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.6 }}>
+          Нагороду можна змінити будь-коли до закриття гри. Під час закриття вона нараховується
+          затвердженим пілотам автоматично, разом із однією зіграною грою.
         </div>
         {error && <div className="error-box">{error}</div>}
         <div style={{ display: 'flex', gap: 8 }}>
@@ -113,6 +136,9 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
   const [error, setError] = useState('');
   // GM roster picks (signup ids) before resolving.
   const [picked, setPicked] = useState(() => new Set());
+  const [editReward, setEditReward] = useState(false);
+  const [rMana, setRMana] = useState(0);
+  const [rDc, setRDc] = useState(0);
 
   const badge = statusBadge(slot);
   const isOpen = slot.status === 'open';
@@ -154,6 +180,12 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
           <span>НАБІР ДО: <span style={{ color: deadlinePassed && isOpen ? 'var(--warn)' : 'var(--text-bright)' }}>{formatDT(slot.signupDeadline)}</span></span>
           <span>МІСЦЬ: <span style={{ color: 'var(--text-bright)' }}>{slot.seats}</span></span>
           <span>ЗАПИСАЛОСЬ: <span style={{ color: contest ? 'var(--warn)' : 'var(--text-bright)' }}>{slot.signups.length}</span></span>
+          <span>
+            НАГОРОДА:{' '}
+            <span style={{ color: slot.rewardMana || slot.rewardDc ? GOLD : 'var(--text-dimmer)' }}>
+              {slot.rewardMana} М · {slot.rewardDc} DC
+            </span>
+          </span>
         </div>
 
         {slot.description && (
@@ -193,6 +225,9 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
                     />
                   )}
                   <span className="title-font" style={{ fontSize: 14, letterSpacing: 1 }}>{g.callsign || '—'}</span>
+                  <span style={{ color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+                    ЛЛ {computeLL(g.games)} · Т{llTier(computeLL(g.games))}
+                  </span>
                   <span style={{ color: 'var(--text-dimmer)' }}>{g.nick || 'невідомо'}</span>
                   <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
                     {g.roll !== null ? (
@@ -254,12 +289,60 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
         {/* GM actions */}
         {isGm && isOpen && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', borderTop: `1px solid ${GOLD_DIM}50`, paddingTop: 12 }}>
+            {editReward ? (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', width: '100%' }}>
+                <div>
+                  <div className="field-label">МАНА</div>
+                  <input type="number" min={0} value={rMana} onChange={(e) => setRMana(e.target.value)} style={{ width: 90, padding: '7px 10px', fontSize: 13 }} />
+                </div>
+                <div>
+                  <div className="field-label">DC</div>
+                  <input type="number" min={0} value={rDc} onChange={(e) => setRDc(e.target.value)} style={{ width: 70, padding: '7px 10px', fontSize: 13 }} />
+                </div>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    const m = Number(rMana);
+                    const d = Number(rDc);
+                    if (!Number.isInteger(m) || m < 0 || !Number.isInteger(d) || d < 0) {
+                      return setError('Нагорода — цілі числа від 0.');
+                    }
+                    setEditReward(false);
+                    run(() => api.gmUpdateSlotReward(slot.id, { rewardMana: m, rewardDc: d }));
+                  }}
+                >
+                  ЗБЕРЕГТИ НАГОРОДУ
+                </button>
+                <button className="btn-ghost" type="button" onClick={() => setEditReward(false)}>
+                  СКАСУВАТИ
+                </button>
+              </div>
+            ) : (
+              <button
+                className="btn-ghost"
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setRMana(slot.rewardMana);
+                  setRDc(slot.rewardDc);
+                  setEditReward(true);
+                }}
+              >
+                ЗМІНИТИ НАГОРОДУ
+              </button>
+            )}
             <button
               className="btn"
               type="button"
               disabled={busy || slot.signups.length === 0}
               onClick={() => {
-                if (!window.confirm(`Затвердити склад (${picked.size} з ${slot.signups.length}) і закрити набір?`)) return;
+                const msg =
+                  `Затвердити склад (${picked.size} з ${slot.signups.length}) і закрити гру?\n\n` +
+                  `Кожен затверджений пілот отримає ${slot.rewardMana} М, ${slot.rewardDc} DC ` +
+                  'і +1 зіграну гру. Це діє одразу й не скасовується.';
+                if (!window.confirm(msg)) return;
                 run(() => api.gmResolveSlot(slot.id, Array.from(picked)));
               }}
               style={{ borderColor: GOLD_DIM, color: GOLD }}
@@ -351,7 +434,7 @@ export default function BoardPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
           <img src="/logo-ferum-vox.webp" alt="" width={28} height={28} style={{ display: 'block' }} />
           <div className="title-font" style={{ fontSize: 26, letterSpacing: 3 }}>
-            ДОШКА ІГОР
+            ДОШКА ЗАВДАНЬ
           </div>
           <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-dim)' }}>{user?.nick}</div>
         </div>
@@ -370,7 +453,7 @@ export default function BoardPage() {
 
           {!loading && sorted.length === 0 && (
             <div style={{ border: '1px dashed var(--input-border)', padding: 22, textAlign: 'center', fontSize: 12, color: 'var(--text-dimmer)' }}>
-              Слотів ігор поки немає.
+              Завдань поки немає.
             </div>
           )}
 

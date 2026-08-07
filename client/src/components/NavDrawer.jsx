@@ -16,7 +16,7 @@ export default function NavDrawer() {
 
   const items = [
     { label: 'ВИБІР ПІЛОТА', desc: 'Ваші персонажі', to: '/pilots' },
-    { label: 'ДОШКА ІГОР', desc: 'Слоти ігор та запис на них', to: '/board' },
+    { label: 'ДОШКА ЗАВДАНЬ', desc: 'Слоти ігор та запис на них', to: '/board' },
     ...(isGm ? [{ label: 'ГМ-ПАНЕЛЬ', desc: 'Персонажі всіх гравців', to: '/gm', gold: true }] : []),
   ];
 
