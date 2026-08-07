@@ -152,7 +152,7 @@ export default function PilotSelectPage() {
         minHeight: '100vh',
         padding: '40px 24px',
         boxSizing: 'border-box',
-        background: 'radial-gradient(ellipse at 50% 0%, #0d1a2c 0%, #070d16 70%)',
+        background: 'radial-gradient(ellipse at 50% 0%, var(--page-grad) 0%, var(--bg) 70%)',
         display: 'flex',
         justifyContent: 'center',
       }}
@@ -210,7 +210,7 @@ export default function PilotSelectPage() {
                   textAlign: 'left',
                   cursor: isEditing ? 'default' : 'pointer',
                   padding: '16px 20px',
-                  background: '#0e1622',
+                  background: 'var(--panel)',
                   color: 'var(--text)',
                   border: '1px solid var(--panel-border)',
                   fontFamily: "'Share Tech Mono',monospace",
@@ -335,7 +335,7 @@ export default function PilotSelectPage() {
                 onChange={(e) => setBackground(e.target.value)}
                 placeholder="Коротка історія пілота…"
                 rows={4}
-                style={{ width: '100%', padding: '10px 12px', fontSize: 13, lineHeight: 1.6, resize: 'vertical', color: '#8a97a8' }}
+                style={{ width: '100%', padding: '10px 12px', fontSize: 13, lineHeight: 1.6, resize: 'vertical', color: 'var(--text-grey)' }}
               />
             </div>
             {error && <div className="error-box">{error}</div>}
@@ -345,7 +345,7 @@ export default function PilotSelectPage() {
           </form>
         </div>
 
-        <div style={{ marginTop: 14, fontSize: 10, color: '#3d5573', letterSpacing: 1, textAlign: 'center' }}>
+        <div style={{ marginTop: 14, fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>
           UNION ADMINISTRATIVE // PILOT ROSTER
         </div>
       </div>

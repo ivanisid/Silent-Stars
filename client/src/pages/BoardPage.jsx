@@ -5,8 +5,8 @@ import { computeLL, llTier } from '../pilot/logic';
 import NavDrawer from '../components/NavDrawer.jsx';
 import DateTimeField from '../components/DateTimeField.jsx';
 
-const GOLD = '#e2b13c';
-const GOLD_DIM = '#6b5320';
+const GOLD = 'var(--gm)';
+const GOLD_DIM = 'var(--gm-dim)';
 
 function formatDT(iso) {
   const d = new Date(iso);
@@ -214,8 +214,8 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
                     flexWrap: 'wrap',
                     fontSize: 12,
                     padding: '7px 10px',
-                    background: mine ? '#101c2c' : '#0c1420',
-                    border: `1px solid ${mine ? 'var(--input-border)' : '#16233450'}`,
+                    background: mine ? 'var(--panel-inset)' : 'var(--panel-sunken)',
+                    border: `1px solid ${mine ? 'var(--input-border)' : 'var(--rule)'}`,
                   }}
                 >
                   {isGm && isOpen && (
@@ -313,7 +313,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
 
         {/* GM actions */}
         {isGm && isOpen && (
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', borderTop: `1px solid ${GOLD_DIM}50`, paddingTop: 12 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', borderTop: `1px solid var(--gm-rule)`, paddingTop: 12 }}>
             {editReward ? (
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', width: '100%' }}>
                 <div>
@@ -388,7 +388,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
           </div>
         )}
         {isGm && !isOpen && (
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', borderTop: `1px solid ${GOLD_DIM}50`, paddingTop: 12 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', borderTop: `1px solid var(--gm-rule)`, paddingTop: 12 }}>
             <button
               className="btn-ghost"
               type="button"
@@ -450,7 +450,7 @@ export default function BoardPage() {
         minHeight: '100vh',
         padding: '40px 24px',
         boxSizing: 'border-box',
-        background: 'radial-gradient(ellipse at 50% 0%, #0d1a2c 0%, #070d16 70%)',
+        background: 'radial-gradient(ellipse at 50% 0%, var(--page-grad) 0%, var(--bg) 70%)',
         display: 'flex',
         justifyContent: 'center',
       }}
@@ -495,7 +495,7 @@ export default function BoardPage() {
           ))}
         </div>
 
-        <div style={{ marginTop: 14, fontSize: 10, color: '#3d5573', letterSpacing: 1, textAlign: 'center' }}>
+        <div style={{ marginTop: 14, fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>
           UNION ADMINISTRATIVE // MISSION BOARD
         </div>
       </div>

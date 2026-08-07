@@ -88,7 +88,7 @@ export default function DateTimeField({ label, value, onChange, placeholder = 'Ð
           style={{
             position: 'fixed',
             inset: 0,
-            background: '#04070cd0',
+            background: 'var(--overlay)',
             zIndex: 60,
             display: 'flex',
             alignItems: 'center',
@@ -103,7 +103,7 @@ export default function DateTimeField({ label, value, onChange, placeholder = 'Ð
               maxWidth: '100%',
               background: 'var(--panel)',
               border: '1px solid var(--panel-border)',
-              boxShadow: '0 20px 60px #04070c',
+              boxShadow: '0 20px 60px var(--shadow)',
             }}
           >
             <div style={{ background: 'var(--header)', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>

@@ -36,7 +36,7 @@ export default function MechsPanel({ state, dispatch }) {
               </div>
 
               {editing && (
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 12, background: '#0e1c30', border: '1px solid var(--input-border)', padding: 12 }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 12, background: 'var(--panel-inset)', border: '1px solid var(--input-border)', padding: 12 }}>
                   <div>
                     <div className="field-label">HP КАП</div>
                     <input type="number" value={state.mechEdit.hpMax} onChange={(e) => dispatch({ type: 'SET_EDIT_HP', value: e.target.value })} style={{ width: 80, padding: '6px 8px', fontSize: 13 }} />
@@ -75,9 +75,9 @@ export default function MechsPanel({ state, dispatch }) {
                       fontSize: 11,
                       letterSpacing: 1,
                       padding: '6px 12px',
-                      background: m.corePower ? '#123423' : '#331b1b',
+                      background: m.corePower ? 'var(--ok-bg)' : 'var(--bad-bg)',
                       color: m.corePower ? 'var(--success)' : 'var(--danger)',
-                      border: `1px solid ${m.corePower ? '#2f6b46' : '#5a2f2f'}`,
+                      border: `1px solid ${m.corePower ? 'var(--ok-border)' : 'var(--bad-border)'}`,
                     }}
                   >
                     {m.corePower ? 'ЗАРЯДЖЕНО' : 'ВИТРАЧЕНО'}
@@ -91,7 +91,7 @@ export default function MechsPanel({ state, dispatch }) {
                     <StepButton onClick={() => dispatch({ type: 'SHIFT_MECH_OVERCHARGE', id: m.id, dir: 1 })} disabled={m.overcharge >= 3}>+</StepButton>
                     <div style={{ display: 'flex', gap: 3 }}>
                       {[0, 1, 2, 3].map((i) => (
-                        <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: i <= m.overcharge ? 'var(--accent)' : '#0c1826', border: '1px solid #3a6390' }} />
+                        <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: i <= m.overcharge ? 'var(--accent)' : 'var(--input-bg)', border: '1px solid var(--accent-dim)' }} />
                       ))}
                     </div>
                   </div>
@@ -113,7 +113,7 @@ export default function MechsPanel({ state, dispatch }) {
                 <div className="field-label">ЛІМІТНІ СИСТЕМИ</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {m.limited.map((li, idx) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#0a1420', padding: '8px 10px' }}>
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--panel-sunken)', padding: '8px 10px' }}>
                       <div style={{ flex: 1, fontSize: 13, color: li.destroyed ? 'var(--text-dimmer)' : 'var(--text)', textDecoration: li.destroyed ? 'line-through' : 'none' }}>
                         {li.name}
                       </div>

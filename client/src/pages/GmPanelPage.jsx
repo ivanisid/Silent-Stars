@@ -94,7 +94,7 @@ export default function GmPanelPage() {
         minHeight: '100vh',
         padding: '40px 24px',
         boxSizing: 'border-box',
-        background: 'radial-gradient(ellipse at 50% 0%, #1a0d14 0%, #0d070b 70%)',
+        background: 'radial-gradient(ellipse at 50% 0%, var(--gm-page-grad) 0%, var(--gm-page-bg) 70%)',
         display: 'flex',
         justifyContent: 'center',
       }}
@@ -102,7 +102,7 @@ export default function GmPanelPage() {
       <div style={{ width: 860, maxWidth: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
           <img src="/logo-ferum-vox.webp" alt="" width={28} height={28} style={{ display: 'block' }} />
-          <div className="title-font" style={{ fontSize: 26, letterSpacing: 3, color: '#e2b13c' }}>
+          <div className="title-font" style={{ fontSize: 26, letterSpacing: 3, color: 'var(--gm)' }}>
             ГМ-ПАНЕЛЬ
           </div>
           <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-dim)' }}>{user?.nick}</div>
@@ -123,7 +123,7 @@ export default function GmPanelPage() {
                   {group.nick}
                 </span>
                 {group.role === 'gm' && (
-                  <span style={{ fontSize: 10, color: '#e2b13c', letterSpacing: 1, border: '1px solid #6b5320', padding: '2px 6px' }}>
+                  <span style={{ fontSize: 10, color: 'var(--gm)', letterSpacing: 1, border: '1px solid var(--gm-dim)', padding: '2px 6px' }}>
                     ГМ
                   </span>
                 )}
@@ -147,9 +147,9 @@ export default function GmPanelPage() {
                         textAlign: 'left',
                         cursor: 'pointer',
                         padding: '14px 18px',
-                        background: '#160e13',
+                        background: 'var(--gm-card)',
                         color: 'var(--text)',
-                        border: '1px solid #3a2733',
+                        border: '1px solid var(--gm-card-border)',
                         fontFamily: "'Share Tech Mono',monospace",
                       }}
                     >
@@ -183,7 +183,7 @@ export default function GmPanelPage() {
             </div>
           ))}
 
-        <div style={{ marginTop: 14, fontSize: 10, color: '#5a3d51', letterSpacing: 1, textAlign: 'center' }}>
+        <div style={{ marginTop: 14, fontSize: 10, color: 'var(--gm-foot)', letterSpacing: 1, textAlign: 'center' }}>
           UNION ADMINISTRATIVE // GM OVERSIGHT
         </div>
       </div>

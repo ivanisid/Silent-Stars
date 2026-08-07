@@ -86,8 +86,8 @@ export default function PilotProfilePage() {
   const containerStyle = useMemo(
     () => ({
       minHeight: '100vh',
-      background: '#070b12',
-      backgroundImage: 'radial-gradient(#132033 1px, transparent 1px)',
+      background: 'var(--bg-alt)',
+      backgroundImage: 'radial-gradient(var(--dot) 1px, transparent 1px)',
       backgroundSize: '22px 22px',
       color: 'var(--text)',
       paddingBottom: 80,

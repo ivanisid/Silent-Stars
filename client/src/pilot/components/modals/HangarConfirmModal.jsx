@@ -14,7 +14,7 @@ export default function HangarConfirmModal({ state, dispatch }) {
       <div className="modal-box" style={{ width: 420, maxWidth: '90vw' }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">ПІДТВЕРДЖЕННЯ ПОКУПКИ</div>
         <div className="modal-body">
-          <div style={{ fontSize: 13, color: '#c3d3e6', lineHeight: 1.6 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-soft)', lineHeight: 1.6 }}>
             Придбати «{item.title}»{multi ? ` — рівень ${owned + 1}` : ''} за {price} мани?
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>

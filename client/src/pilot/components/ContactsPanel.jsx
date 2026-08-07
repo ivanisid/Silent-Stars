@@ -14,7 +14,7 @@ export default function ContactsPanel({ state, dispatch }) {
           <div key={idx} style={{ background: 'var(--input-bg)', border: '1px solid var(--panel-border)', padding: '14px 16px', display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 14, alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: 15, color: 'var(--text-bright)' }}>{c.name} <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>· {c.circle}</span></div>
-              <div style={{ fontSize: 12, color: '#8ba5c3', marginTop: 4 }}>{c.help}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-soft-dim)', marginTop: 4 }}>{c.help}</div>
               <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginTop: 2 }}>{c.debt}</div>
             </div>
             <button

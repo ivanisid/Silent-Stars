@@ -11,7 +11,7 @@ export default function ManaPanel({ state, dispatch }) {
         </button>
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {state.mana.history.map((h, i) => (
-            <div key={i} style={{ fontSize: 12, color: '#8ba5c3', borderTop: '1px solid #16233490', paddingTop: 6 }}>
+            <div key={i} style={{ fontSize: 12, color: 'var(--text-soft-dim)', borderTop: '1px solid var(--rule)', paddingTop: 6 }}>
               {h.label}
             </div>
           ))}
