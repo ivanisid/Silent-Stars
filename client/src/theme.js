@@ -1,17 +1,28 @@
-// Colour themes. Each one is a set of CSS variable overrides in styles/theme.css,
-// selected by a data-theme attribute on <html>; UNION is the bare :root default.
-// The swatch hexes are literal on purpose — they preview a theme other than the
-// one currently applied, so they cannot come from the variables.
+// Colour themes ported from COMP/CON. Each one is a set of CSS variable overrides
+// in styles/theme.css, selected by a data-theme attribute on <html>; GMS Dark is
+// the bare :root default. The swatch hexes are literal on purpose — they preview a
+// theme other than the one currently applied, so they cannot come from variables.
 
 export const THEMES = [
-  { id: 'union', label: 'ЮНІОН', swatch: ['#0e1622', '#17385c', '#5fb3ff'] },
-  { id: 'hespera', label: 'ГЕСПЕРА', swatch: ['#1a100a', '#5c3117', '#ff9a4d'] },
-  { id: 'quarantine', label: 'КАРАНТИН', swatch: ['#081a12', '#14512f', '#5fe39a'] },
-  { id: 'void', label: 'ПУСТКА', swatch: ['#150e22', '#3d2170', '#b98cff'] },
+  { id: 'gms-dark', label: 'GMS Dark', dark: true, swatch: ['#212d40', '#802932', '#dd5562'] },
+  { id: 'gms', label: 'GMS Light', dark: false, swatch: ['#cccccc', '#991E2A', '#8c1420'] },
+  { id: 'horus', label: 'HORUS Terminal', dark: true, swatch: ['#333333', '#126127', '#00d900'] },
+  { id: 'horizon', label: 'HORIZON Operative', dark: true, swatch: ['#333333', '#233943', '#ce7100'] },
+  { id: 'msmc', label: 'MSMC Solarized', dark: true, swatch: ['#293940', '#146464', '#1dc2c2'] },
+  { id: 'lc-solarized', label: 'Low Contrast Solarized', dark: true, swatch: ['#4c585e', '#1b4e4e', '#2fa3a3'] },
+  { id: 'galsim', label: 'FORECAST/GALSIM', dark: true, swatch: ['#373737', '#e36600', '#4974bf'] },
+  { id: 'ha', label: 'Harrison Armory Ras Shamra', dark: true, swatch: ['#373737', '#771675', '#e080de'] },
+  { id: 'ipsn', label: 'IPS-N Carina', dark: false, swatch: ['#c9c7c7', '#1952A2', '#19A2A2'] },
+  { id: 'ssc', label: 'SSC Constellar Congress', dark: false, swatch: ['#dbcfc3', '#d1920a', '#b58900'] },
+  { id: 'hc-dark', label: 'High Contrast Dark', dark: true, swatch: ['#1b212b', '#4b0c13', '#ffabb3'] },
 ];
 
 const STORAGE_KEY = 'ferumvox.theme';
-const DEFAULT_THEME = 'union';
+const DEFAULT_THEME = 'gms-dark';
+
+export function themeLabel(id) {
+  return THEMES.find((t) => t.id === id)?.label || '—';
+}
 
 export function loadTheme() {
   try {

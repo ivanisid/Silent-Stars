@@ -3,6 +3,16 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { THEMES, applyTheme, loadTheme } from '../theme';
 
+function Swatch({ colors }) {
+  return (
+    <span style={{ display: 'flex', width: 26, height: 13, flexShrink: 0, border: '1px solid var(--rule)' }}>
+      {colors.map((c) => (
+        <span key={c} style={{ flex: 1, background: c }} />
+      ))}
+    </span>
+  );
+}
+
 // Left-side navigation drawer, mirroring the pilot profile's ShopDrawer on the right.
 // Rendered on every authenticated page so navigation is in the same place everywhere.
 
@@ -44,6 +54,8 @@ function trapezoidPath(w, h, slant, r) {
 export default function NavDrawer() {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState(loadTheme);
+  const [themeMenu, setThemeMenu] = useState(false);
+  const current = THEMES.find((t) => t.id === theme) || THEMES[0];
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isGm, logout } = useAuth();
@@ -58,10 +70,10 @@ export default function NavDrawer() {
     <div style={{ position: 'fixed', top: 0, left: 0, height: '100vh', display: 'flex', alignItems: 'stretch', zIndex: 40 }}>
       {open && (
         <div style={{ width: 280, maxWidth: '85vw', height: '100vh', overflowY: 'auto', background: 'var(--panel)', borderRight: '1px solid var(--header-border)', boxShadow: '8px 0 30px var(--overlay)', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ background: 'var(--header)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10, position: 'sticky', top: 0, zIndex: 1 }}>
+          <div style={{ background: 'var(--header)', color: 'var(--header-text)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10, position: 'sticky', top: 0, zIndex: 1 }}>
             <div className="dot" />
             <div className="title">НАВІГАЦІЯ</div>
-            <div style={{ fontSize: 11, color: 'var(--text-info)', marginLeft: 'auto' }}>{user?.nick}</div>
+            <div style={{ fontSize: 11, opacity: 0.75, marginLeft: 'auto' }}>{user?.nick}</div>
           </div>
           <div style={{ padding: '14px 14px 0 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             {items.map((it) => {
@@ -95,53 +107,81 @@ export default function NavDrawer() {
               );
             })}
           </div>
-          <div style={{ marginTop: 'auto', padding: '14px 14px 0 14px' }}>
+          <div style={{ marginTop: 'auto', padding: '14px 14px 0 14px', position: 'relative' }}>
             <div className="field-label">КОЛЬОРОВА ТЕМА</div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {THEMES.map((t) => {
-                const current = theme === t.id;
-                return (
+            <button
+              type="button"
+              onClick={() => setThemeMenu((v) => !v)}
+              aria-expanded={themeMenu}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '9px 10px',
+                background: 'var(--input-bg)',
+                border: '1px solid var(--input-border)',
+                color: 'var(--text)',
+                fontFamily: "'Share Tech Mono',monospace",
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              <Swatch colors={current.swatch} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{current.label}</span>
+              <span style={{ marginLeft: 'auto', color: 'var(--accent)' }}>{themeMenu ? '▾' : '▸'}</span>
+            </button>
+
+            {themeMenu && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 14,
+                  right: 14,
+                  bottom: '100%',
+                  maxHeight: 320,
+                  overflowY: 'auto',
+                  background: 'var(--panel)',
+                  border: '1px solid var(--header-border)',
+                  boxShadow: '0 -10px 30px var(--shadow)',
+                  zIndex: 2,
+                }}
+              >
+                {THEMES.map((t) => (
                   <button
                     key={t.id}
                     type="button"
-                    title={t.label}
-                    aria-label={t.label}
-                    aria-pressed={current}
-                    onClick={() => setTheme(applyTheme(t.id))}
+                    onClick={() => {
+                      setTheme(applyTheme(t.id));
+                      setThemeMenu(false);
+                    }}
                     style={{
                       display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'stretch',
-                      gap: 0,
-                      width: 56,
-                      padding: 0,
-                      overflow: 'hidden',
-                      border: `1px solid ${current ? 'var(--accent)' : 'var(--input-border)'}`,
-                      background: 'transparent',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      padding: '9px 10px',
+                      textAlign: 'left',
+                      background: t.id === theme ? 'var(--panel-inset)' : 'transparent',
+                      border: 'none',
+                      borderTop: '1px solid var(--rule)',
+                      color: t.id === theme ? 'var(--text-bright)' : 'var(--text-dim)',
+                      fontFamily: "'Share Tech Mono',monospace",
+                      fontSize: 12,
                       cursor: 'pointer',
                     }}
                   >
-                    <span style={{ display: 'flex', height: 20 }}>
-                      {t.swatch.map((c) => (
-                        <span key={c} style={{ flex: 1, background: c }} />
-                      ))}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 8,
-                        letterSpacing: 0.5,
-                        padding: '3px 0',
-                        textAlign: 'center',
-                        color: current ? 'var(--text-bright)' : 'var(--text-dimmer)',
-                        fontFamily: "'Share Tech Mono',monospace",
-                      }}
-                    >
-                      {t.label}
-                    </span>
+                    <Swatch colors={t.swatch} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.label}</span>
+                    {!t.dark && (
+                      <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--text-dimmer)' }}>світла</span>
+                    )}
                   </button>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{ padding: 14 }}>
             <button
@@ -180,7 +220,7 @@ export default function NavDrawer() {
           padding: 0,
           background: 'transparent',
           border: 'none',
-          color: 'var(--text)',
+          color: 'var(--header-text)',
           cursor: 'pointer',
         }}
       >
@@ -208,7 +248,7 @@ export default function NavDrawer() {
             gap: 10,
           }}
         >
-          <span style={{ color: isGm ? GOLD : 'var(--accent)', fontSize: 17 }}>{open ? '←' : '→'}</span>
+          <span style={{ color: isGm ? GOLD : 'var(--header-text)', fontSize: 17 }}>{open ? '←' : '→'}</span>
           <span style={{ writingMode: 'vertical-rl', fontSize: 14, letterSpacing: 5 }}>МЕНЮ</span>
         </span>
       </button>
