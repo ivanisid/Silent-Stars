@@ -30,7 +30,7 @@ export function Delta({ label, oldVal, newVal }) {
   );
 }
 
-export default function ChangeLogPanel({ pilotId, onReverted }) {
+export default function ChangeLogPanel({ pilotId, refreshKey, onReverted }) {
   const [rows, setRows] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -48,10 +48,12 @@ export default function ChangeLogPanel({ pilotId, onReverted }) {
     }
   }
 
+  // refreshKey changes on every save, so an operation shows up here right after it
+  // happens rather than only on the next page load.
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pilotId]);
+  }, [pilotId, refreshKey]);
 
   async function revert(row) {
     if (!window.confirm(
