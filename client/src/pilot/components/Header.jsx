@@ -18,7 +18,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus 
   return (
     <div
       style={{
-        background: '#132a47',
+        background: 'var(--header-strong)',
         clipPath: 'polygon(0 0,100% 0,100% 100%,28px 100%,0 calc(100% - 28px))',
         padding: '28px 40px 34px 40px',
         borderBottom: '2px solid var(--header-border)',
@@ -75,9 +75,9 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus 
             type="button"
             onClick={() => dispatch({ type: 'TOGGLE_STATUS' })}
             style={{
-              background: statusActive ? '#123423' : '#331b1b',
+              background: statusActive ? 'var(--ok-bg)' : 'var(--bad-bg)',
               color: statusActive ? 'var(--success)' : 'var(--danger)',
-              border: `1px solid ${statusActive ? '#2f6b46' : '#5a2f2f'}`,
+              border: `1px solid ${statusActive ? 'var(--ok-border)' : 'var(--bad-border)'}`,
               padding: '6px 12px',
               fontSize: 12,
               letterSpacing: 1,
@@ -92,10 +92,10 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus 
       </div>
 
       <div style={{ display: 'flex', gap: 28, alignItems: 'center', marginTop: 20, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 13, color: '#a9c4e2', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: 13, color: 'var(--text-info)', whiteSpace: 'nowrap' }}>
           ІГОР ЗІГРАНО: <span style={{ color: 'var(--text-bright)' }}>{state.games}</span>
         </div>
-        <div style={{ fontSize: 13, color: '#a9c4e2', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: 13, color: 'var(--text-info)', whiteSpace: 'nowrap' }}>
           ЛЛ: <span style={{ color: 'var(--text-bright)' }}>{view.ll}</span>
         </div>
         <div style={{ flex: 1, minWidth: 100, height: 8, background: 'var(--input-bg)', border: '1px solid var(--input-border)', position: 'relative' }}>
@@ -111,7 +111,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus 
       </div>
 
       {state.llEdit.open && (
-        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 16, background: '#0e1c30', border: '1px solid var(--input-border)', padding: '14px 16px' }}>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 16, background: 'var(--panel-inset)', border: '1px solid var(--input-border)', padding: '14px 16px' }}>
           <div>
             <div className="field-label">ЛЛ (2–12)</div>
             <input

@@ -23,7 +23,7 @@ export function SegRow({ filled, count, size = 20, onToggle, gap = 8 }) {
           style={{
             width: size,
             height: size,
-            border: '2px solid #2a4a70',
+            border: '2px solid var(--header-border)',
             background: i < filled ? 'var(--accent)' : 'var(--input-bg)',
             cursor: 'pointer',
           }}

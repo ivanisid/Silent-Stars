@@ -27,7 +27,7 @@ export default function DcRepairModal({ state, dispatch }) {
             <MechSelect mechs={state.mechs} mechId={d.mechId} onPick={(id) => dispatch({ type: 'SET_DCR_MECH', mechId: id })} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ fontSize: 12, color: '#c3d3e6', flex: 1 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-soft)', flex: 1 }}>
               Ремкомплекти <span style={{ color: 'var(--text-dimmer)' }}>(1 DC = 1 шт, лише на шкоду з місії)</span>
             </div>
             <button type="button" onClick={() => dispatch({ type: 'DCR_SHIFT', field: 'kits', dir: -1 })} style={{ background: 'var(--btn-bg)', color: 'var(--text)', border: '1px solid var(--btn-border)', padding: '4px 10px', fontSize: 12 }}>−</button>
@@ -35,7 +35,7 @@ export default function DcRepairModal({ state, dispatch }) {
             <button type="button" onClick={() => dispatch({ type: 'DCR_SHIFT', field: 'kits', dir: 1 })} style={{ background: 'var(--btn-bg)', color: 'var(--text)', border: '1px solid var(--btn-border)', padding: '4px 10px', fontSize: 12 }}>+</button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ fontSize: 12, color: '#c3d3e6', flex: 1 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-soft)', flex: 1 }}>
               Лімітні заряди <span style={{ color: 'var(--text-dimmer)' }}>(2 DC = 3 заряди)</span>
             </div>
             <button type="button" onClick={() => dispatch({ type: 'DCR_SHIFT', field: 'packs', dir: -1 })} style={{ background: 'var(--btn-bg)', color: 'var(--text)', border: '1px solid var(--btn-border)', padding: '4px 10px', fontSize: 12 }}>−</button>
@@ -54,7 +54,7 @@ export default function DcRepairModal({ state, dispatch }) {
                 onClick={() => dispatch({ type: 'DCR_TOGGLE_ALL_REFILL' })}
                 style={{ width: 22, height: 22, background: d.allRefill ? 'var(--accent)' : 'var(--input-bg)', border: '1px solid var(--input-border)' }}
               />
-              <div style={{ fontSize: 12, color: '#c3d3e6', flex: 1 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-soft)', flex: 1 }}>
                 Поповнити всі лімітні системи на 1 заряд <span style={{ color: 'var(--text-dimmer)' }}>(2 DC)</span>
               </div>
             </div>
@@ -62,7 +62,7 @@ export default function DcRepairModal({ state, dispatch }) {
               Доступно лише з талантом Grease Monkey / Unsanctioned
             </div>
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', borderTop: '1px solid #16233490', paddingTop: 12 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', borderTop: '1px solid var(--rule)', paddingTop: 12 }}>
             Витрачено: {spent} DC · Залишок: {left} DC{leftNote}
           </div>
           {d.error && <div className="error-box">{d.error}</div>}

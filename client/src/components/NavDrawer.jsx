@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { THEMES, applyTheme, loadTheme } from '../theme';
 
 // Left-side navigation drawer, mirroring the pilot profile's ShopDrawer on the right.
 // Rendered on every authenticated page so navigation is in the same place everywhere.
 
-const GOLD = '#e2b13c';
-const GOLD_DIM = '#6b5320';
+const GOLD = 'var(--gm)';
+const GOLD_DIM = 'var(--gm-dim)';
 
 const TAB_W = 48;
 const TAB_H = 190;
@@ -42,6 +43,7 @@ function trapezoidPath(w, h, slant, r) {
 
 export default function NavDrawer() {
   const [open, setOpen] = useState(false);
+  const [theme, setTheme] = useState(loadTheme);
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isGm, logout } = useAuth();
@@ -55,11 +57,11 @@ export default function NavDrawer() {
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, height: '100vh', display: 'flex', alignItems: 'stretch', zIndex: 40 }}>
       {open && (
-        <div style={{ width: 280, maxWidth: '85vw', height: '100vh', overflowY: 'auto', background: 'var(--panel)', borderRight: '1px solid var(--header-border)', boxShadow: '8px 0 30px #04070c99', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ width: 280, maxWidth: '85vw', height: '100vh', overflowY: 'auto', background: 'var(--panel)', borderRight: '1px solid var(--header-border)', boxShadow: '8px 0 30px var(--overlay)', display: 'flex', flexDirection: 'column' }}>
           <div style={{ background: 'var(--header)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10, position: 'sticky', top: 0, zIndex: 1 }}>
             <div className="dot" />
             <div className="title">НАВІГАЦІЯ</div>
-            <div style={{ fontSize: 11, color: '#9dc1e8', marginLeft: 'auto' }}>{user?.nick}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-info)', marginLeft: 'auto' }}>{user?.nick}</div>
           </div>
           <div style={{ padding: '14px 14px 0 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             {items.map((it) => {
@@ -77,7 +79,7 @@ export default function NavDrawer() {
                     width: '100%',
                     boxSizing: 'border-box',
                     textAlign: 'left',
-                    background: it.gold ? '#1a1409' : '#142031',
+                    background: it.gold ? 'var(--gm-item)' : 'var(--panel-inset)',
                     border: `1px solid ${it.gold ? GOLD_DIM : 'var(--input-border)'}`,
                     borderLeft: `3px solid ${current ? (it.gold ? GOLD : 'var(--accent)') : 'transparent'}`,
                     cursor: 'pointer',
@@ -93,7 +95,55 @@ export default function NavDrawer() {
               );
             })}
           </div>
-          <div style={{ marginTop: 'auto', padding: 14 }}>
+          <div style={{ marginTop: 'auto', padding: '14px 14px 0 14px' }}>
+            <div className="field-label">КОЛЬОРОВА ТЕМА</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {THEMES.map((t) => {
+                const current = theme === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    title={t.label}
+                    aria-label={t.label}
+                    aria-pressed={current}
+                    onClick={() => setTheme(applyTheme(t.id))}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'stretch',
+                      gap: 0,
+                      width: 56,
+                      padding: 0,
+                      overflow: 'hidden',
+                      border: `1px solid ${current ? 'var(--accent)' : 'var(--input-border)'}`,
+                      background: 'transparent',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ display: 'flex', height: 20 }}>
+                      {t.swatch.map((c) => (
+                        <span key={c} style={{ flex: 1, background: c }} />
+                      ))}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 8,
+                        letterSpacing: 0.5,
+                        padding: '3px 0',
+                        textAlign: 'center',
+                        color: current ? 'var(--text-bright)' : 'var(--text-dimmer)',
+                        fontFamily: "'Share Tech Mono',monospace",
+                      }}
+                    >
+                      {t.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div style={{ padding: 14 }}>
             <button
               type="button"
               onClick={logout}
@@ -102,7 +152,7 @@ export default function NavDrawer() {
                 width: '100%',
                 boxSizing: 'border-box',
                 textAlign: 'left',
-                background: '#151b26',
+                background: 'var(--panel-inset)',
                 border: '1px solid var(--input-border)',
                 cursor: 'pointer',
                 padding: '12px 16px',

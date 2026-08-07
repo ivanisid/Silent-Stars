@@ -5,8 +5,8 @@ import { api } from '../../api';
 // pilot_audit_log — the player can clear their visible action log, but not this.
 // Rendered only for GMs (and RLS returns nothing to anyone else anyway).
 
-const GOLD = '#e2b13c';
-const GOLD_DIM = '#6b5320';
+const GOLD = 'var(--gm)';
+const GOLD_DIM = 'var(--gm-dim)';
 
 function formatDate(iso) {
   const d = new Date(iso);
@@ -57,7 +57,7 @@ export default function GmAuditPanel({ pilotId }) {
   }
 
   return (
-    <div style={{ border: `1px solid ${open ? GOLD_DIM : '#2a2418'}`, background: '#12100a' }}>
+    <div style={{ border: `1px solid ${open ? GOLD_DIM : 'var(--gm-panel-border)'}`, background: 'var(--gm-panel)' }}>
       <button
         type="button"
         onClick={toggle}
@@ -104,7 +104,7 @@ export default function GmAuditPanel({ pilotId }) {
             {(rows || []).map((r, i) => {
               const logCleared = r.action === 'update' && r.logNewCount < r.logOldCount && r.logAdded.length === 0;
               return (
-                <div key={i} style={{ borderTop: '1px solid #2a241850', padding: '8px 0' }}>
+                <div key={i} style={{ borderTop: '1px solid var(--gm-rule)', padding: '8px 0' }}>
                   <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'baseline' }}>
                     <span style={{ fontSize: 11, color: 'var(--text-dimmer)', whiteSpace: 'nowrap' }}>{formatDate(r.changedAt)}</span>
                     <span style={{ fontSize: 11, color: GOLD, whiteSpace: 'nowrap' }}>{r.nick || 'невідомо'}</span>
@@ -125,7 +125,7 @@ export default function GmAuditPanel({ pilotId }) {
                   {r.logAdded.length > 0 && (
                     <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
                       {r.logAdded.map((e, j) => (
-                        <div key={j} style={{ fontSize: 11, color: '#8a97a8', paddingLeft: 12 }}>
+                        <div key={j} style={{ fontSize: 11, color: 'var(--text-grey)', paddingLeft: 12 }}>
                           › {e.msg}
                         </div>
                       ))}

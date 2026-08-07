@@ -9,7 +9,7 @@ export default function NarrativeEditor({ state, dispatch }) {
           onChange={(e) => dispatch({ type: 'SET_NARRATIVE', value: e.target.value })}
           rows={5}
           placeholder="Історія пілота…"
-          style={{ width: '100%', padding: '10px 12px', fontSize: 13, lineHeight: 1.7, color: '#c3d3e6', resize: 'vertical' }}
+          style={{ width: '100%', padding: '10px 12px', fontSize: 13, lineHeight: 1.7, color: 'var(--text-soft)', resize: 'vertical' }}
         />
       </div>
     </Card>

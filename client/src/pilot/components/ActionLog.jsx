@@ -19,9 +19,9 @@ export default function ActionLog({ state, dispatch }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
             {state.actionLog.map((entry, i) => (
-              <div key={i} style={{ fontSize: 12, borderTop: '1px solid #16233490', paddingTop: 6 }}>
+              <div key={i} style={{ fontSize: 12, borderTop: '1px solid var(--rule)', paddingTop: 6 }}>
                 <span style={{ color: 'var(--text-dimmer)' }}>{entry.ts}</span>{' '}
-                <span style={{ color: '#c3d3e6' }}>{entry.msg}</span>
+                <span style={{ color: 'var(--text-soft)' }}>{entry.msg}</span>
               </div>
             ))}
           </div>

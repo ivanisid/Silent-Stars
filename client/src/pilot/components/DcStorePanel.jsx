@@ -9,7 +9,7 @@ export default function DcStorePanel({ state, dispatch }) {
   const services = bufServices(state.hangar.owned);
 
   return (
-    <Card title="ОСОБИСТИЙ СКЛАД" right={<span style={{ fontSize: 11, color: '#9dc1e8' }}>DC</span>}>
+    <Card title="ОСОБИСТИЙ СКЛАД" right={<span style={{ fontSize: 11, color: 'var(--text-info)' }}>DC</span>}>
       <div style={{ padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <div className="title-font" style={{ fontSize: 36, color: 'var(--text-bright)' }}>{state.dcStore}</div>
@@ -20,8 +20,8 @@ export default function DcStorePanel({ state, dispatch }) {
             <svg key={i} width="18" height="21" viewBox="0 0 20 23" style={{ display: 'block' }}>
               <polygon
                 points="10,1 19,6.5 19,16.5 10,22 1,16.5 1,6.5"
-                fill={i < state.dcStore ? 'var(--accent)' : '#0c1826'}
-                stroke="#3a6390"
+                fill={i < state.dcStore ? 'var(--accent)' : 'var(--input-bg)'}
+                stroke="var(--accent-dim)"
                 strokeWidth="1.5"
               />
             </svg>
@@ -31,7 +31,7 @@ export default function DcStorePanel({ state, dispatch }) {
           <button className="btn" type="button" onClick={() => dispatch({ type: 'DC_STORE_DEC' })}>−1</button>
           <button className="btn" type="button" onClick={() => dispatch({ type: 'DC_STORE_INC' })}>+1</button>
         </div>
-        <div style={{ marginTop: 16, borderTop: '1px solid #16233490', paddingTop: 12 }}>
+        <div style={{ marginTop: 16, borderTop: '1px solid var(--rule)', paddingTop: 12 }}>
           <div className="field-label">ОБМІН DC</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {services.map((svc) => (

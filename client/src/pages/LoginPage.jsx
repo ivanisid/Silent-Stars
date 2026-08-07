@@ -57,7 +57,7 @@ export default function LoginPage() {
     cursor: 'pointer',
     border: 'none',
     borderBottom: `2px solid ${on ? 'var(--accent)' : 'transparent'}`,
-    background: on ? '#12233a' : 'transparent',
+    background: on ? 'var(--panel-inset)' : 'transparent',
     color: on ? 'var(--text)' : 'var(--text-dimmer)',
   });
 
@@ -70,7 +70,7 @@ export default function LoginPage() {
         justifyContent: 'center',
         padding: 24,
         boxSizing: 'border-box',
-        background: 'radial-gradient(ellipse at 50% 0%, #0d1a2c 0%, #070d16 70%)',
+        background: 'radial-gradient(ellipse at 50% 0%, var(--page-grad) 0%, var(--bg) 70%)',
       }}
     >
       <div style={{ width: 460, maxWidth: '100%' }}>
@@ -142,7 +142,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <div style={{ marginTop: 14, fontSize: 10, color: '#3d5573', letterSpacing: 1, textAlign: 'center' }}>
+        <div style={{ marginTop: 14, fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>
           UNION ADMINISTRATIVE // AUTHORIZED PERSONNEL ONLY
         </div>
       </div>

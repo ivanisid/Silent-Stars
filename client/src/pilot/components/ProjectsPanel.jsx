@@ -17,7 +17,7 @@ export default function ProjectsPanel({ state, dispatch }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 14, alignItems: 'center' }}>
                 <div>
                   <div style={{ fontSize: 15, color: 'var(--text-bright)' }}>{p.name}</div>
-                  <div style={{ fontSize: 12, color: '#8ba5c3', marginTop: 4 }}>{p.note}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-soft-dim)', marginTop: 4 }}>{p.note}</div>
                 </div>
                 <button
                   type="button"
@@ -30,10 +30,10 @@ export default function ProjectsPanel({ state, dispatch }) {
                   ВИДАЛИТИ
                 </button>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderTop: '1px solid #16233490', paddingTop: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderTop: '1px solid var(--rule)', paddingTop: 10 }}>
                 <div style={{ display: 'flex', gap: 5 }}>
                   {[1, 2, 3].map((s) => (
-                    <div key={s} style={{ width: 16, height: 16, border: '2px solid #2a4a70', background: s <= stage ? 'var(--accent)' : 'var(--input-bg)' }} />
+                    <div key={s} style={{ width: 16, height: 16, border: '2px solid var(--header-border)', background: s <= stage ? 'var(--accent)' : 'var(--input-bg)' }} />
                   ))}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>

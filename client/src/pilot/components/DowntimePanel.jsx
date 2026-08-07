@@ -7,7 +7,7 @@ function tierColor(tier) {
   if (tier === '20+') return 'var(--success)';
   if (tier === '10–19') return 'var(--warn)';
   if (tier === '1–9') return 'var(--danger)';
-  return '#c3d3e6';
+  return 'var(--text-soft)';
 }
 
 export default function DowntimePanel({ state, dispatch, data, pool, title, capLabel, resetLabel }) {
@@ -34,7 +34,7 @@ export default function DowntimePanel({ state, dispatch, data, pool, title, capL
           const curMod = state.downtime.modifiers[d.key] || 0;
 
           return (
-            <div key={d.key} style={{ borderBottom: '1px solid #16233490' }}>
+            <div key={d.key} style={{ borderBottom: '1px solid var(--rule)' }}>
               <button
                 type="button"
                 onClick={() => dispatch({ type: 'TOGGLE_DOWNTIME', key: d.key })}
@@ -58,7 +58,7 @@ export default function DowntimePanel({ state, dispatch, data, pool, title, capL
               {open && (
                 <div style={{ padding: '0 20px 18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {d.trigger && <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{d.trigger}</div>}
-                  {d.note && <div style={{ fontSize: 12, color: '#8ba5c3', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{d.note}</div>}
+                  {d.note && <div style={{ fontSize: 12, color: 'var(--text-soft-dim)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{d.note}</div>}
 
                   {d.isSkillPanel && (
                     <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
@@ -150,7 +150,7 @@ export default function DowntimePanel({ state, dispatch, data, pool, title, capL
                         </div>
                       )}
                       {roll && (
-                        <div style={{ fontSize: 12, color: '#8ba5c3', lineHeight: 1.6, whiteSpace: 'pre-line', borderLeft: `2px solid ${tierColor(roll.tier)}`, paddingLeft: 12 }}>
+                        <div style={{ fontSize: 12, color: 'var(--text-soft-dim)', lineHeight: 1.6, whiteSpace: 'pre-line', borderLeft: `2px solid ${tierColor(roll.tier)}`, paddingLeft: 12 }}>
                           {roll.tier === '20+' ? d.tiers.high : roll.tier === '10–19' ? d.tiers.mid : d.tiers.low}
                         </div>
                       )}

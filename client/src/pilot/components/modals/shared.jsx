@@ -31,7 +31,7 @@ export function AllocRows({ mech, alloc, limitLeft, onShift }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {mech.limited.map((li, idx) => (
           <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ fontSize: 12, color: '#c3d3e6', flex: 1 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-soft)', flex: 1 }}>
               {li.name} ({li.current}/{li.max})
             </div>
             <button type="button" onClick={() => onShift(idx, -1)} style={{ background: 'var(--btn-bg)', color: 'var(--text)', border: '1px solid var(--btn-border)', padding: '4px 10px', fontSize: 12 }}>−</button>

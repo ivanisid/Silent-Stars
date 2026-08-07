@@ -1,22 +1,53 @@
+/* Every colour in the app comes from one of these variables, so a theme is just a
+   different set of values on :root. The UNION palette below is the original one —
+   the other themes only override the hue-carrying variables further down.
+
+   GM colours (gold accent, GM panel surfaces) are deliberately NOT themed: they
+   signal "you are acting as GM" and stay recognisable in every theme. */
+
 :root {
+  /* surfaces */
   --bg: #070d16;
   --bg-alt: #070b12;
+  --page-grad: #0d1a2c;
+  --dot: #132033;
   --panel: #0e1622;
   --panel-border: #1c2f45;
+  --panel-inset: #101c2c;
+  --panel-sunken: #0c1420;
   --header: #17385c;
+  --header-strong: #132a47;
   --header-border: #2a4a70;
+  --rule: #16233490;
+  --overlay: #04070ccc;
+  --shadow: #04070c;
+  --scrollbar: #1c2b3d;
+
+  /* accents */
   --accent: #5fb3ff;
   --accent-hover: #8fd0ff;
+  --accent-dim: #3a6390;
+
+  /* text */
   --text: #e7edf5;
   --text-bright: #f2f6fb;
+  --text-soft: #c3d3e6;
+  --text-soft-dim: #8ba5c3;
+  --text-info: #9dc1e8;
   --text-dim: #7fa6cf;
   --text-dimmer: #5c7594;
   --text-muted: #6f8bab;
+  --text-grey: #8a97a8;
+  --text-faint: #3d5573;
+
+  /* inputs & buttons */
   --input-bg: #0c1826;
   --input-border: #24405e;
   --btn-bg: #1c3d63;
   --btn-border: #315a86;
   --btn-hover: #25507f;
+
+  /* status */
   --danger: #e2755f;
   --danger-bg: #1c0f0b;
   --danger-border: #5c2c22;
@@ -26,6 +57,143 @@
   --warn: #e2c25f;
   --warn-bg: #3a2716;
   --warn-border: #6b4a24;
+  --ok-bg: #123423;
+  --ok-border: #2f6b46;
+  --bad-bg: #331b1b;
+  --bad-border: #5a2f2f;
+
+  /* GM — shared by every theme on purpose */
+  --gm: #e2b13c;
+  --gm-dim: #6b5320;
+  --gm-rule: #2a241850;
+  --gm-panel: #12100a;
+  --gm-panel-border: #2a2418;
+  --gm-item: #1a1409;
+  --gm-page-grad: #1a0d14;
+  --gm-page-bg: #0d070b;
+  --gm-card: #160e13;
+  --gm-card-border: #3a2733;
+  --gm-foot: #5a3d51;
+}
+
+/* ГЕСПЕРА — rust and ember, like a hangar lit by cutting torches */
+:root[data-theme='hespera'] {
+  --bg: #150c08;
+  --bg-alt: #120a06;
+  --page-grad: #2c1509;
+  --dot: #331b0f;
+  --panel: #1a100a;
+  --panel-border: #452718;
+  --panel-inset: #241409;
+  --panel-sunken: #180d07;
+  --header: #5c3117;
+  --header-strong: #47250f;
+  --header-border: #70431f;
+  --rule: #34211490;
+  --overlay: #0c0603cc;
+  --shadow: #0c0603;
+  --scrollbar: #3d2415;
+
+  --accent: #ff9a4d;
+  --accent-hover: #ffc08a;
+  --accent-dim: #90603a;
+
+  --text: #f5ece7;
+  --text-bright: #fbf5f2;
+  --text-soft: #e6d3c3;
+  --text-soft-dim: #c39d8b;
+  --text-info: #e8b78d;
+  --text-dim: #cf9a7f;
+  --text-dimmer: #94705c;
+  --text-muted: #ab876f;
+  --text-grey: #a89588;
+  --text-faint: #73513d;
+
+  --input-bg: #1e1109;
+  --input-border: #5e3a24;
+  --btn-bg: #63351c;
+  --btn-border: #86502d;
+  --btn-hover: #7f4526;
+}
+
+/* КАРАНТИН — sickly green terminal glow */
+:root[data-theme='quarantine'] {
+  --bg: #060f0a;
+  --bg-alt: #050c08;
+  --page-grad: #0a2418;
+  --dot: #103324;
+  --panel: #081a12;
+  --panel-border: #17402d;
+  --panel-inset: #0b2418;
+  --panel-sunken: #071510;
+  --header: #14512f;
+  --header-strong: #113f27;
+  --header-border: #1f6b40;
+  --rule: #14342390;
+  --overlay: #030b07cc;
+  --shadow: #030b07;
+  --scrollbar: #15402b;
+
+  --accent: #5fe39a;
+  --accent-hover: #92f2bd;
+  --accent-dim: #387f57;
+
+  --text: #e7f5ec;
+  --text-bright: #f2fbf5;
+  --text-soft: #c0e6cf;
+  --text-soft-dim: #86c3a0;
+  --text-info: #9de8bb;
+  --text-dim: #74cf9c;
+  --text-dimmer: #4f8f6b;
+  --text-muted: #6cab88;
+  --text-grey: #88a894;
+  --text-faint: #33734f;
+
+  --input-bg: #071c13;
+  --input-border: #205a3b;
+  --btn-bg: #17542f;
+  --btn-border: #2b8351;
+  --btn-hover: #1e6c3d;
+}
+
+/* ПУСТКА — cold violet, deep-space run */
+:root[data-theme='void'] {
+  --bg: #0d0916;
+  --bg-alt: #0a0712;
+  --page-grad: #1b0f2c;
+  --dot: #241638;
+  --panel: #150e22;
+  --panel-border: #33224d;
+  --panel-inset: #1d1330;
+  --panel-sunken: #110b1c;
+  --header: #3d2170;
+  --header-strong: #2f1a55;
+  --header-border: #573286;
+  --rule: #23183490;
+  --overlay: #060310cc;
+  --shadow: #060310;
+  --scrollbar: #2c1c45;
+
+  --accent: #b98cff;
+  --accent-hover: #d4bbff;
+  --accent-dim: #6d4f9c;
+
+  --text: #efe9f7;
+  --text-bright: #f7f2fc;
+  --text-soft: #d5c6ec;
+  --text-soft-dim: #a68ecb;
+  --text-info: #c1a3f0;
+  --text-dim: #a785d6;
+  --text-dimmer: #75609a;
+  --text-muted: #8f76b5;
+  --text-grey: #9a90ab;
+  --text-faint: #503d75;
+
+  --input-bg: #150d26;
+  --input-border: #402b63;
+  --btn-bg: #3c2568;
+  --btn-border: #5e3d94;
+  --btn-hover: #4b2f81;
 }
 
 * { box-sizing: border-box; }
@@ -61,7 +229,7 @@ button {
 }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: #1c2b3d; border-radius: 0; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 0; }
 
 .title-font {
   font-family: 'Rajdhani', sans-serif;
@@ -143,7 +311,7 @@ button {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: #04070ccc;
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
