@@ -126,7 +126,7 @@ function CreateSlotForm({ onCreated }) {
   );
 }
 
-function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
+function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
   const [pilotId, setPilotId] = useState('');
   const [mechId, setMechId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -142,6 +142,9 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
   const mySignup = slot.signups.find((g) => g.userId === user.id);
   const contest = slot.signups.length > slot.seats;
   const deadlinePassed = new Date(slot.signupDeadline) < new Date();
+  // Running the game is what grants the controls, not being a GM: another GM is an
+  // ordinary player here, and the person running it does not play in it.
+  const ownsSlot = slot.createdBy === user.id;
 
   // A mech is only worth asking about when the pilot actually has a choice to make.
   const chosenPilot = myPilots.find((p) => p.id === pilotId);
@@ -178,6 +181,12 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
       </div>
       <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 12, color: 'var(--text-dim)' }}>
+          <span>
+            ВЕДЕ:{' '}
+            <span style={{ color: ownsSlot ? GOLD : 'var(--text-bright)' }}>
+              {slot.createdByNick || '—'}{ownsSlot ? ' (ви)' : ''}
+            </span>
+          </span>
           <span>ГРА: <span style={{ color: 'var(--text-bright)' }}>{formatDT(slot.gameAt)}</span></span>
           <span>НАБІР ДО: <span style={{ color: deadlinePassed && isOpen ? 'var(--warn)' : 'var(--text-bright)' }}>{formatDT(slot.signupDeadline)}</span></span>
           <span>МІСЦЬ: <span style={{ color: 'var(--text-bright)' }}>{slot.seats}</span></span>
@@ -218,7 +227,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
                     border: `1px solid ${mine ? 'var(--input-border)' : 'var(--rule)'}`,
                   }}
                 >
-                  {isGm && isOpen && (
+                  {ownsSlot && isOpen && (
                     <input
                       type="checkbox"
                       checked={picked.has(g.id)}
@@ -259,8 +268,13 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
 
         {error && <div className="error-box">{error}</div>}
 
-        {/* Player actions */}
-        {isOpen && !mySignup && (
+        {/* Player actions — the GM running this game does not play in it */}
+        {ownsSlot && isOpen && (
+          <div style={{ fontSize: 11, color: 'var(--text-dimmer)', letterSpacing: 1 }}>
+            ВИ ВЕДЕТЕ ЦЮ ГРУ — ЗАПИС ВЛАСНИМ ПЕРСОНАЖЕМ НЕДОСТУПНИЙ
+          </div>
+        )}
+        {isOpen && !mySignup && !ownsSlot && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <select
               value={pilotId}
@@ -312,7 +326,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
         )}
 
         {/* GM actions */}
-        {isGm && isOpen && (
+        {ownsSlot && isOpen && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', borderTop: `1px solid var(--gm-rule)`, paddingTop: 12 }}>
             {editReward ? (
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', width: '100%' }}>
@@ -387,7 +401,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
             </button>
           </div>
         )}
-        {isGm && !isOpen && (
+        {ownsSlot && !isOpen && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', borderTop: `1px solid var(--gm-rule)`, paddingTop: 12 }}>
             <button
               className="btn-ghost"
@@ -487,7 +501,6 @@ export default function BoardPage() {
               key={slot.id}
               slot={slot}
               user={user}
-              isGm={isGm}
               myPilots={myPilots}
               myBonus={myBonus}
               onChanged={reload}
