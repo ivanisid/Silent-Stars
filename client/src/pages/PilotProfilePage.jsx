@@ -38,6 +38,8 @@ export default function PilotProfilePage() {
   const [loadError, setLoadError] = useState('');
   const [state, dispatch] = useReducer(pilotReducer, null);
   const [saveStatus, setSaveStatus] = useState('saved');
+  // Bumped after every successful save so the history panels know to re-read.
+  const [savedTick, setSavedTick] = useState(0);
 
   const saveTimer = useRef(null);
   const isFirstStateSet = useRef(true);
@@ -83,6 +85,10 @@ export default function PilotProfilePage() {
       try {
         await api.updatePilot(id, { state });
         setSaveStatus('saved');
+        // A save is what creates an audit row, so the history panels are stale until
+        // they re-read. Without this they only ever show what existed at page load,
+        // and a purchase made since looks like it was never recorded.
+        setSavedTick((t) => t + 1);
       } catch {
         setSaveStatus('saved');
       }
@@ -167,8 +173,8 @@ export default function PilotProfilePage() {
         {/* Shown to everyone, GMs included: this is the everyday undo, and hiding it
             behind the collapsed GM panel made the feature invisible to a GM. The GM
             panel below stays as the forensic view (who changed what, journal clears). */}
-        <ChangeLogPanel pilotId={id} onReverted={reloadPilot} />
-        {isGm && <GmAuditPanel pilotId={id} onReverted={reloadPilot} />}
+        <ChangeLogPanel pilotId={id} refreshKey={savedTick} onReverted={reloadPilot} />
+        {isGm && <GmAuditPanel pilotId={id} refreshKey={savedTick} onReverted={reloadPilot} />}
       </div>
 
       <ShopDrawer state={state} dispatch={dispatch} />

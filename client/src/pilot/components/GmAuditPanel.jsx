@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../../api';
 import { Delta } from './ChangeLogPanel.jsx';
 
@@ -16,7 +16,7 @@ function formatDate(iso) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-export default function GmAuditPanel({ pilotId, onReverted }) {
+export default function GmAuditPanel({ pilotId, refreshKey, onReverted }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -58,6 +58,13 @@ export default function GmAuditPanel({ pilotId, onReverted }) {
     setOpen(next);
     if (next && rows === null) load();
   }
+
+  // Keep an already-open panel current as the pilot is edited; stay quiet while
+  // it's collapsed so a GM reading a profile isn't polling the audit log.
+  useEffect(() => {
+    if (open) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   return (
     <div style={{ border: `1px solid ${open ? GOLD_DIM : 'var(--gm-panel-border)'}`, background: 'var(--gm-panel)' }}>
