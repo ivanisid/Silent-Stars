@@ -198,6 +198,31 @@ export const api = {
     return { ok: true };
   },
 
+  // A pilot's own recorded changes, for the owner (and the GM). Narrower than the GM
+  // feed on purpose — it carries no journal-clear signal.
+  pilotChangeLog: async (pilotId) => {
+    const { data, error } = await supabase.rpc('pilot_change_log', { p_pilot_id: pilotId });
+    if (error) throw new Error(error.message);
+    return data.map((row) => ({
+      id: row.id,
+      changedAt: row.changed_at,
+      revertible: row.revertible,
+      manaOld: row.mana_old === null ? null : Number(row.mana_old),
+      manaNew: row.mana_new === null ? null : Number(row.mana_new),
+      dcOld: row.dc_old === null ? null : Number(row.dc_old),
+      dcNew: row.dc_new === null ? null : Number(row.dc_new),
+      logAdded: row.log_added || [],
+    }));
+  },
+
+  // Restores the state captured before one recorded change. The restore is itself
+  // written to the audit log, so an undo can't erase the trail.
+  revertPilotState: async (auditId) => {
+    const { error } = await supabase.rpc('revert_pilot_state', { p_audit_id: auditId });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
   // Hidden GM audit: mana/DC operations distilled server-side from pilot_audit_log,
   // which the player cannot clear (unlike the visible action log). RLS makes this
   // return an empty list for non-GMs.
@@ -205,6 +230,8 @@ export const api = {
     const { data, error } = await supabase.rpc('gm_pilot_resource_log', { p_pilot_id: pilotId });
     if (error) throw new Error(error.message);
     return data.map((row) => ({
+      id: row.id,
+      revertible: row.revertible,
       changedAt: row.changed_at,
       nick: row.changed_by_nick,
       action: row.action,

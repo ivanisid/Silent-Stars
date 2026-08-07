@@ -19,6 +19,7 @@ import HangarPanel from '../pilot/components/HangarPanel.jsx';
 import MechsPanel from '../pilot/components/MechsPanel.jsx';
 import ActionLog from '../pilot/components/ActionLog.jsx';
 import GmAuditPanel from '../pilot/components/GmAuditPanel.jsx';
+import ChangeLogPanel from '../pilot/components/ChangeLogPanel.jsx';
 import NavDrawer from '../components/NavDrawer.jsx';
 import NarrativeEditor from '../pilot/components/NarrativeEditor.jsx';
 
@@ -56,6 +57,18 @@ export default function PilotProfilePage() {
       cancelled = true;
     };
   }, [id]);
+
+  // After a server-side revert the in-memory state is stale, and the autosave below
+  // would write it straight back over the restored one. Re-read and re-seed instead,
+  // cancelling any save still pending from before the revert.
+  async function reloadPilot() {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    const p = await api.getPilot(id);
+    setPilot(p);
+    isFirstStateSet.current = true;
+    dispatch({ type: '__INIT__', state: p.state });
+    setSaveStatus('saved');
+  }
 
   // Debounced autosave whenever pilot mechanics state changes.
   useEffect(() => {
@@ -151,7 +164,12 @@ export default function PilotProfilePage() {
         <HangarPanel state={state} dispatch={dispatch} />
         <NarrativeEditor state={state} dispatch={dispatch} />
         <ActionLog state={state} dispatch={dispatch} />
-        {isGm && <GmAuditPanel pilotId={id} />}
+        {/* The GM panel is a superset of the plain one, so GMs get only that. */}
+        {isGm ? (
+          <GmAuditPanel pilotId={id} onReverted={reloadPilot} />
+        ) : (
+          <ChangeLogPanel pilotId={id} onReverted={reloadPilot} />
+        )}
       </div>
 
       <ShopDrawer state={state} dispatch={dispatch} />
