@@ -150,14 +150,26 @@ export const api = {
     return data;
   },
 
-  gmCreateSlot: async ({ title, description, gameAt, signupDeadline, seats }) => {
+  gmCreateSlot: async ({ title, description, gameAt, signupDeadline, seats, rewardMana, rewardDc }) => {
     const { error } = await supabase.from('game_slots').insert({
       title: title.trim(),
       description: description.trim(),
       game_at: gameAt,
       signup_deadline: signupDeadline,
       seats,
+      reward_mana: rewardMana,
+      reward_dc: rewardDc,
     });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
+  // Reward stays editable until the slot is closed — closing is what pays it out.
+  gmUpdateSlotReward: async (slotId, { rewardMana, rewardDc }) => {
+    const { error } = await supabase
+      .from('game_slots')
+      .update({ reward_mana: rewardMana, reward_dc: rewardDc })
+      .eq('id', slotId);
     if (error) throw new Error(error.message);
     return { ok: true };
   },
