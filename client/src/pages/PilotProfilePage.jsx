@@ -164,12 +164,11 @@ export default function PilotProfilePage() {
         <HangarPanel state={state} dispatch={dispatch} />
         <NarrativeEditor state={state} dispatch={dispatch} />
         <ActionLog state={state} dispatch={dispatch} />
-        {/* The GM panel is a superset of the plain one, so GMs get only that. */}
-        {isGm ? (
-          <GmAuditPanel pilotId={id} onReverted={reloadPilot} />
-        ) : (
-          <ChangeLogPanel pilotId={id} onReverted={reloadPilot} />
-        )}
+        {/* Shown to everyone, GMs included: this is the everyday undo, and hiding it
+            behind the collapsed GM panel made the feature invisible to a GM. The GM
+            panel below stays as the forensic view (who changed what, journal clears). */}
+        <ChangeLogPanel pilotId={id} onReverted={reloadPilot} />
+        {isGm && <GmAuditPanel pilotId={id} onReverted={reloadPilot} />}
       </div>
 
       <ShopDrawer state={state} dispatch={dispatch} />
