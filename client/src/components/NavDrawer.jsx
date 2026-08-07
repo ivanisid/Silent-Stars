@@ -8,6 +8,38 @@ import { useAuth } from '../context/AuthContext.jsx';
 const GOLD = '#e2b13c';
 const GOLD_DIM = '#6b5320';
 
+const TAB_W = 48;
+const TAB_H = 190;
+const TAB_SLANT = 26; // how far the outer edge tapers in, top and bottom
+const TAB_RADIUS = 14;
+
+// Tab shape: flush against the screen edge on the left, tapering to a shorter outer
+// edge on the right — a trapezoid whose two visible corners are rounded off.
+function trapezoidPath(w, h, slant, r) {
+  const corners = [
+    [0, 0],
+    [w, slant],
+    [w, h - slant],
+    [0, h],
+  ];
+  const toward = (from, to, dist) => {
+    const dx = to[0] - from[0];
+    const dy = to[1] - from[1];
+    const len = Math.hypot(dx, dy) || 1;
+    const d = Math.min(dist, len / 2);
+    return [from[0] + (dx / len) * d, from[1] + (dy / len) * d];
+  };
+
+  const [a, b, c, d] = corners;
+  const bIn = toward(b, a, r);
+  const bOut = toward(b, c, r);
+  const cIn = toward(c, b, r);
+  const cOut = toward(c, d, r);
+  const pt = (p) => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`;
+
+  return `M ${pt(a)} L ${pt(bIn)} Q ${pt(b)} ${pt(bOut)} L ${pt(cIn)} Q ${pt(c)} ${pt(cOut)} L ${pt(d)} Z`;
+}
+
 export default function NavDrawer() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
@@ -89,22 +121,46 @@ export default function NavDrawer() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-label="Меню"
         style={{
           alignSelf: 'center',
-          background: 'var(--header)',
-          border: `1px solid ${isGm ? GOLD_DIM : 'var(--header-border)'}`,
-          borderLeft: 'none',
+          position: 'relative',
+          width: TAB_W,
+          height: TAB_H,
+          padding: 0,
+          background: 'transparent',
+          border: 'none',
           color: 'var(--text)',
           cursor: 'pointer',
-          padding: '16px 8px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 8,
         }}
       >
-        <span style={{ color: isGm ? GOLD : 'var(--accent)', fontSize: 14 }}>{open ? '←' : '→'}</span>
-        <span style={{ writingMode: 'vertical-rl', fontSize: 11, letterSpacing: 3 }}>МЕНЮ</span>
+        <svg
+          viewBox={`0 0 ${TAB_W} ${TAB_H}`}
+          width={TAB_W}
+          height={TAB_H}
+          style={{ position: 'absolute', inset: 0, display: 'block' }}
+        >
+          <path
+            d={trapezoidPath(TAB_W - 1, TAB_H - 1, TAB_SLANT, TAB_RADIUS)}
+            fill="var(--header)"
+            stroke={isGm ? GOLD_DIM : 'var(--header-border)'}
+            strokeWidth="1"
+          />
+        </svg>
+        <span
+          style={{
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+            gap: 10,
+          }}
+        >
+          <span style={{ color: isGm ? GOLD : 'var(--accent)', fontSize: 17 }}>{open ? '←' : '→'}</span>
+          <span style={{ writingMode: 'vertical-rl', fontSize: 14, letterSpacing: 5 }}>МЕНЮ</span>
+        </span>
       </button>
     </div>
   );

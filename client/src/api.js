@@ -50,6 +50,7 @@ function toPilotSummary(row) {
     mana: row.state?.mana?.balance ?? 0,
     stress: row.state?.stress ?? 0,
     mechCount: row.state?.mechs?.length || 0,
+    mechs: (row.state?.mechs || []).map((m) => ({ id: String(m.id), name: m.name })),
     updatedAt: row.updated_at,
   };
 }
@@ -128,11 +129,16 @@ export const api = {
     return data || [];
   },
 
-  boardSignup: async (slotId, pilotId) => {
-    const { error } = await supabase.from('game_signups').insert({ slot_id: slotId, pilot_id: pilotId });
+  boardSignup: async (slotId, pilotId, mech) => {
+    const { error } = await supabase.from('game_signups').insert({
+      slot_id: slotId,
+      pilot_id: pilotId,
+      mech_id: mech?.id || null,
+      mech_name: mech?.name || null,
+    });
     if (error) {
       if (error.code === '23505') throw new Error('Ви вже записані на цю гру.');
-      if (error.code === '42501') throw new Error('Запис недоступний — набір закрито або дедлайн минув.');
+      if (error.code === '42501') throw new Error('Запис недоступний — набір уже закрито.');
       throw new Error(error.message);
     }
     return { ok: true };

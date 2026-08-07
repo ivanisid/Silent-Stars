@@ -3,6 +3,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { computeLL, llTier } from '../pilot/logic';
 import NavDrawer from '../components/NavDrawer.jsx';
+import DateTimeField from '../components/DateTimeField.jsx';
 
 const GOLD = '#e2b13c';
 const GOLD_DIM = '#6b5320';
@@ -17,7 +18,8 @@ function formatDT(iso) {
 function statusBadge(slot) {
   if (slot.status === 'cancelled') return { text: 'СКАСОВАНО', color: 'var(--danger)' };
   if (slot.status === 'closed') return { text: 'СКЛАД ЗАТВЕРДЖЕНО', color: 'var(--success)' };
-  if (new Date(slot.signupDeadline) < new Date()) return { text: 'НАБІР ЗАВЕРШЕНО · РІШЕННЯ ЗА ГМ', color: 'var(--warn)' };
+  // The deadline is a hint for players, not a lock — only the GM closing the slot ends signup.
+  if (new Date(slot.signupDeadline) < new Date()) return { text: 'ДЕДЛАЙН МИНУВ · НАБІР ЩЕ ВІДКРИТО', color: 'var(--warn)' };
   return { text: 'НАБІР ВІДКРИТО', color: 'var(--accent)' };
 }
 
@@ -26,8 +28,8 @@ function CreateSlotForm({ onCreated }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [gameAt, setGameAt] = useState('');
-  const [deadline, setDeadline] = useState('');
+  const [gameAt, setGameAt] = useState(null);
+  const [deadline, setDeadline] = useState(null);
   const [seats, setSeats] = useState(4);
   const [rewardMana, setRewardMana] = useState(0);
   const [rewardDc, setRewardDc] = useState(0);
@@ -50,16 +52,16 @@ function CreateSlotForm({ onCreated }) {
       await api.gmCreateSlot({
         title,
         description,
-        gameAt: new Date(gameAt).toISOString(),
-        signupDeadline: new Date(deadline).toISOString(),
+        gameAt: gameAt.toISOString(),
+        signupDeadline: deadline.toISOString(),
         seats: seatsNum,
         rewardMana: manaNum,
         rewardDc: dcNum,
       });
       setTitle('');
       setDescription('');
-      setGameAt('');
-      setDeadline('');
+      setGameAt(null);
+      setDeadline(null);
       setSeats(4);
       setRewardMana(0);
       setRewardDc(0);
@@ -95,14 +97,8 @@ function CreateSlotForm({ onCreated }) {
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Короткий опис гри…" style={{ width: '100%', padding: '9px 12px', fontSize: 13, lineHeight: 1.6, resize: 'vertical' }} />
         </div>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-          <div>
-            <div className="field-label">ДАТА ПРОВЕДЕННЯ</div>
-            <input type="datetime-local" value={gameAt} onChange={(e) => setGameAt(e.target.value)} style={{ padding: '8px 10px', fontSize: 13 }} />
-          </div>
-          <div>
-            <div className="field-label">КІНЕЦЬ НАБОРУ</div>
-            <input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ padding: '8px 10px', fontSize: 13 }} />
-          </div>
+          <DateTimeField label="ДАТА ПРОВЕДЕННЯ" value={gameAt} onChange={setGameAt} />
+          <DateTimeField label="КІНЕЦЬ НАБОРУ" value={deadline} onChange={setDeadline} />
           <div>
             <div className="field-label">МІСЦЬ</div>
             <input type="number" min={1} max={20} value={seats} onChange={(e) => setSeats(e.target.value)} style={{ width: 70, padding: '8px 10px', fontSize: 13 }} />
@@ -132,6 +128,7 @@ function CreateSlotForm({ onCreated }) {
 
 function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
   const [pilotId, setPilotId] = useState('');
+  const [mechId, setMechId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   // GM roster picks (signup ids) before resolving.
@@ -142,9 +139,14 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
 
   const badge = statusBadge(slot);
   const isOpen = slot.status === 'open';
-  const deadlinePassed = new Date(slot.signupDeadline) < new Date();
   const mySignup = slot.signups.find((g) => g.userId === user.id);
   const contest = slot.signups.length > slot.seats;
+  const deadlinePassed = new Date(slot.signupDeadline) < new Date();
+
+  // A mech is only worth asking about when the pilot actually has a choice to make.
+  const chosenPilot = myPilots.find((p) => p.id === pilotId);
+  const mechs = chosenPilot?.mechs || [];
+  const needsMechChoice = mechs.length > 1;
 
   async function run(fn) {
     setBusy(true);
@@ -228,6 +230,9 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
                   <span style={{ color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
                     ЛЛ {computeLL(g.games)} · Т{llTier(computeLL(g.games))}
                   </span>
+                  {g.mech && (
+                    <span style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>▮ {g.mech}</span>
+                  )}
                   <span style={{ color: 'var(--text-dimmer)' }}>{g.nick || 'невідомо'}</span>
                   <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
                     {g.roll !== null ? (
@@ -255,19 +260,39 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
         {error && <div className="error-box">{error}</div>}
 
         {/* Player actions */}
-        {isOpen && !mySignup && !deadlinePassed && (
+        {isOpen && !mySignup && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <select value={pilotId} onChange={(e) => setPilotId(e.target.value)} style={{ padding: '8px 10px', fontSize: 13 }}>
+            <select
+              value={pilotId}
+              onChange={(e) => {
+                setPilotId(e.target.value);
+                setMechId('');
+              }}
+              style={{ padding: '8px 10px', fontSize: 13 }}
+            >
               <option value="">— оберіть персонажа —</option>
               {myPilots.map((p) => (
                 <option key={p.id} value={p.id}>{p.callsign} ({p.name})</option>
               ))}
             </select>
+            {needsMechChoice && (
+              <select value={mechId} onChange={(e) => setMechId(e.target.value)} style={{ padding: '8px 10px', fontSize: 13 }}>
+                <option value="">— оберіть меха —</option>
+                {mechs.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            )}
             <button
               className="btn"
               type="button"
-              disabled={busy || !pilotId}
-              onClick={() => run(() => api.boardSignup(slot.id, pilotId))}
+              disabled={busy || !pilotId || (needsMechChoice && !mechId)}
+              onClick={() => {
+                const mech = needsMechChoice
+                  ? mechs.find((m) => m.id === mechId)
+                  : mechs[0]; // single mech needs no asking; none means none
+                run(() => api.boardSignup(slot.id, pilotId, mech));
+              }}
             >
               ЗАПИСАТИСЬ
             </button>
