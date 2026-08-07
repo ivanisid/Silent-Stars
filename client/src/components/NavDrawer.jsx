@@ -11,7 +11,7 @@ const GOLD_DIM = '#6b5320';
 const TAB_W = 48;
 const TAB_H = 190;
 const TAB_SLANT = 26; // how far the outer edge tapers in, top and bottom
-const TAB_RADIUS = 14;
+const TAB_RADIUS = 5; // just enough to take the point off the corners, edges stay straight
 
 // Tab shape: flush against the screen edge on the left, tapering to a shorter outer
 // edge on the right — a trapezoid whose two visible corners are rounded off.
