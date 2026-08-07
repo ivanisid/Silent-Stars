@@ -1,68 +1,64 @@
-/* Every colour in the app comes from one of these variables, so a theme is just a
-   different set of values on :root. The UNION palette below is the original one —
-   the other themes only override the hue-carrying variables further down.
-
-   GM colours (gold accent, GM panel surfaces) are deliberately NOT themed: they
-   signal "you are acting as GM" and stay recognisable in every theme. */
+/* Colour themes ported from COMP/CON (github.com/massif-press/compcon), whose
+   palettes are the ones Lancer players already know. Each theme is a block of
+   CSS variables selected by data-theme on <html>; GMS Dark is the bare :root
+   default. Values are derived from COMP/CON's own theme files — background,
+   panel, primary, accent and the text tiers are taken verbatim, the remaining
+   surfaces and states are mixed from them so every theme stays internally
+   consistent. FORECAST/GALSIM and the solarized pair are community themes by
+   vialra, Asger Toft, thecrystalwoods and Suji. */
 
 :root {
-  /* surfaces */
-  --bg: #070d16;
-  --bg-alt: #070b12;
-  --page-grad: #0d1a2c;
-  --dot: #132033;
-  --panel: #0e1622;
-  --panel-border: #1c2f45;
-  --panel-inset: #101c2c;
-  --panel-sunken: #0c1420;
-  --header: #17385c;
-  --header-strong: #132a47;
-  --header-border: #2a4a70;
-  --rule: #16233490;
-  --overlay: #04070ccc;
-  --shadow: #04070c;
-  --scrollbar: #1c2b3d;
+  --bg: #11151c;
+  --bg-alt: #0d1015;
+  --page-grad: #4e2028;
+  --dot: #292c33;
+  --panel: #212d40;
+  --panel-border: #242b39;
+  --panel-inset: #2e3a4b;
+  --panel-sunken: #17202d;
+  --header: #802932;
+  --header-strong: #692229;
+  --header-text: #ffffff;
+  --btn-text: #ffffff;
+  --header-border: #d93f4e;
+  --rule: #22293690;
+  --overlay: #07080bcc;
+  --shadow: #040507;
+  --scrollbar: #252d3c;
+  --accent: #dd5562;
+  --accent-hover: #e78891;
+  --accent-dim: #813843;
+  --text: #c9cba3;
+  --text-bright: #fff;
+  --text-soft: #b4b5a1;
+  --text-soft-dim: #9E9E9E;
+  --text-info: #d48a7f;
+  --text-dim: #ae8c8f;
+  --text-dimmer: #66676a;
+  --text-muted: #9E9E9E;
+  --text-grey: #828384;
+  --text-faint: #47494d;
+  --input-bg: #171d29;
+  --input-border: #222936;
+  --btn-bg: #802932;
+  --btn-border: #d93f4e;
+  --btn-hover: #8f434b;
+  --danger: #E84855;
+  --danger-bg: #311d25;
+  --danger-border: #722c36;
+  --success: #78C091;
+  --success-bg: #202f2e;
+  --success-border: #3f6251;
+  --warn: #f3de2c;
+  --warn-bg: #3e3d1f;
+  --warn-border: #827a24;
+  --ok-bg: #243431;
+  --ok-border: #456b57;
+  --bad-bg: #381e26;
+  --bad-border: #7d2f39;
 
-  /* accents */
-  --accent: #5fb3ff;
-  --accent-hover: #8fd0ff;
-  --accent-dim: #3a6390;
-
-  /* text */
-  --text: #e7edf5;
-  --text-bright: #f2f6fb;
-  --text-soft: #c3d3e6;
-  --text-soft-dim: #8ba5c3;
-  --text-info: #9dc1e8;
-  --text-dim: #7fa6cf;
-  --text-dimmer: #5c7594;
-  --text-muted: #6f8bab;
-  --text-grey: #8a97a8;
-  --text-faint: #3d5573;
-
-  /* inputs & buttons */
-  --input-bg: #0c1826;
-  --input-border: #24405e;
-  --btn-bg: #1c3d63;
-  --btn-border: #315a86;
-  --btn-hover: #25507f;
-
-  /* status */
-  --danger: #e2755f;
-  --danger-bg: #1c0f0b;
-  --danger-border: #5c2c22;
-  --success: #6fd99a;
-  --success-bg: #0b1c11;
-  --success-border: #2c5c3a;
-  --warn: #e2c25f;
-  --warn-bg: #3a2716;
-  --warn-border: #6b4a24;
-  --ok-bg: #123423;
-  --ok-border: #2f6b46;
-  --bad-bg: #331b1b;
-  --bad-border: #5a2f2f;
-
-  /* GM — shared by every theme on purpose */
+  /* GM — shared by every theme on purpose: gold should read as
+     "you are acting as GM" whichever palette is applied. */
   --gm: #e2b13c;
   --gm-dim: #6b5320;
   --gm-rule: #2a241850;
@@ -76,124 +72,576 @@
   --gm-foot: #5a3d51;
 }
 
-/* ГЕСПЕРА — rust and ember, like a hangar lit by cutting torches */
-:root[data-theme='hespera'] {
-  --bg: #150c08;
-  --bg-alt: #120a06;
-  --page-grad: #2c1509;
-  --dot: #331b0f;
-  --panel: #1a100a;
-  --panel-border: #452718;
-  --panel-inset: #241409;
-  --panel-sunken: #180d07;
-  --header: #5c3117;
-  --header-strong: #47250f;
-  --header-border: #70431f;
-  --rule: #34211490;
-  --overlay: #0c0603cc;
-  --shadow: #0c0603;
-  --scrollbar: #3d2415;
-
-  --accent: #ff9a4d;
-  --accent-hover: #ffc08a;
-  --accent-dim: #90603a;
-
-  --text: #f5ece7;
-  --text-bright: #fbf5f2;
-  --text-soft: #e6d3c3;
-  --text-soft-dim: #c39d8b;
-  --text-info: #e8b78d;
-  --text-dim: #cf9a7f;
-  --text-dimmer: #94705c;
-  --text-muted: #ab876f;
-  --text-grey: #a89588;
-  --text-faint: #73513d;
-
-  --input-bg: #1e1109;
-  --input-border: #5e3a24;
-  --btn-bg: #63351c;
-  --btn-border: #86502d;
-  --btn-hover: #7f4526;
+/* GMS Dark — ported from COMP/CON */
+:root[data-theme='gms-dark'] {
+  --bg: #11151c;
+  --bg-alt: #0d1015;
+  --page-grad: #4e2028;
+  --dot: #292c33;
+  --panel: #212d40;
+  --panel-border: #242b39;
+  --panel-inset: #2e3a4b;
+  --panel-sunken: #17202d;
+  --header: #802932;
+  --header-strong: #692229;
+  --header-text: #ffffff;
+  --btn-text: #ffffff;
+  --header-border: #d93f4e;
+  --rule: #22293690;
+  --overlay: #07080bcc;
+  --shadow: #040507;
+  --scrollbar: #252d3c;
+  --accent: #dd5562;
+  --accent-hover: #e78891;
+  --accent-dim: #813843;
+  --text: #c9cba3;
+  --text-bright: #fff;
+  --text-soft: #b4b5a1;
+  --text-soft-dim: #9E9E9E;
+  --text-info: #d48a7f;
+  --text-dim: #ae8c8f;
+  --text-dimmer: #66676a;
+  --text-muted: #9E9E9E;
+  --text-grey: #828384;
+  --text-faint: #47494d;
+  --input-bg: #171d29;
+  --input-border: #222936;
+  --btn-bg: #802932;
+  --btn-border: #d93f4e;
+  --btn-hover: #8f434b;
+  --danger: #E84855;
+  --danger-bg: #311d25;
+  --danger-border: #722c36;
+  --success: #78C091;
+  --success-bg: #202f2e;
+  --success-border: #3f6251;
+  --warn: #f3de2c;
+  --warn-bg: #3e3d1f;
+  --warn-border: #827a24;
+  --ok-bg: #243431;
+  --ok-border: #456b57;
+  --bad-bg: #381e26;
+  --bad-border: #7d2f39;
 }
 
-/* КАРАНТИН — sickly green terminal glow */
-:root[data-theme='quarantine'] {
-  --bg: #060f0a;
-  --bg-alt: #050c08;
-  --page-grad: #0a2418;
-  --dot: #103324;
-  --panel: #081a12;
-  --panel-border: #17402d;
-  --panel-inset: #0b2418;
-  --panel-sunken: #071510;
-  --header: #14512f;
-  --header-strong: #113f27;
-  --header-border: #1f6b40;
-  --rule: #14342390;
-  --overlay: #030b07cc;
-  --shadow: #030b07;
-  --scrollbar: #15402b;
-
-  --accent: #5fe39a;
-  --accent-hover: #92f2bd;
-  --accent-dim: #387f57;
-
-  --text: #e7f5ec;
-  --text-bright: #f2fbf5;
-  --text-soft: #c0e6cf;
-  --text-soft-dim: #86c3a0;
-  --text-info: #9de8bb;
-  --text-dim: #74cf9c;
-  --text-dimmer: #4f8f6b;
-  --text-muted: #6cab88;
-  --text-grey: #88a894;
-  --text-faint: #33734f;
-
-  --input-bg: #071c13;
-  --input-border: #205a3b;
-  --btn-bg: #17542f;
-  --btn-border: #2b8351;
-  --btn-hover: #1e6c3d;
+/* GMS Light — ported from COMP/CON */
+:root[data-theme='gms'] {
+  --bg: #f4f4f4;
+  --bg-alt: #f7f7f7;
+  --page-grad: #c27e85;
+  --dot: #dcdcdc;
+  --panel: #ccc;
+  --panel-border: #bfc4c9;
+  --panel-inset: #c0c0c0;
+  --panel-sunken: #dbdbdb;
+  --header: #991E2A;
+  --header-strong: #7d1922;
+  --header-text: #ffffff;
+  --btn-text: #ffffff;
+  --header-border: #d93f4e;
+  --rule: #c4c9cd90;
+  --overlay: #626262cc;
+  --shadow: #3d3d3d;
+  --scrollbar: #babfc5;
+  --accent: #8c1420;
+  --accent-hover: #620e16;
+  --accent-dim: #bb797f;
+  --text: #212121;
+  --text-bright: #000;
+  --text-soft: #606060;
+  --text-soft-dim: #9E9E9E;
+  --text-info: #5c1a20;
+  --text-dim: #9a7c7f;
+  --text-dimmer: #898989;
+  --text-muted: #424242;
+  --text-grey: #afafaf;
+  --text-faint: #b0b0b0;
+  --input-bg: #e6e6e6;
+  --input-border: #c4c9cd;
+  --btn-bg: #991E2A;
+  --btn-border: #d93f4e;
+  --btn-hover: #871a25;
+  --danger: #F44336;
+  --danger-bg: #f4d9d8;
+  --danger-border: #f4a49f;
+  --success: #68991E;
+  --success-bg: #dfe6d4;
+  --success-border: #b5cb94;
+  --warn: #C28200;
+  --warn-bg: #eaddc3;
+  --warn-border: #dbbb7a;
+  --ok-bg: #dbe4cd;
+  --ok-border: #aec789;
+  --bad-bg: #f4d4d2;
+  --bad-border: #f49c95;
 }
 
-/* ПУСТКА — cold violet, deep-space run */
-:root[data-theme='void'] {
-  --bg: #0d0916;
-  --bg-alt: #0a0712;
-  --page-grad: #1b0f2c;
-  --dot: #241638;
-  --panel: #150e22;
-  --panel-border: #33224d;
-  --panel-inset: #1d1330;
-  --panel-sunken: #110b1c;
-  --header: #3d2170;
-  --header-strong: #2f1a55;
-  --header-border: #573286;
-  --rule: #23183490;
-  --overlay: #060310cc;
-  --shadow: #060310;
-  --scrollbar: #2c1c45;
+/* HORUS Terminal — ported from COMP/CON */
+:root[data-theme='horus'] {
+  --bg: #000;
+  --bg-alt: #000000;
+  --page-grad: #0a3515;
+  --dot: #1a1a1a;
+  --panel: #333;
+  --panel-border: #333333;
+  --panel-inset: #3f3f3f;
+  --panel-sunken: #242424;
+  --header: #126127;
+  --header-strong: #0f5020;
+  --header-text: #ffffff;
+  --btn-text: #ffffff;
+  --header-border: #00a600;
+  --rule: #2e2e2e90;
+  --overlay: #000000cc;
+  --shadow: #000000;
+  --scrollbar: #383838;
+  --accent: #00d900;
+  --accent-hover: #4de44d;
+  --accent-dim: #007700;
+  --text: #fff;
+  --text-bright: #fff;
+  --text-soft: #d9dcdd;
+  --text-soft-dim: #b3b9ba;
+  --text-info: #73ea73;
+  --text-dim: #86c18c;
+  --text-dimmer: #5a6060;
+  --text-muted: #96a0a0;
+  --text-grey: #8f9495;
+  --text-faint: #393d3d;
+  --input-bg: #121212;
+  --input-border: #2e2e2e;
+  --btn-bg: #126127;
+  --btn-border: #00a600;
+  --btn-hover: #2e7441;
+  --danger: #e50000;
+  --danger-bg: #220000;
+  --danger-border: #670000;
+  --success: #00C853;
+  --success-bg: #001e0c;
+  --success-border: #005a25;
+  --warn: #e5e500;
+  --warn-bg: #2e2e00;
+  --warn-border: #737300;
+  --ok-bg: #00240f;
+  --ok-border: #00642a;
+  --bad-bg: #290000;
+  --bad-border: #730000;
+}
 
-  --accent: #b98cff;
-  --accent-hover: #d4bbff;
-  --accent-dim: #6d4f9c;
+/* HORIZON Operative — ported from COMP/CON */
+:root[data-theme='horizon'] {
+  --bg: #040F11;
+  --bg-alt: #030b0d;
+  --page-grad: #15262d;
+  --dot: #1d2729;
+  --panel: #333;
+  --panel-border: #353b3c;
+  --panel-inset: #3f3f3f;
+  --panel-sunken: #242424;
+  --header: #233943;
+  --header-strong: #1d2f37;
+  --header-text: #ffffff;
+  --btn-text: #ffffff;
+  --header-border: #ca7f0d;
+  --rule: #30363790;
+  --overlay: #020607cc;
+  --shadow: #010404;
+  --scrollbar: #3a3f40;
+  --accent: #ce7100;
+  --accent-hover: #dd9c4d;
+  --accent-dim: #734508;
+  --text: #fff;
+  --text-bright: #fff;
+  --text-soft: #d9dcdd;
+  --text-soft-dim: #b3b9ba;
+  --text-info: #e4b173;
+  --text-dim: #baa78c;
+  --text-dimmer: #5c6667;
+  --text-muted: #96a0a0;
+  --text-grey: #909798;
+  --text-faint: #3b4647;
+  --input-bg: #141c1d;
+  --input-border: #303637;
+  --btn-bg: #233943;
+  --btn-border: #ca7f0d;
+  --btn-hover: #3d515a;
+  --danger: #e54c29;
+  --danger-bg: #261815;
+  --danger-border: #692a1c;
+  --success: #00C853;
+  --success-bg: #032b1b;
+  --success-border: #02622f;
+  --warn: #ffd027;
+  --warn-bg: #363615;
+  --warn-border: #82701c;
+  --ok-bg: #03301d;
+  --ok-border: #026c32;
+  --bad-bg: #2d1a15;
+  --bad-border: #752e1d;
+}
 
-  --text: #efe9f7;
-  --text-bright: #f7f2fc;
-  --text-soft: #d5c6ec;
-  --text-soft-dim: #a68ecb;
-  --text-info: #c1a3f0;
-  --text-dim: #a785d6;
-  --text-dimmer: #75609a;
-  --text-muted: #8f76b5;
-  --text-grey: #9a90ab;
-  --text-faint: #503d75;
+/* MSMC Solarized — ported from COMP/CON */
+:root[data-theme='msmc'] {
+  --bg: #1f282b;
+  --bg-alt: #171e20;
+  --page-grad: #19494a;
+  --dot: #353e40;
+  --panel: #293940;
+  --panel-border: #555e65;
+  --panel-inset: #36454b;
+  --panel-sunken: #1d282d;
+  --header: #146464;
+  --header-strong: #105252;
+  --header-text: #ffffff;
+  --btn-text: #ffffff;
+  --header-border: #218a8a;
+  --rule: #4f595f90;
+  --overlay: #0c1011cc;
+  --shadow: #080a0b;
+  --scrollbar: #5a636a;
+  --accent: #1dc2c2;
+  --accent-hover: #61d4d4;
+  --accent-dim: #1e7d7e;
+  --text: #dbdbdb;
+  --text-bright: #fff;
+  --text-soft: #c7cacb;
+  --text-soft-dim: #b3b9ba;
+  --text-info: #73cdcd;
+  --text-dim: #8ebbbc;
+  --text-dimmer: #667071;
+  --text-muted: #96a0a0;
+  --text-grey: #959c9d;
+  --text-faint: #4c5657;
+  --input-bg: #232e32;
+  --input-border: #4f595f;
+  --btn-bg: #146464;
+  --btn-border: #218a8a;
+  --btn-hover: #307777;
+  --danger: #F44336;
+  --danger-bg: #3f2c2d;
+  --danger-border: #7f3430;
+  --success: #00C853;
+  --success-bg: #1a4031;
+  --success-border: #11703d;
+  --warn: #FFAB00;
+  --warn-bg: #4c4222;
+  --warn-border: #8f6a16;
+  --ok-bg: #194532;
+  --ok-border: #10783f;
+  --bad-bg: #452d2d;
+  --bad-border: #8a3631;
+}
 
-  --input-bg: #150d26;
-  --input-border: #402b63;
-  --btn-bg: #3c2568;
-  --btn-border: #5e3d94;
-  --btn-hover: #4b2f81;
+/* Low Contrast Solarized — ported from COMP/CON */
+:root[data-theme='lc-solarized'] {
+  --bg: #29363a;
+  --bg-alt: #1f292c;
+  --page-grad: #214345;
+  --dot: #3e4a4e;
+  --panel: #4c585e;
+  --panel-border: #47535a;
+  --panel-inset: #576268;
+  --panel-sunken: #353e42;
+  --header: #1b4e4e;
+  --header-strong: #164040;
+  --header-text: #ffffff;
+  --btn-text: #ffffff;
+  --header-border: #287272;
+  --rule: #44505790;
+  --overlay: #101617cc;
+  --shadow: #0a0e0f;
+  --scrollbar: #4a565d;
+  --accent: #2fa3a3;
+  --accent-hover: #6dbfbf;
+  --accent-dim: #2c7274;
+  --text: #9fa9ad;
+  --text-bright: #d8d8d8;
+  --text-soft: #929ea1;
+  --text-soft-dim: #859294;
+  --text-info: #61a6a8;
+  --text-dim: #709698;
+  --text-dimmer: #788a8c;
+  --text-muted: #acc2c2;
+  --text-grey: #738082;
+  --text-faint: #5b6b6e;
+  --input-bg: #354247;
+  --input-border: #445057;
+  --btn-bg: #1b4e4e;
+  --btn-border: #287272;
+  --btn-hover: #366363;
+  --danger: #b4443c;
+  --danger-bg: #3e383a;
+  --danger-border: #683c3b;
+  --success: #0f8540;
+  --success-bg: #25423b;
+  --success-border: #1d5a3d;
+  --warn: #aa7815;
+  --warn-bg: #434333;
+  --warn-border: #6a5728;
+  --ok-bg: #24443b;
+  --ok-border: #1c5e3d;
+  --bad-bg: #42393a;
+  --bad-border: #6f3d3b;
+}
+
+/* FORECAST/GALSIM — ported from COMP/CON */
+:root[data-theme='galsim'] {
+  --bg: #2b2b2b;
+  --bg-alt: #202020;
+  --page-grad: #904b13;
+  --dot: #404040;
+  --panel: #373737;
+  --panel-border: #494949;
+  --panel-inset: #434343;
+  --panel-sunken: #272727;
+  --header: #e36600;
+  --header-strong: #ba5400;
+  --header-text: #0b0b0b;
+  --btn-text: #0b0b0b;
+  --header-border: #2a416b;
+  --rule: #46464690;
+  --overlay: #111111cc;
+  --shadow: #0b0b0b;
+  --scrollbar: #4b4b4b;
+  --accent: #4974bf;
+  --accent-hover: #809ed2;
+  --accent-dim: #3c537c;
+  --text: #fff;
+  --text-bright: #fff;
+  --text-soft: #d9dcdd;
+  --text-soft-dim: #b3b9ba;
+  --text-info: #9bb3dc;
+  --text-dim: #99a8bb;
+  --text-dimmer: #6b7171;
+  --text-muted: #96a0a0;
+  --text-grey: #989d9d;
+  --text-faint: #545757;
+  --input-bg: #2f2f2f;
+  --input-border: #464646;
+  --btn-bg: #e36600;
+  --btn-border: #2a416b;
+  --btn-hover: #e6781f;
+  --danger: #F44336;
+  --danger-bg: #492f2d;
+  --danger-border: #853630;
+  --success: #10a14c;
+  --success-bg: #273d30;
+  --success-border: #1f603a;
+  --warn: #e89f0c;
+  --warn-bg: #514225;
+  --warn-border: #8a651c;
+  --ok-bg: #264031;
+  --ok-border: #1e663c;
+  --bad-bg: #4f2f2d;
+  --bad-border: #903731;
+}
+
+/* Harrison Armory Ras Shamra — ported from COMP/CON */
+:root[data-theme='ha'] {
+  --bg: #2b2b2b;
+  --bg-alt: #202020;
+  --page-grad: #551f54;
+  --dot: #404040;
+  --panel: #373737;
+  --panel-border: #494949;
+  --panel-inset: #434343;
+  --panel-sunken: #272727;
+  --header: #771675;
+  --header-strong: #621260;
+  --header-text: #ffffff;
+  --btn-text: #ffffff;
+  --header-border: #a15ea8;
+  --rule: #46464690;
+  --overlay: #111111cc;
+  --shadow: #0b0b0b;
+  --scrollbar: #4b4b4b;
+  --accent: #e080de;
+  --accent-hover: #e9a6e8;
+  --accent-dim: #8f5a8d;
+  --text: #fff;
+  --text-bright: #fff;
+  --text-soft: #d9dcdd;
+  --text-soft-dim: #b3b9ba;
+  --text-info: #eeb9ed;
+  --text-dim: #beabc3;
+  --text-dimmer: #6b7171;
+  --text-muted: #96a0a0;
+  --text-grey: #989d9d;
+  --text-faint: #545757;
+  --input-bg: #2f2f2f;
+  --input-border: #464646;
+  --btn-bg: #771675;
+  --btn-border: #a15ea8;
+  --btn-hover: #873286;
+  --danger: #F44336;
+  --danger-bg: #492f2d;
+  --danger-border: #853630;
+  --success: #00C853;
+  --success-bg: #254331;
+  --success-border: #18723d;
+  --warn: #FFAB00;
+  --warn-bg: #554522;
+  --warn-border: #956b16;
+  --ok-bg: #234732;
+  --ok-border: #167a3f;
+  --bad-bg: #4f2f2d;
+  --bad-border: #903731;
+}
+
+/* IPS-N Carina — ported from COMP/CON */
+:root[data-theme='ipsn'] {
+  --bg: #dbdbdb;
+  --bg-alt: #e4e4e4;
+  --page-grad: #7090bc;
+  --dot: #c5c5c5;
+  --panel: #c9c7c7;
+  --panel-border: #b3b8bd;
+  --panel-inset: #bdbbbb;
+  --panel-sunken: #d9d8d8;
+  --header: #1952A2;
+  --header-strong: #154385;
+  --header-text: #ffffff;
+  --btn-text: #ffffff;
+  --header-border: #1976D2;
+  --rule: #b7bbc090;
+  --overlay: #585858cc;
+  --shadow: #373737;
+  --scrollbar: #aeb4b9;
+  --accent: #19A2A2;
+  --accent-hover: #127171;
+  --accent-dim: #70bcbc;
+  --text: #212121;
+  --text-bright: #000;
+  --text-soft: #3f3f3f;
+  --text-soft-dim: #5c5c5c;
+  --text-info: #1d6868;
+  --text-dim: #4b6e6e;
+  --text-dimmer: #7f7f7f;
+  --text-muted: #424242;
+  --text-grey: #757575;
+  --text-faint: #a1a1a1;
+  --input-bg: #d5d4d4;
+  --input-border: #b7bbc0;
+  --btn-bg: #1952A2;
+  --btn-border: #1976D2;
+  --btn-hover: #16488f;
+  --danger: #F44336;
+  --danger-bg: #dfc4c2;
+  --danger-border: #e69791;
+  --success: #00C853;
+  --success-bg: #bad8c7;
+  --success-border: #78d29e;
+  --warn: #FFAB00;
+  --warn-bg: #e2d1af;
+  --warn-border: #edc36e;
+  --ok-bg: #b4d8c3;
+  --ok-border: #6ed297;
+  --bad-bg: #e0c0bd;
+  --bad-border: #e88f89;
+}
+
+/* SSC Constellar Congress — ported from COMP/CON */
+:root[data-theme='ssc'] {
+  --bg: #eee8d5;
+  --bg-alt: #f2eee0;
+  --page-grad: #deb965;
+  --dot: #d6d1c0;
+  --panel: #dbcfc3;
+  --panel-border: #bcbeba;
+  --panel-inset: #cec3b7;
+  --panel-sunken: #e6ddd5;
+  --header: #d1920a;
+  --header-strong: #ab7808;
+  --header-text: #0b0b0b;
+  --btn-text: #0b0b0b;
+  --header-border: #89610B;
+  --rule: #c1c2bc90;
+  --overlay: #5f5d55cc;
+  --shadow: #3c3a35;
+  --scrollbar: #b7bab7;
+  --accent: #b58900;
+  --accent-hover: #7f6000;
+  --accent-dim: #cfb460;
+  --text: #5e4b30;
+  --text-bright: #000;
+  --text-soft: #695d61;
+  --text-soft-dim: #736e91;
+  --text-info: #8e6d16;
+  --text-dim: #84756d;
+  --text-dimmer: #b39f7f;
+  --text-muted: #8c6f46;
+  --text-grey: #8c869f;
+  --text-faint: #c9ba9f;
+  --input-bg: #e7dfcf;
+  --input-border: #c1c2bc;
+  --btn-bg: #d1920a;
+  --btn-border: #89610B;
+  --btn-hover: #b88009;
+  --danger: #cc472d;
+  --danger-bg: #e9d0bc;
+  --danger-border: #dfa089;
+  --success: #107038;
+  --success-bg: #cdd6bd;
+  --success-border: #8ab28e;
+  --warn: #FFAB00;
+  --warn-bg: #f1dcaa;
+  --warn-border: #f7ca6b;
+  --ok-bg: #c6d2b9;
+  --ok-border: #7fac87;
+  --bad-bg: #e8cbb7;
+  --bad-border: #dd9881;
+}
+
+/* High Contrast Dark — ported from COMP/CON */
+:root[data-theme='hc-dark'] {
+  --bg: #000;
+  --bg-alt: #000000;
+  --page-grad: #29070a;
+  --dot: #1a1a1a;
+  --panel: #1b212b;
+  --panel-border: #24282f;
+  --panel-inset: #292e38;
+  --panel-sunken: #13171e;
+  --header: #4b0c13;
+  --header-strong: #3e0a10;
+  --header-text: #ffffff;
+  --btn-text: #ffffff;
+  --header-border: #ffabb3;
+  --rule: #20242a90;
+  --overlay: #000000cc;
+  --shadow: #000000;
+  --scrollbar: #282c34;
+  --accent: #ffabb3;
+  --accent-hover: #ffc4ca;
+  --accent-dim: #8c5e62;
+  --text: #fff;
+  --text-bright: #fff;
+  --text-soft: #d3d3d3;
+  --text-soft-dim: #a7a7a7;
+  --text-info: #ffd1d5;
+  --text-dim: #bda8aa;
+  --text-dimmer: #999999;
+  --text-muted: #fff;
+  --text-grey: #868686;
+  --text-faint: #616161;
+  --input-bg: #090c0f;
+  --input-border: #20242a;
+  --btn-bg: #4b0c13;
+  --btn-border: #ffabb3;
+  --btn-hover: #61292f;
+  --danger: #ff0015;
+  --danger-bg: #260003;
+  --danger-border: #730009;
+  --success: #00531d;
+  --success-bg: #000c04;
+  --success-border: #00250d;
+  --warn: #ffe600;
+  --warn-bg: #332e00;
+  --warn-border: #807300;
+  --ok-bg: #000f05;
+  --ok-border: #002a0f;
+  --bad-bg: #2e0004;
+  --bad-border: #80000b;
 }
 
 * { box-sizing: border-box; }
@@ -243,6 +691,7 @@ button {
 
 .card-header {
   background: var(--header);
+  color: var(--header-text);
   clip-path: polygon(0 0, 100% 0, calc(100% - 20px) 100%, 0 100%);
   padding: 12px 20px;
   display: flex;
@@ -266,7 +715,7 @@ button {
 
 .btn {
   background: var(--btn-bg);
-  color: var(--text);
+  color: var(--btn-text);
   border: 1px solid var(--btn-border);
   padding: 9px 16px;
   font-size: 12px;
@@ -327,6 +776,7 @@ button {
 
 .modal-header {
   background: var(--header);
+  color: var(--header-text);
   padding: 14px 20px;
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
