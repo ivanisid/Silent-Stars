@@ -733,6 +733,8 @@ button {
   letter-spacing: 1px;
 }
 .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
+.btn-ghost:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-ghost:disabled:hover { border-color: var(--input-border); color: var(--text-dim); }
 
 .field-label {
   font-size: 11px;

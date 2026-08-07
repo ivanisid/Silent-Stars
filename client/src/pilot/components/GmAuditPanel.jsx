@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../api';
+import { Delta } from './ChangeLogPanel.jsx';
 
 // Hidden GM-only audit of mana/DC operations, sourced from the server-side
 // pilot_audit_log — the player can clear their visible action log, but not this.
@@ -15,28 +16,30 @@ function formatDate(iso) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-function Delta({ label, oldVal, newVal }) {
-  if (oldVal === newVal) return null;
-  const diff = (newVal ?? 0) - (oldVal ?? 0);
-  if (diff === 0) return null;
-  return (
-    <span style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
-      <span style={{ color: 'var(--text-dim)' }}>{label} </span>
-      <span style={{ color: 'var(--text-bright)' }}>
-        {oldVal ?? '·'} → {newVal ?? '·'}
-      </span>{' '}
-      <span style={{ color: diff > 0 ? 'var(--success)' : 'var(--danger)' }}>
-        ({diff > 0 ? '+' : ''}{diff})
-      </span>
-    </span>
-  );
-}
-
-export default function GmAuditPanel({ pilotId }) {
+export default function GmAuditPanel({ pilotId, onReverted }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState('');
+
+  async function revert(r) {
+    if (!window.confirm(
+      `Повернути персонажа до стану перед операцією від ${formatDate(r.changedAt)}?\n\n` +
+      'Усі зміни, зроблені після неї, буде скасовано. Відкат теж потрапить в аудит.',
+    )) return;
+    setBusyId(r.id);
+    setError('');
+    try {
+      await api.revertPilotState(r.id);
+      await onReverted?.();
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -121,6 +124,15 @@ export default function GmAuditPanel({ pilotId }) {
                         ⚠ ЖУРНАЛ ДІЙ ОЧИЩЕНО ({r.logOldCount} → {r.logNewCount})
                       </span>
                     )}
+                    <button
+                      className="btn-ghost"
+                      type="button"
+                      disabled={!r.revertible || busyId !== null}
+                      onClick={() => revert(r)}
+                      style={{ marginLeft: 'auto', fontSize: 11, padding: '3px 9px', whiteSpace: 'nowrap' }}
+                    >
+                      {busyId === r.id ? 'ВІДКОЧУЄТЬСЯ…' : '↶ ВІДКОТИТИ'}
+                    </button>
                   </div>
                   {r.logAdded.length > 0 && (
                     <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
