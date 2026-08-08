@@ -87,6 +87,7 @@ function mapMech(m, grit, hull) {
     reactorFilled: 0,
     corePower: m.corePower ?? true,
     overcharge: 0,
+    dc: m.dc ?? 0,
     limited: collectLimited(m),
   };
 }

@@ -460,10 +460,25 @@ export function pilotReducer(state, action) {
       return { ...state, dcr: { open: true, mechId: null, total: '', kits: 0, packs: 0, alloc: {}, allRefill: false, error: '' } };
     case 'CLOSE_DCR':
       return { ...state, dcr: { ...state.dcr, open: false } };
-    case 'SET_DCR_MECH':
-      return { ...state, dcr: { ...state.dcr, mechId: action.mechId, alloc: {} } };
-    case 'SET_DCR_TOTAL':
-      return { ...state, dcr: { ...state.dcr, total: action.value } };
+    // The budget is whatever the chosen mech carries, so overspending is impossible by
+    // construction rather than by validation: every DCR guard already measures against
+    // `total`. Switching mechs re-reads it and clears a selection priced for the old budget.
+    case 'SET_DCR_MECH': {
+      const mech = findMech(state, action.mechId);
+      return {
+        ...state,
+        dcr: {
+          ...state.dcr,
+          mechId: action.mechId,
+          total: String(mech?.dc || 0),
+          kits: 0,
+          packs: 0,
+          alloc: {},
+          allRefill: false,
+          error: '',
+        },
+      };
+    }
     case 'DCR_SHIFT': {
       const d = state.dcr;
       const total = parseFloat(d.total) || 0;
@@ -512,9 +527,12 @@ export function pilotReducer(state, action) {
       if (!mech) return { ...state, dcr: { ...d, error: 'Оберіть меха.' } };
       if (spent > total) return { ...state, dcr: { ...d, error: 'Витрачено більше, ніж є DC.' } };
 
+      // Spending draws the mech's own counter down; what is left stays on the mech until
+      // the pilot banks it or the next closed game overwrites it.
       const leftover = total - spent;
       let nextState = updateMech(state, d.mechId, (m) => ({
         ...m,
+        dc: Math.max(0, (m.dc || 0) - spent),
         repairCurrent: Math.min(m.repairMax, m.repairCurrent + d.kits),
         limited: m.limited.map((li, i) => ({
           ...li,
@@ -523,15 +541,17 @@ export function pilotReducer(state, action) {
       }));
 
       const hasBuffer = (state.hangar.owned.buffer || 0) >= 1;
-      const cap = dcStoreCap(state);
-      const nextDcStore = hasBuffer ? Math.min(cap, state.dcStore + leftover) : state.dcStore;
 
       nextState = {
         ...nextState,
-        dcStore: nextDcStore,
         dcr: { open: false, mechId: null, total: '', kits: 0, packs: 0, alloc: {}, allRefill: false, error: '' },
       };
-      const leftoverNote = hasBuffer ? `→ у буфер (+${leftover} DC)` : leftover > 0 ? `(${leftover} DC згоріло — немає буфера)` : '';
+      const leftoverNote =
+        leftover <= 0
+          ? ''
+          : hasBuffer
+            ? `· лишилось ${leftover} DC — можна перекинути в буфер`
+            : `· лишилось ${leftover} DC (згорять — немає буфера)`;
       return log(
         nextState,
         `Ремонт за DC (${mech.name}): ремкомплекти +${d.kits}, пакети зарядів ×${d.packs}${d.allRefill ? ', поповнено всі системи' : ''}. Витрачено ${spent}/${total} DC ${leftoverNote}`,
@@ -639,6 +659,9 @@ export function pilotReducer(state, action) {
         reactorFilled: 0,
         corePower: true,
         overcharge: 0,
+        // Mission DC the GM credits to this mech when a game closes. Burns on the next
+        // credit — only what the pilot moves to the buffer survives.
+        dc: 0,
         limited: [],
       };
       return log(
@@ -665,6 +688,28 @@ export function pilotReducer(state, action) {
       const next = clamp(m.repairCurrent + dir, 0, m.repairMax);
       if (next === m.repairCurrent) return state;
       return log(updateMech(state, action.id, (mm) => ({ ...mm, repairCurrent: next })), `${m.name}: рем. комплекти ${m.repairCurrent} → ${next}`);
+    }
+    // Mission DC sits on the mech that flew the game. Mechs saved before this field
+    // existed read as 0, so the counter works without migrating anyone's state.
+    case 'SHIFT_MECH_DC': {
+      const m = findMech(state, action.id);
+      const cur = m.dc || 0;
+      const next = Math.max(0, cur + action.dir);
+      if (next === cur) return state;
+      return log(updateMech(state, action.id, (mm) => ({ ...mm, dc: next })), `${m.name}: DC ${cur} → ${next}`);
+    }
+    // Banking what a mission left over. Capped by the buffer's own room, so the button can
+    // never move more DC than there is or more than will fit.
+    case 'MECH_DC_TO_BUFFER': {
+      const m = findMech(state, action.id);
+      const have = m.dc || 0;
+      if (have <= 0 || (state.hangar.owned.buffer || 0) < 1) return state;
+      const moved = Math.min(have, Math.max(0, dcStoreCap(state) - state.dcStore));
+      if (moved <= 0) return state;
+      return log(
+        updateMech({ ...state, dcStore: state.dcStore + moved }, action.id, (mm) => ({ ...mm, dc: (mm.dc || 0) - moved })),
+        `${m.name}: ${moved} DC → буфер (склад ${state.dcStore} → ${state.dcStore + moved})`,
+      );
     }
     case 'TOGGLE_MECH_CORE': {
       const m = findMech(state, action.id);

@@ -3,6 +3,9 @@ import { OC_STEPS } from '../constants';
 
 export default function MechsPanel({ state, dispatch }) {
   const d = state.mechDraft;
+  // Banking mission DC needs the Resource Buffer, and only as much as still fits in it.
+  const hasBuffer = (state.hangar.owned.buffer || 0) >= 1;
+  const bufferRoom = Math.max(0, ((state.hangar.owned.buffer || 0) >= 2 ? 10 : 5) - state.dcStore);
 
   return (
     <Card
@@ -65,6 +68,40 @@ export default function MechsPanel({ state, dispatch }) {
                     <div style={{ minWidth: 60, textAlign: 'center', fontSize: 15 }}>{m.repairCurrent} / {m.repairMax}</div>
                     <StepButton onClick={() => dispatch({ type: 'INC_MECH_REPAIR', id: m.id })}>+</StepButton>
                   </div>
+                </div>
+                <div>
+                  <div className="field-label">DC ЗА МІСІЮ</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <StepButton onClick={() => dispatch({ type: 'SHIFT_MECH_DC', id: m.id, dir: -1 })} disabled={(m.dc || 0) <= 0}>−</StepButton>
+                    <div
+                      style={{
+                        minWidth: 60,
+                        textAlign: 'center',
+                        fontSize: 15,
+                        color: (m.dc || 0) > 0 ? 'var(--accent)' : 'var(--text-dimmer)',
+                      }}
+                    >
+                      {m.dc || 0} DC
+                    </div>
+                    <StepButton onClick={() => dispatch({ type: 'SHIFT_MECH_DC', id: m.id, dir: 1 })}>+</StepButton>
+                  </div>
+                  {hasBuffer && (m.dc || 0) > 0 && (
+                    <button
+                      className="btn-ghost"
+                      type="button"
+                      disabled={bufferRoom <= 0}
+                      onClick={() => dispatch({ type: 'MECH_DC_TO_BUFFER', id: m.id })}
+                      style={{
+                        fontSize: 10,
+                        padding: '3px 8px',
+                        marginTop: 6,
+                        opacity: bufferRoom <= 0 ? 0.5 : 1,
+                        cursor: bufferRoom <= 0 ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {bufferRoom > 0 ? `→ У БУФЕР (${Math.min(m.dc || 0, bufferRoom)})` : 'БУФЕР ПОВНИЙ'}
+                    </button>
+                  )}
                 </div>
                 <div>
                   <div className="field-label">CORE POWER</div>

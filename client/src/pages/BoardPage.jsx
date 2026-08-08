@@ -275,7 +275,8 @@ function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
             </span>
             <span style={{ fontSize: 11, color: 'var(--text-soft-dim)', lineHeight: 1.6 }}>
               {awarded > 0
-                ? `Нагороди нараховано · ${awarded} ${pluralPilots(awarded)} · ${slot.rewardMana} М + ${slot.rewardDc} DC кожному · +1 зіграна гра`
+                ? `Нагороди нараховано · ${awarded} ${pluralPilots(awarded)} · ${slot.rewardMana} М кожному` +
+                  `${slot.rewardDc > 0 ? ` · ${slot.rewardDc} DC на меха` : ''} · +1 зіграна гра`
                 : 'Склад не затверджено — нагород не нараховано'}
             </span>
           </div>
@@ -478,8 +479,9 @@ function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
               onClick={() => {
                 const msg =
                   `Затвердити склад (${picked.size} з ${slot.signups.length}) і завершити гру?\n\n` +
-                  `Кожен затверджений пілот отримає ${slot.rewardMana} М, ${slot.rewardDc} DC ` +
-                  'і +1 зіграну гру. Це діє одразу й не скасовується.';
+                  `Кожен затверджений пілот отримає ${slot.rewardMana} М і +1 зіграну гру, ` +
+                  `а ${slot.rewardDc} DC ляжуть на меха, з яким він записався. ` +
+                  'Це діє одразу й не скасовується.';
                 if (!window.confirm(msg)) return;
                 run(() => api.gmResolveSlot(slot.id, Array.from(picked)));
               }}
