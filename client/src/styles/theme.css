@@ -5,7 +5,11 @@
    panel, primary, accent and the text tiers are taken verbatim, the remaining
    surfaces and states are mixed from them so every theme stays internally
    consistent. FORECAST/GALSIM and the solarized pair are community themes by
-   vialra, Asger Toft, thecrystalwoods and Suji. */
+   vialra, Asger Toft, thecrystalwoods and Suji.
+
+   Ink on the primary follows COMP/CON rather than a contrast formula: it puts white
+   on the GALSIM orange and the SSC gold, and those bars are what make those themes
+   recognisable. Body text everywhere else is still clamped for contrast. */
 
 :root {
   --bg: #11151c;
@@ -403,8 +407,8 @@
   --panel-sunken: #282727;
   --header: #e36600;
   --header-strong: #ba5400;
-  --header-text: #0b0b0b;
-  --btn-text: #0b0b0b;
+  --header-text: #ffffff;
+  --btn-text: #ffffff;
   --header-border: #2a416b;
   --rule: #46464690;
   --overlay: #111111cc;
@@ -562,8 +566,8 @@
   --panel-sunken: #e8e2d6;
   --header: #d1920a;
   --header-strong: #ab7808;
-  --header-text: #0b0b0b;
-  --btn-text: #0b0b0b;
+  --header-text: #ffffff;
+  --btn-text: #ffffff;
   --header-border: #89610B;
   --rule: #c1c2bc90;
   --overlay: #5f5d55cc;
