@@ -22,10 +22,20 @@ function formatDT(iso) {
 // leans on wording plus emphasis instead; the words already say the state.
 function statusBadge(slot) {
   if (slot.status === 'cancelled') return { text: 'СКАСОВАНО', strong: true };
-  if (slot.status === 'closed') return { text: 'СКЛАД ЗАТВЕРДЖЕНО', strong: true };
+  // Closing the slot is what pays the reward out, so a closed slot is a finished game.
+  if (slot.status === 'closed') return { text: 'ГРА ЗАВЕРШЕНА', strong: true };
   // The deadline is a hint for players, not a lock — only the GM closing the slot ends signup.
   if (new Date(slot.signupDeadline) < new Date()) return { text: 'ДЕДЛАЙН МИНУВ · НАБІР ЩЕ ВІДКРИТО', strong: true };
   return { text: 'НАБІР ВІДКРИТО', strong: false };
+}
+
+// 1 пілот · 2 пілоти · 5 пілотів — the ordinary rule, with the 11–14 exception.
+function pluralPilots(n) {
+  const ones = n % 10;
+  const teens = n % 100;
+  if (ones === 1 && teens !== 11) return 'пілот';
+  if (ones >= 2 && ones <= 4 && (teens < 12 || teens > 14)) return 'пілоти';
+  return 'пілотів';
 }
 
 // Only http(s) is matched, so a linkified href can never be a javascript: URL.
@@ -176,7 +186,7 @@ function CreateSlotForm({ onCreated }) {
           </div>
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.6 }}>
-          Нагороду можна змінити будь-коли до закриття гри. Під час закриття вона нараховується
+          Нагороду можна змінити будь-коли до завершення гри. Під час завершення вона нараховується
           затвердженим пілотам автоматично, разом із однією зіграною грою.
         </div>
         {error && <div className="error-box">{error}</div>}
@@ -202,6 +212,9 @@ function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
 
   const badge = statusBadge(slot);
   const isOpen = slot.status === 'open';
+  // 'closed' is set by the same call that pays the reward out, so it means "played and settled".
+  const isDone = slot.status === 'closed';
+  const awarded = slot.signups.filter((g) => g.approved === true).length;
   const mySignup = slot.signups.find((g) => g.userId === user.id);
   const contest = slot.signups.length > slot.seats;
   const deadlinePassed = new Date(slot.signupDeadline) < new Date();
@@ -245,6 +258,29 @@ function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
         </div>
       </div>
       <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {isDone && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 10,
+              flexWrap: 'wrap',
+              padding: '9px 12px',
+              background: 'var(--success-bg)',
+              border: '1px solid var(--success-border)',
+            }}
+          >
+            <span className="title-font" style={{ fontSize: 13, letterSpacing: 2, color: 'var(--success)' }}>
+              ✓ ГРА ЗАВЕРШЕНА
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--text-soft-dim)', lineHeight: 1.6 }}>
+              {awarded > 0
+                ? `Нагороди нараховано · ${awarded} ${pluralPilots(awarded)} · ${slot.rewardMana} М + ${slot.rewardDc} DC кожному · +1 зіграна гра`
+                : 'Склад не затверджено — нагород не нараховано'}
+            </span>
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 12, color: 'var(--text-dim)' }}>
           <span>
             ВЕДЕ:{' '}
@@ -441,7 +477,7 @@ function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
               disabled={busy || slot.signups.length === 0}
               onClick={() => {
                 const msg =
-                  `Затвердити склад (${picked.size} з ${slot.signups.length}) і закрити гру?\n\n` +
+                  `Затвердити склад (${picked.size} з ${slot.signups.length}) і завершити гру?\n\n` +
                   `Кожен затверджений пілот отримає ${slot.rewardMana} М, ${slot.rewardDc} DC ` +
                   'і +1 зіграну гру. Це діє одразу й не скасовується.';
                 if (!window.confirm(msg)) return;
@@ -449,7 +485,7 @@ function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
               }}
               style={{ borderColor: GOLD_DIM, color: GOLD }}
             >
-              ЗАТВЕРДИТИ СКЛАД ({picked.size}) І ЗАКРИТИ
+              ЗАТВЕРДИТИ СКЛАД ({picked.size}) І ЗАВЕРШИТИ ГРУ
             </button>
             <button
               className="btn-ghost"
@@ -536,7 +572,7 @@ export default function BoardPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
           <img src="/logo-ferum-vox.webp" alt="" width={28} height={28} style={{ display: 'block' }} />
           <div className="title-font" style={{ fontSize: 26, letterSpacing: 3 }}>
-            ДОШКА ЗАВДАНЬ
+            ЗАПИС НА ГРУ
           </div>
           <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-dim)' }}>{user?.nick}</div>
         </div>
@@ -555,7 +591,7 @@ export default function BoardPage() {
 
           {!loading && sorted.length === 0 && (
             <div style={{ border: '1px dashed var(--input-border)', padding: 22, textAlign: 'center', fontSize: 12, color: 'var(--text-dimmer)' }}>
-              Завдань поки немає.
+              Ігор поки немає.
             </div>
           )}
 
