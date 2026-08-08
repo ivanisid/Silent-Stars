@@ -5,7 +5,9 @@ import { computeLL, llTier } from '../pilot/logic';
 import NavDrawer from '../components/NavDrawer.jsx';
 import DateTimeField from '../components/DateTimeField.jsx';
 
-const GOLD = 'var(--gm)';
+// Gold as *text on a card*, so it stays legible on the light themes; --gm itself is
+// the bright gold meant for the GM's own dark surfaces.
+const GOLD = 'var(--gm-ink)';
 const GOLD_DIM = 'var(--gm-dim)';
 
 function formatDT(iso) {
@@ -15,12 +17,73 @@ function formatDT(iso) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// The badge sits on the card header, whose background is the theme's saturated primary
+// — a status colour there can land gold-on-gold. It takes the header's own ink and
+// leans on wording plus emphasis instead; the words already say the state.
 function statusBadge(slot) {
-  if (slot.status === 'cancelled') return { text: 'СКАСОВАНО', color: 'var(--danger)' };
-  if (slot.status === 'closed') return { text: 'СКЛАД ЗАТВЕРДЖЕНО', color: 'var(--success)' };
+  if (slot.status === 'cancelled') return { text: 'СКАСОВАНО', strong: true };
+  if (slot.status === 'closed') return { text: 'СКЛАД ЗАТВЕРДЖЕНО', strong: true };
   // The deadline is a hint for players, not a lock — only the GM closing the slot ends signup.
-  if (new Date(slot.signupDeadline) < new Date()) return { text: 'ДЕДЛАЙН МИНУВ · НАБІР ЩЕ ВІДКРИТО', color: 'var(--warn)' };
-  return { text: 'НАБІР ВІДКРИТО', color: 'var(--accent)' };
+  if (new Date(slot.signupDeadline) < new Date()) return { text: 'ДЕДЛАЙН МИНУВ · НАБІР ЩЕ ВІДКРИТО', strong: true };
+  return { text: 'НАБІР ВІДКРИТО', strong: false };
+}
+
+// Only http(s) is matched, so a linkified href can never be a javascript: URL.
+const URL_RE = /(https?:\/\/[^\s<>"']+)/g;
+
+function linkify(text) {
+  // String.split with a capturing group puts the matches at the odd indices.
+  return text.split(URL_RE).map((part, i) =>
+    i % 2 === 1 ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ color: 'var(--accent)', textDecoration: 'underline', overflowWrap: 'anywhere' }}
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    ),
+  );
+}
+
+// A pasted Discord link is one long unbreakable token, which used to run straight out
+// of the card. Wrap anywhere, clamp a long description to a few lines, and let it open.
+function Description({ text }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 200 || text.split('\n').length > 3;
+
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 12,
+          color: 'var(--text-soft-dim)',
+          lineHeight: 1.6,
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'anywhere',
+          ...(long && !open
+            ? { display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
+            : null),
+        }}
+      >
+        {linkify(text)}
+      </div>
+      {long && (
+        <button
+          className="btn-ghost"
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          style={{ fontSize: 11, padding: '3px 10px', marginTop: 6 }}
+        >
+          {open ? 'ЗГОРНУТИ ОПИС' : 'РОЗГОРНУТИ ОПИС'}
+        </button>
+      )}
+    </div>
+  );
 }
 
 // GM slot creation form, collapsed behind a button.
@@ -177,7 +240,9 @@ function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
     <div className="card" style={slot.status === 'cancelled' ? { opacity: 0.55 } : undefined}>
       <div className="card-header">
         <div className="title">{slot.title || 'ГРА БЕЗ НАЗВИ'}</div>
-        <div style={{ fontSize: 10, color: badge.color, letterSpacing: 1 }}>{badge.text}</div>
+        <div style={{ fontSize: 10, color: 'var(--header-text)', opacity: badge.strong ? 1 : 0.72, letterSpacing: 1 }}>
+          {badge.text}
+        </div>
       </div>
       <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 12, color: 'var(--text-dim)' }}>
@@ -199,9 +264,7 @@ function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
           </span>
         </div>
 
-        {slot.description && (
-          <div style={{ fontSize: 12, color: 'var(--text-dimmer)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{slot.description}</div>
-        )}
+        {slot.description && <Description text={slot.description} />}
 
         {contest && isOpen && (
           <div style={{ fontSize: 11, color: 'var(--warn)', letterSpacing: 1 }}>
