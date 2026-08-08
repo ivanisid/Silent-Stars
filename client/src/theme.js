@@ -15,6 +15,7 @@ export const THEMES = [
   { id: 'ipsn', label: 'IPS-N Carina', dark: false, swatch: ['#c9c7c7', '#1952A2', '#19A2A2'] },
   { id: 'ssc', label: 'SSC Constellar Congress', dark: false, swatch: ['#dbcfc3', '#d1920a', '#b58900'] },
   { id: 'hc-dark', label: 'High Contrast Dark', dark: true, swatch: ['#1b212b', '#4b0c13', '#ffabb3'] },
+  { id: 'mono', label: 'Monochrome', dark: true, swatch: ['#131313', '#2a2a2a', '#d6d6d6'] },
 ];
 
 const STORAGE_KEY = 'ferumvox.theme';
