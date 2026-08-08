@@ -34,10 +34,10 @@
   --text-soft-dim: #9E9E9E;
   --text-info: #d48a7f;
   --text-dim: #ae8c8f;
-  --text-dimmer: #66676a;
+  --text-dimmer: #858588;
   --text-muted: #9E9E9E;
-  --text-grey: #828384;
-  --text-faint: #47494d;
+  --text-grey: #878889;
+  --text-faint: #686a6d;
   --input-bg: #131921;
   --input-border: #222936;
   --btn-bg: #802932;
@@ -70,6 +70,7 @@
   --gm-card: #160e13;
   --gm-card-border: #3a2733;
   --gm-foot: #5a3d51;
+  --gm-ink: #e2b13c;
 }
 
 /* GMS Dark — ported from COMP/CON */
@@ -100,10 +101,10 @@
   --text-soft-dim: #9E9E9E;
   --text-info: #d48a7f;
   --text-dim: #ae8c8f;
-  --text-dimmer: #66676a;
+  --text-dimmer: #858588;
   --text-muted: #9E9E9E;
-  --text-grey: #828384;
-  --text-faint: #47494d;
+  --text-grey: #878889;
+  --text-faint: #686a6d;
   --input-bg: #131921;
   --input-border: #222936;
   --btn-bg: #802932;
@@ -122,6 +123,7 @@
   --ok-border: #456b57;
   --bad-bg: #381e26;
   --bad-border: #7d2f39;
+  --gm-ink: #e2b13c;
 }
 
 /* GMS Light — ported from COMP/CON */
@@ -148,14 +150,14 @@
   --accent-dim: #bb797f;
   --text: #212121;
   --text-bright: #000;
-  --text-soft: #606060;
-  --text-soft-dim: #9E9E9E;
+  --text-soft: #494949;
+  --text-soft-dim: #656565;
   --text-info: #5c1a20;
-  --text-dim: #9a7c7f;
-  --text-dimmer: #898989;
+  --text-dim: #755e61;
+  --text-dimmer: #656565;
   --text-muted: #424242;
-  --text-grey: #afafaf;
-  --text-faint: #b0b0b0;
+  --text-grey: #666666;
+  --text-faint: #828282;
   --input-bg: #eeeeee;
   --input-border: #c4c9cd;
   --btn-bg: #991E2A;
@@ -174,6 +176,7 @@
   --ok-border: #aec789;
   --bad-bg: #f4d4d2;
   --bad-border: #f49c95;
+  --gm-ink: #7a6020;
 }
 
 /* HORUS Terminal — ported from COMP/CON */
@@ -204,10 +207,10 @@
   --text-soft-dim: #b3b9ba;
   --text-info: #73ea73;
   --text-dim: #86c18c;
-  --text-dimmer: #5a6060;
+  --text-dimmer: #7b8080;
   --text-muted: #96a0a0;
   --text-grey: #8f9495;
-  --text-faint: #393d3d;
+  --text-faint: #616464;
   --input-bg: #070707;
   --input-border: #2e2e2e;
   --btn-bg: #126127;
@@ -226,6 +229,7 @@
   --ok-border: #00642a;
   --bad-bg: #290000;
   --bad-border: #730000;
+  --gm-ink: #e2b13c;
 }
 
 /* HORIZON Operative — ported from COMP/CON */
@@ -256,10 +260,10 @@
   --text-soft-dim: #b3b9ba;
   --text-info: #e4b173;
   --text-dim: #baa78c;
-  --text-dimmer: #5c6667;
+  --text-dimmer: #7d8585;
   --text-muted: #96a0a0;
   --text-grey: #909798;
-  --text-faint: #3b4647;
+  --text-faint: #626b6c;
   --input-bg: #0b1416;
   --input-border: #303637;
   --btn-bg: #233943;
@@ -278,6 +282,7 @@
   --ok-border: #026c32;
   --bad-bg: #2d1a15;
   --bad-border: #752e1d;
+  --gm-ink: #e2b13c;
 }
 
 /* MSMC Solarized — ported from COMP/CON */
@@ -308,10 +313,10 @@
   --text-soft-dim: #b3b9ba;
   --text-info: #73cdcd;
   --text-dim: #8ebbbc;
-  --text-dimmer: #667071;
+  --text-dimmer: #8e9596;
   --text-muted: #96a0a0;
   --text-grey: #959c9d;
-  --text-faint: #4c5657;
+  --text-faint: #707879;
   --input-bg: #202a2e;
   --input-border: #4f595f;
   --btn-bg: #146464;
@@ -330,6 +335,7 @@
   --ok-border: #10783f;
   --bad-bg: #452d2d;
   --bad-border: #8a3631;
+  --gm-ink: #e2b13c;
 }
 
 /* Low Contrast Solarized — ported from COMP/CON */
@@ -354,16 +360,16 @@
   --accent: #2fa3a3;
   --accent-hover: #6dbfbf;
   --accent-dim: #2c7274;
-  --text: #9fa9ad;
+  --text: #d5d9db;
   --text-bright: #d8d8d8;
-  --text-soft: #929ea1;
-  --text-soft-dim: #859294;
-  --text-info: #61a6a8;
-  --text-dim: #709698;
-  --text-dimmer: #788a8c;
+  --text-soft: #d3d8d9;
+  --text-soft-dim: #a7b1b2;
+  --text-info: #81b8b9;
+  --text-dim: #98b3b5;
+  --text-dimmer: #a6b2b3;
   --text-muted: #acc2c2;
-  --text-grey: #738082;
-  --text-faint: #5b6b6e;
+  --text-grey: #a8b0b2;
+  --text-faint: #828f91;
   --input-bg: #2e3b3f;
   --input-border: #445057;
   --btn-bg: #1b4e4e;
@@ -382,6 +388,7 @@
   --ok-border: #1c5e3d;
   --bad-bg: #42393a;
   --bad-border: #6f3d3b;
+  --gm-ink: #e2b13c;
 }
 
 /* FORECAST/GALSIM — ported from COMP/CON */
@@ -412,10 +419,10 @@
   --text-soft-dim: #b3b9ba;
   --text-info: #9bb3dc;
   --text-dim: #99a8bb;
-  --text-dimmer: #6b7171;
-  --text-muted: #96a0a0;
-  --text-grey: #989d9d;
-  --text-faint: #545757;
+  --text-dimmer: #a0a4a4;
+  --text-muted: #9aa4a4;
+  --text-grey: #9ea3a3;
+  --text-faint: #808383;
   --input-bg: #30302f;
   --input-border: #464646;
   --btn-bg: #e36600;
@@ -434,6 +441,7 @@
   --ok-border: #1e663c;
   --bad-bg: #4f2f2d;
   --bad-border: #903731;
+  --gm-ink: #e2b13c;
 }
 
 /* Harrison Armory Ras Shamra — ported from COMP/CON */
@@ -464,10 +472,10 @@
   --text-soft-dim: #b3b9ba;
   --text-info: #eeb9ed;
   --text-dim: #beabc3;
-  --text-dimmer: #6b7171;
-  --text-muted: #96a0a0;
-  --text-grey: #989d9d;
-  --text-faint: #545757;
+  --text-dimmer: #a3a7a7;
+  --text-muted: #9ea8a8;
+  --text-grey: #a2a7a7;
+  --text-faint: #848686;
   --input-bg: #313131;
   --input-border: #464646;
   --btn-bg: #771675;
@@ -486,6 +494,7 @@
   --ok-border: #167a3f;
   --bad-bg: #4f2f2d;
   --bad-border: #903731;
+  --gm-ink: #e2b13c;
 }
 
 /* IPS-N Carina — ported from COMP/CON */
@@ -512,14 +521,14 @@
   --accent-dim: #70bcbc;
   --text: #212121;
   --text-bright: #000;
-  --text-soft: #3f3f3f;
-  --text-soft-dim: #5c5c5c;
-  --text-info: #1d6868;
-  --text-dim: #4b6e6e;
-  --text-dimmer: #7f7f7f;
+  --text-soft: #393939;
+  --text-soft-dim: #565656;
+  --text-info: #1a5e5e;
+  --text-dim: #3e5a5a;
+  --text-dimmer: #565656;
   --text-muted: #424242;
-  --text-grey: #757575;
-  --text-faint: #a1a1a1;
+  --text-grey: #545454;
+  --text-faint: #6d6d6d;
   --input-bg: #d4d5d6;
   --input-border: #b7bbc0;
   --btn-bg: #1952A2;
@@ -538,6 +547,7 @@
   --ok-border: #6ed297;
   --bad-bg: #e0c0bd;
   --bad-border: #e88f89;
+  --gm-ink: #68511c;
 }
 
 /* SSC Constellar Congress — ported from COMP/CON */
@@ -562,16 +572,16 @@
   --accent: #b58900;
   --accent-hover: #7f6000;
   --accent-dim: #cfb460;
-  --text: #5e4b30;
+  --text: #4d3e27;
   --text-bright: #000;
-  --text-soft: #695d61;
-  --text-soft-dim: #736e91;
-  --text-info: #8e6d16;
-  --text-dim: #84756d;
-  --text-dimmer: #b39f7f;
-  --text-muted: #8c6f46;
-  --text-grey: #8c869f;
-  --text-faint: #c9ba9f;
+  --text-soft: #473f42;
+  --text-soft-dim: #5c5874;
+  --text-info: #745912;
+  --text-dim: #675b55;
+  --text-dimmer: #645947;
+  --text-muted: #705938;
+  --text-grey: #5f5b6c;
+  --text-faint: #817766;
   --input-bg: #e8e1cf;
   --input-border: #c1c2bc;
   --btn-bg: #d1920a;
@@ -590,6 +600,7 @@
   --ok-border: #7fac87;
   --bad-bg: #e8cbb7;
   --bad-border: #dd9881;
+  --gm-ink: #71581e;
 }
 
 /* High Contrast Dark — ported from COMP/CON */
@@ -642,6 +653,7 @@
   --ok-border: #002a0f;
   --bad-bg: #2e0004;
   --bad-border: #80000b;
+  --gm-ink: #e2b13c;
 }
 
 /* Monochrome — ours, not a COMP/CON port. Strictly greyscale, so unlike every other
@@ -679,10 +691,10 @@
   --text-soft-dim: #a6a6a6;
   --text-info: #dcdcdc;
   --text-dim: #9a9a9a;
-  --text-dimmer: #6e6e6e;
+  --text-dimmer: #7f7f7f;
   --text-muted: #8a8a8a;
   --text-grey: #909090;
-  --text-faint: #4a4a4a;
+  --text-faint: #636363;
 
   --input-bg: #0d0d0d;
   --input-border: #3d3d3d;
@@ -715,6 +727,7 @@
   --gm-card: #121212;
   --gm-card-border: #444444;
   --gm-foot: #555555;
+  --gm-ink: #ffffff;
 }
 
 * { box-sizing: border-box; }
