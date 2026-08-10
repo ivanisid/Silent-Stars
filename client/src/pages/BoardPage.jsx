@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { computeLL, llTier } from '../pilot/logic';
@@ -22,8 +23,10 @@ function formatDT(iso) {
 // leans on wording plus emphasis instead; the words already say the state.
 function statusBadge(slot) {
   if (slot.status === 'cancelled') return { text: 'СКАСОВАНО', strong: true };
-  // Closing the slot is what pays the reward out, so a closed slot is a finished game.
+  // Two distinct things: the line-up is fixed (nobody else joins), and the game has been
+  // played and paid for. A slot passes through the first on its way to the second.
   if (slot.status === 'closed') return { text: 'ГРА ЗАВЕРШЕНА', strong: true };
+  if (slot.status === 'approved') return { text: 'СКЛАД ЗАТВЕРДЖЕНО · ЗАПИС ЗАКРИТО', strong: true };
   // The deadline is a hint for players, not a lock — only the GM closing the slot ends signup.
   if (new Date(slot.signupDeadline) < new Date()) return { text: 'ДЕДЛАЙН МИНУВ · НАБІР ЩЕ ВІДКРИТО', strong: true };
   return { text: 'НАБІР ВІДКРИТО', strong: false };
@@ -199,7 +202,8 @@ function CreateSlotForm({ onCreated }) {
   );
 }
 
-function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
+function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
+  const navigate = useNavigate();
   const [pilotId, setPilotId] = useState('');
   const [mechId, setMechId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -212,7 +216,9 @@ function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
 
   const badge = statusBadge(slot);
   const isOpen = slot.status === 'open';
-  // 'closed' is set by the same call that pays the reward out, so it means "played and settled".
+  // Roster locked, game still ahead — signup is shut but nothing has been awarded.
+  const isApproved = slot.status === 'approved';
+  // Played and settled: 'closed' is set by the call that pays the reward out.
   const isDone = slot.status === 'closed';
   const awarded = slot.signups.filter((g) => g.approved === true).length;
   const mySignup = slot.signups.find((g) => g.userId === user.id);
@@ -277,7 +283,30 @@ function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
               {awarded > 0
                 ? `Нагороди нараховано · ${awarded} ${pluralPilots(awarded)} · ${slot.rewardMana} М кожному` +
                   `${slot.rewardDc > 0 ? ` · ${slot.rewardDc} DC на меха` : ''} · +1 зіграна гра`
-                : 'Склад не затверджено — нагород не нараховано'}
+                : 'Нікого не затверджено — нагород не нараховано'}
+            </span>
+          </div>
+        )}
+
+        {isApproved && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 10,
+              flexWrap: 'wrap',
+              padding: '9px 12px',
+              background: 'var(--panel-inset)',
+              border: '1px solid var(--input-border)',
+            }}
+          >
+            <span className="title-font" style={{ fontSize: 13, letterSpacing: 2, color: 'var(--text-bright)' }}>
+              СКЛАД ЗАТВЕРДЖЕНО
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--text-soft-dim)', lineHeight: 1.6 }}>
+              {awarded > 0
+                ? `Грає ${awarded} ${pluralPilots(awarded)} · запис закрито · нагороду буде нараховано, коли ГМ завершить гру`
+                : 'Нікого не затверджено · запис закрито'}
             </span>
           </div>
         )}
@@ -343,6 +372,19 @@ function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
                     <span style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>▮ {g.mech}</span>
                   )}
                   <span style={{ color: 'var(--text-dimmer)' }}>{g.nick || 'невідомо'}</span>
+                  {/* Only a GM can read someone else's pilot (RLS), so the link is theirs
+                      alone — for anyone else it would land on "пілота не знайдено". */}
+                  {isGm && g.pilotId && (
+                    <button
+                      className="btn-ghost"
+                      type="button"
+                      onClick={() => navigate(`/pilots/${g.pilotId}`)}
+                      style={{ fontSize: 10, padding: '3px 8px', letterSpacing: 1 }}
+                      title={`Відкрити профіль ${g.callsign || 'пілота'}`}
+                    >
+                      ПРОФІЛЬ
+                    </button>
+                  )}
                   <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
                     {g.roll !== null ? (
                       <span style={{ color: 'var(--text-bright)', whiteSpace: 'nowrap' }}>
@@ -425,8 +467,9 @@ function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
           </div>
         )}
 
-        {/* GM actions */}
-        {ownsSlot && isOpen && (
+        {/* GM actions. The reward stays editable right up to the payout, which is why the
+            roster is locked one step before the game is closed. */}
+        {ownsSlot && (isOpen || isApproved) && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', borderTop: `1px solid var(--gm-rule)`, paddingTop: 12 }}>
             {editReward ? (
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', width: '100%' }}>
@@ -472,23 +515,43 @@ function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
                 ЗМІНИТИ НАГОРОДУ
               </button>
             )}
-            <button
-              className="btn"
-              type="button"
-              disabled={busy || slot.signups.length === 0}
-              onClick={() => {
-                const msg =
-                  `Затвердити склад (${picked.size} з ${slot.signups.length}) і завершити гру?\n\n` +
-                  `Кожен затверджений пілот отримає ${slot.rewardMana} М і +1 зіграну гру, ` +
-                  `а ${slot.rewardDc} DC ляжуть на меха, з яким він записався. ` +
-                  'Це діє одразу й не скасовується.';
-                if (!window.confirm(msg)) return;
-                run(() => api.gmResolveSlot(slot.id, Array.from(picked)));
-              }}
-              style={{ borderColor: GOLD_DIM, color: GOLD }}
-            >
-              ЗАТВЕРДИТИ СКЛАД ({picked.size}) І ЗАВЕРШИТИ ГРУ
-            </button>
+            {isOpen && (
+              <button
+                className="btn"
+                type="button"
+                disabled={busy || slot.signups.length === 0}
+                onClick={() => {
+                  const msg =
+                    `Затвердити склад: ${picked.size} з ${slot.signups.length}?\n\n` +
+                    'Запис на гру закриється, а ті, хто не потрапив, отримають +3 до кидка участі. ' +
+                    'Нагорода поки НЕ нараховується — це станеться, коли ви завершите гру.';
+                  if (!window.confirm(msg)) return;
+                  run(() => api.gmApproveRoster(slot.id, Array.from(picked)));
+                }}
+                style={{ borderColor: GOLD_DIM, color: GOLD }}
+              >
+                ЗАТВЕРДИТИ СКЛАД ({picked.size})
+              </button>
+            )}
+            {isApproved && (
+              <button
+                className="btn"
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  const msg =
+                    `Завершити гру і видати нагороду ${awarded} ${pluralPilots(awarded)}?\n\n` +
+                    `Кожен отримає ${slot.rewardMana} М і +1 зіграну гру, ` +
+                    `а ${slot.rewardDc} DC ляжуть на меха, з яким він записався. ` +
+                    'Це діє одразу й не скасовується.';
+                  if (!window.confirm(msg)) return;
+                  run(() => api.gmCloseGame(slot.id));
+                }}
+                style={{ borderColor: GOLD_DIM, color: GOLD }}
+              >
+                ЗАВЕРШИТИ ГРУ І ВИДАТИ НАГОРОДУ
+              </button>
+            )}
             <button
               className="btn-ghost"
               type="button"
@@ -502,7 +565,7 @@ function SlotCard({ slot, user, myPilots, myBonus, onChanged }) {
             </button>
           </div>
         )}
-        {ownsSlot && !isOpen && (
+        {ownsSlot && !isOpen && !isApproved && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', borderTop: `1px solid var(--gm-rule)`, paddingTop: 12 }}>
             <button
               className="btn-ghost"
@@ -555,7 +618,9 @@ export default function BoardPage() {
   }, [user?.id]);
 
   const sorted = useMemo(() => {
-    const rank = (s) => (s.status === 'open' ? 0 : s.status === 'closed' ? 1 : 2);
+    // Live games first, then the ones already played, then the abandoned ones.
+    const order = { open: 0, approved: 1, closed: 2, cancelled: 3 };
+    const rank = (s) => order[s.status] ?? 9;
     return [...slots].sort((a, b) => rank(a) - rank(b) || new Date(b.gameAt) - new Date(a.gameAt));
   }, [slots]);
 
@@ -602,6 +667,7 @@ export default function BoardPage() {
               key={slot.id}
               slot={slot}
               user={user}
+              isGm={isGm}
               myPilots={myPilots}
               myBonus={myBonus}
               onChanged={reload}

@@ -192,8 +192,16 @@ export const api = {
     return { ok: true };
   },
 
-  gmResolveSlot: async (slotId, approvedSignupIds) => {
-    const { error } = await supabase.rpc('gm_resolve_slot', { p_slot_id: slotId, p_approved: approvedSignupIds });
+  // Locking the line-up and paying for a played game are separate steps: a slot sits in
+  // 'approved' in between, where signup is shut but nothing has been awarded yet.
+  gmApproveRoster: async (slotId, approvedSignupIds) => {
+    const { error } = await supabase.rpc('gm_approve_roster', { p_slot_id: slotId, p_approved: approvedSignupIds });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
+  gmCloseGame: async (slotId) => {
+    const { error } = await supabase.rpc('gm_close_game', { p_slot_id: slotId });
     if (error) throw new Error(error.message);
     return { ok: true };
   },
