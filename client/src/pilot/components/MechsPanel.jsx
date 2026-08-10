@@ -24,7 +24,23 @@ export default function MechsPanel({ state, dispatch }) {
           return (
             <div key={m.id} style={{ background: 'var(--input-bg)', border: '1px solid var(--panel-border)', padding: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                <div className="title-font" style={{ fontSize: 20 }}>{m.name}</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                  <div className="title-font" style={{ fontSize: 20 }}>{m.name}</div>
+                  {m.frame && (
+                    <div
+                      style={{
+                        fontSize: 10,
+                        letterSpacing: 1,
+                        color: 'var(--accent)',
+                        border: '1px solid var(--accent-dim)',
+                        padding: '2px 7px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {[m.frameSource, m.frame].filter(Boolean).join(' ').toUpperCase()}
+                    </div>
+                  )}
+                </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button className="btn-ghost" type="button" style={{ fontSize: 11, padding: '6px 10px' }} onClick={() => dispatch({ type: 'FULL_REPAIR_MECH', id: m.id })}>
                     ПОВНИЙ РЕМОНТ
@@ -47,6 +63,16 @@ export default function MechsPanel({ state, dispatch }) {
                   <div>
                     <div className="field-label">РЕМ. КАП</div>
                     <input type="number" value={state.mechEdit.repairMax} onChange={(e) => dispatch({ type: 'SET_EDIT_REPAIR', value: e.target.value })} style={{ width: 80, padding: '6px 8px', fontSize: 13 }} />
+                  </div>
+                  <div>
+                    <div className="field-label">ФРЕЙМ</div>
+                    <input
+                      type="text"
+                      value={state.mechEdit.frame || ''}
+                      onChange={(e) => dispatch({ type: 'SET_EDIT_FRAME', value: e.target.value })}
+                      placeholder="Tortuga"
+                      style={{ width: 140, padding: '6px 8px', fontSize: 13 }}
+                    />
                   </div>
                   <button className="btn" type="button" onClick={() => dispatch({ type: 'SAVE_MECH_EDIT' })}>ЗБЕРЕГТИ</button>
                 </div>
@@ -190,8 +216,9 @@ export default function MechsPanel({ state, dispatch }) {
           );
         })}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto auto', gap: 8 }}>
           <input type="text" value={d.name} onChange={(e) => dispatch({ type: 'SET_MECH_DRAFT_FIELD', field: 'name', value: e.target.value })} placeholder="Назва меха" style={{ padding: '8px 10px', fontSize: 13 }} />
+          <input type="text" value={d.frame || ''} onChange={(e) => dispatch({ type: 'SET_MECH_DRAFT_FIELD', field: 'frame', value: e.target.value })} placeholder="Фрейм (Tortuga)" style={{ padding: '8px 10px', fontSize: 13 }} />
           <input type="number" value={d.hpMax} onChange={(e) => dispatch({ type: 'SET_MECH_DRAFT_FIELD', field: 'hpMax', value: e.target.value })} placeholder="HP" style={{ width: 80, padding: '8px 10px', fontSize: 13 }} />
           <input type="number" value={d.repairMax} onChange={(e) => dispatch({ type: 'SET_MECH_DRAFT_FIELD', field: 'repairMax', value: e.target.value })} placeholder="Рем." style={{ width: 80, padding: '8px 10px', fontSize: 13 }} />
           <button className="btn" type="button" onClick={() => dispatch({ type: 'ADD_MECH' })}>ДОДАТИ МЕХА</button>
