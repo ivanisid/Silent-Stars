@@ -644,13 +644,17 @@ export function pilotReducer(state, action) {
     case 'SET_MECH_DRAFT_FIELD':
       return { ...state, mechDraft: { ...state.mechDraft, [action.field]: action.value } };
     case 'ADD_MECH': {
-      const { name, hpMax, repairMax } = state.mechDraft;
+      const { name, hpMax, repairMax, frame } = state.mechDraft;
       if (!name.trim()) return state;
       const hp = parseInt(hpMax, 10) || 10;
       const rep = parseInt(repairMax, 10) || 5;
       const mech = {
         id: Date.now(),
         name: name.trim(),
+        // COMP/CON imports fill this from frameData; typed in by hand there is no source
+        // to pair it with, so the badge shows the chassis alone.
+        frame: (frame || '').trim(),
+        frameSource: '',
         hpCurrent: hp,
         hpMax: hp,
         repairCurrent: rep,
@@ -665,8 +669,8 @@ export function pilotReducer(state, action) {
         limited: [],
       };
       return log(
-        { ...state, mechs: [...state.mechs, mech], mechDraft: { name: '', hpMax: '', repairMax: '' } },
-        `Мех доданий: «${mech.name}»`,
+        { ...state, mechs: [...state.mechs, mech], mechDraft: { name: '', hpMax: '', repairMax: '', frame: '' } },
+        `Мех доданий: «${mech.name}»${mech.frame ? ` (${mech.frame})` : ''}`,
       );
     }
     case 'REMOVE_MECH': {
@@ -813,31 +817,40 @@ export function pilotReducer(state, action) {
       return {
         ...state,
         mechEditId: opening ? action.id : null,
-        mechEdit: opening ? { hpMax: String(m.hpMax), repairMax: String(m.repairMax) } : { hpMax: '', repairMax: '' },
+        mechEdit: opening
+          ? { hpMax: String(m.hpMax), repairMax: String(m.repairMax), frame: m.frame || '' }
+          : { hpMax: '', repairMax: '', frame: '' },
       };
     }
     case 'SET_EDIT_HP':
       return { ...state, mechEdit: { ...state.mechEdit, hpMax: action.value } };
     case 'SET_EDIT_REPAIR':
       return { ...state, mechEdit: { ...state.mechEdit, repairMax: action.value } };
+    // Editable so mechs that predate the frame field, or were added by hand, can be named
+    // without re-importing the whole pilot from COMP/CON.
+    case 'SET_EDIT_FRAME':
+      return { ...state, mechEdit: { ...state.mechEdit, frame: action.value } };
     case 'SAVE_MECH_EDIT': {
       const id = state.mechEditId;
       const m = findMech(state, id);
       const hpMax = Math.max(1, parseInt(state.mechEdit.hpMax, 10) || m.hpMax);
       const repairMax = Math.max(0, parseInt(state.mechEdit.repairMax, 10) || m.repairMax);
+      const frame = (state.mechEdit.frame || '').trim();
+      const frameNote = frame === (m.frame || '') ? '' : `, фрейм → ${frame || '—'}`;
       return log(
         {
           ...updateMech(state, id, (mm) => ({
             ...mm,
             hpMax,
             repairMax,
+            frame,
             hpCurrent: Math.min(mm.hpCurrent, hpMax),
             repairCurrent: Math.min(mm.repairCurrent, repairMax),
           })),
           mechEditId: null,
-          mechEdit: { hpMax: '', repairMax: '' },
+          mechEdit: { hpMax: '', repairMax: '', frame: '' },
         },
-        `${m.name}: HP кап ${m.hpMax} → ${hpMax}, рем. кап ${m.repairMax} → ${repairMax}`,
+        `${m.name}: HP кап ${m.hpMax} → ${hpMax}, рем. кап ${m.repairMax} → ${repairMax}${frameNote}`,
       );
     }
 

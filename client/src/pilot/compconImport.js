@@ -79,6 +79,10 @@ function mapMech(m, grit, hull) {
   return {
     id: Date.now() + Math.floor(Math.random() * 1000),
     name: m.name || m.frameData?.name || 'Мех',
+    // The chassis, kept apart from the pilot's own name for it: a mech called "Godhammer"
+    // is an IPS-N Tortuga, and which frame it is drives everything at the table.
+    frame: m.frameData?.name || '',
+    frameSource: m.frameData?.source || '',
     hpCurrent: liveHp > 0 ? liveHp : hpMax,
     hpMax,
     repairCurrent: repairMax,
