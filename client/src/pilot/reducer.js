@@ -799,6 +799,23 @@ export function pilotReducer(state, action) {
         `${m.name} · ${li.name}: заряди ${li.current} → ${next}`,
       );
     }
+    // The cap is not just the weapon's LIMITED tag: Engineering, core bonuses and some frames
+    // all raise it, and not every source can be read out of a COMP/CON export. Editable so the
+    // sheet can hold the real number whatever it comes from.
+    case 'SET_LIMITED_MAX': {
+      const m = findMech(state, action.id);
+      const li = m.limited[action.idx];
+      const next = Math.max(1, parseInt(action.value, 10) || 1);
+      if (next === li.max) return state;
+      const nextCurrent = Math.min(li.current, next);
+      return log(
+        updateMech(state, action.id, (mm) => ({
+          ...mm,
+          limited: mm.limited.map((l, i) => (i === action.idx ? { ...l, max: next, current: nextCurrent } : l)),
+        })),
+        `${m.name} · ${li.name}: макс. заряди ${li.max} → ${next}`,
+      );
+    }
     case 'TOGGLE_LIMITED_DESTROYED': {
       const m = findMech(state, action.id);
       const li = m.limited[action.idx];

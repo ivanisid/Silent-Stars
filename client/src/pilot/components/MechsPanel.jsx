@@ -181,7 +181,20 @@ export default function MechsPanel({ state, dispatch }) {
                         {li.name}
                       </div>
                       <StepButton onClick={() => dispatch({ type: 'DEC_LIMITED', id: m.id, idx })}>−</StepButton>
-                      <div style={{ minWidth: 40, textAlign: 'center', fontSize: 13 }}>{li.current}/{li.max}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 13 }}>
+                        <span style={{ minWidth: 18, textAlign: 'right' }}>{li.current}</span>
+                        <span style={{ color: 'var(--text-dimmer)' }}>/</span>
+                        {/* The cap is editable in place: Engineering, core bonuses and frame
+                            traits all raise it, and the import cannot always see them all. */}
+                        <input
+                          type="number"
+                          min={1}
+                          value={li.max}
+                          onChange={(e) => dispatch({ type: 'SET_LIMITED_MAX', id: m.id, idx, value: e.target.value })}
+                          title="Максимум зарядів"
+                          style={{ width: 44, padding: '2px 4px', fontSize: 13, textAlign: 'center' }}
+                        />
+                      </div>
                       <StepButton onClick={() => dispatch({ type: 'INC_LIMITED', id: m.id, idx })}>+</StepButton>
                       <button
                         type="button"
