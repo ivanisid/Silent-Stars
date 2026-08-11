@@ -14,24 +14,61 @@ function tagValue(tags, id) {
   return t ? Number(t.val) || 0 : null;
 }
 
-function collectLimited(mech) {
+// A LIMITED weapon's real number of uses is its tag value plus everything that raises the
+// cap, so the tag alone under-reports it. Per the core rules the pilot's ENGINEERING skill
+// gives +1 use per 2 points; core bonuses (e.g. Integrated Ammo Feeds) and some frame traits
+// add their own, and COMP/CON records those as a bonus with id 'limited_bonus'.
+//
+// Only passive `bonuses` are counted. `active_bonuses` hang off a core system and apply while
+// it is active, which is not a standing increase to the cap. Anything this cannot see — brew
+// content, a source shaped differently in the export — contributes 0 rather than a wrong
+// guess, and the cap stays editable by hand on the sheet.
+function sumLimitedBonuses(container) {
+  return (container?.bonuses || [])
+    .filter((b) => b?.id === 'limited_bonus')
+    .reduce((total, b) => total + (Number(b.val) || 0), 0);
+}
+
+function limitedBonusFor(pilot, mech) {
+  const eng = Number(pilot.mechSkills?.[3]) || 0;
+  const fromEngineering = Math.floor(eng / 2);
+
+  const fromCoreBonuses = (pilot.core_bonuses || []).reduce(
+    (total, cb) => total + sumLimitedBonuses(cb?.data || cb),
+    0,
+  );
+
+  const fromFrame = (mech.frameData?.traits || []).reduce(
+    (total, t) => total + sumLimitedBonuses(t),
+    0,
+  );
+
+  return { fromEngineering, fromCoreBonuses, fromFrame, total: fromEngineering + fromCoreBonuses + fromFrame };
+}
+
+function collectLimited(mech, bonus = 0) {
   const results = [];
   const loadout = mech.loadouts?.[mech.active_loadout_index ?? 0];
   if (!loadout) return results;
+
+  const push = (name, tagMax) => {
+    const max = tagMax + bonus;
+    results.push({ name, current: max, max, destroyed: false });
+  };
 
   (loadout.mounts || []).forEach((mount) => {
     (mount.slots || []).forEach((slot) => {
       const w = slot.weapon?.data;
       if (!w) return;
       const max = tagValue(w.tags, 'tg_limited');
-      if (max) results.push({ name: w.name, current: max, max, destroyed: false });
+      if (max) push(w.name, max);
     });
   });
 
   (loadout.systems || []).forEach((sys) => {
     const s = sys.data || sys;
     const max = tagValue(s.tags, 'tg_limited');
-    if (max) results.push({ name: s.name, current: max, max, destroyed: false });
+    if (max) push(s.name, max);
   });
 
   return results;
@@ -70,7 +107,7 @@ function mapSkillTriggers(skills, cap) {
 // and the raw export doesn't persist those already-summed totals. Per the Lancer core rules:
 // Mech HP = Frame HP + Grit + 2×Hull; Repair Cap = Frame Repair Cap + floor(Hull÷2).
 // `mechSkills` is the pilot's HASE array in that fixed order, so mechSkills[0] is Hull.
-function mapMech(m, grit, hull) {
+function mapMech(m, grit, hull, limitedBonus) {
   const frameStats = m.frameData?.stats || {};
   const hpMax = (frameStats.hp || 10) + grit + 2 * hull;
   const repairMax = (frameStats.repcap || 0) + Math.floor(hull / 2);
@@ -92,7 +129,7 @@ function mapMech(m, grit, hull) {
     corePower: m.corePower ?? true,
     overcharge: 0,
     dc: m.dc ?? 0,
-    limited: collectLimited(m),
+    limited: collectLimited(m, limitedBonus),
   };
 }
 
@@ -143,8 +180,24 @@ export function mapCompconPilot(json) {
       max: d.stats?.max?.hp || 6,
     },
     skillTriggers: mapSkillTriggers(d.skills, skillCapMax(level, 0)),
-    mechs: (d.mechs || []).map((m) => mapMech(m, d.stats?.max?.grit || 0, d.mechSkills?.[0] || 0)),
-    actionLog: [{ ts: nowTs(), msg: `Імпортовано з COMP/CON (${d.callsign || d.name || 'пілот'})` }],
+    mechs: (d.mechs || []).map((m) =>
+      mapMech(m, d.stats?.max?.grit || 0, d.mechSkills?.[0] || 0, limitedBonusFor(d, m).total),
+    ),
+    actionLog: [
+      { ts: nowTs(), msg: `Імпортовано з COMP/CON (${d.callsign || d.name || 'пілот'})` },
+      // The bonus is written down per mech so a wrong cap can be traced to its source
+      // instead of looking like the import inventing numbers.
+      ...(d.mechs || []).map((m) => {
+        const b = limitedBonusFor(d, m);
+        return {
+          ts: nowTs(),
+          msg:
+            `Ліміт зарядів «${m.name || m.frameData?.name || 'мех'}»: +${b.total} ` +
+            `(ENG ${b.fromEngineering} · кор-бонуси ${b.fromCoreBonuses} · фрейм ${b.fromFrame})` +
+            (b.total === 0 ? ' — перевірте максимуми вручну' : ''),
+        };
+      }),
+    ],
   };
 
   return {
