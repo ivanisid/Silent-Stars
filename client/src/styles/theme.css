@@ -12,6 +12,13 @@
    recognisable. Body text everywhere else is still clamped for contrast. */
 
 :root {
+  /* Chrome on Android force-darkens ("Auto Dark Theme") any page that has not declared
+     which colour schemes it handles, which is why a phone showed different colours to a
+     desktop even though every theme here is a fixed set of variables. Declaring the scheme
+     opts the page out of that repaint, and also makes native widgets — scrollbars, checkboxes,
+     date pickers, autofill — follow the theme instead of the OS. Each light theme restates
+     this as `only light`, the explicit "do not darken me" value. */
+  color-scheme: dark;
   --bg: #11151c;
   --bg-alt: #0d1015;
   --page-grad: #4e2028;
@@ -132,6 +139,7 @@
 
 /* GMS Light — ported from COMP/CON */
 :root[data-theme='gms'] {
+  color-scheme: only light;
   --bg: #f4f4f4;
   --bg-alt: #f7f7f7;
   --page-grad: #c27e85;
@@ -503,6 +511,7 @@
 
 /* IPS-N Carina — ported from COMP/CON */
 :root[data-theme='ipsn'] {
+  color-scheme: only light;
   --bg: #dbdbdb;
   --bg-alt: #e4e4e4;
   --page-grad: #7090bc;
@@ -556,6 +565,7 @@
 
 /* SSC Constellar Congress — ported from COMP/CON */
 :root[data-theme='ssc'] {
+  color-scheme: only light;
   --bg: #eee8d5;
   --bg-alt: #f2eee0;
   --page-grad: #deb965;
