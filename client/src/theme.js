@@ -35,10 +35,26 @@ export function loadTheme() {
   return DEFAULT_THEME;
 }
 
+// The browser paints its own chrome — the address bar on Android, the status bar area of an
+// installed PWA — from this tag, so without it the phone frames a themed page in stock colours.
+// Read after the attribute is set: custom properties resolve synchronously.
+function syncThemeColor() {
+  const header = getComputedStyle(document.documentElement).getPropertyValue('--header').trim();
+  if (!header) return;
+  let meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    document.head.appendChild(meta);
+  }
+  meta.setAttribute('content', header);
+}
+
 export function applyTheme(id) {
   const theme = THEMES.some((t) => t.id === id) ? id : DEFAULT_THEME;
   if (theme === DEFAULT_THEME) delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme;
+  syncThemeColor();
   try {
     localStorage.setItem(STORAGE_KEY, theme);
   } catch {

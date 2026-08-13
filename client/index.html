@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- Declared before the stylesheet loads so a mobile browser never gets a frame in which
+     the page looks scheme-less and repaints it with its own dark filter. The per-theme
+     value in theme.css is what actually applies once CSS is in. -->
+<meta name="color-scheme" content="dark light" />
+<meta name="theme-color" content="#802932" />
 <link rel="icon" type="image/png" href="/favicon.png" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
