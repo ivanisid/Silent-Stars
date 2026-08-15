@@ -14,10 +14,11 @@ import BondMenu from '../pilot/components/BondMenu.jsx';
 import SkillTriggers from '../pilot/components/SkillTriggers.jsx';
 import DowntimePanel from '../pilot/components/DowntimePanel.jsx';
 import ContactsPanel from '../pilot/components/ContactsPanel.jsx';
-import ProjectsPanel from '../pilot/components/ProjectsPanel.jsx';
+// ProjectsPanel and ActionLog are deliberately not rendered — the projects panel is
+// parked for now and the action log was dropped from the sheet. Both components and
+// their reducer state are untouched, so bringing either back is an import and a line.
 import HangarPanel from '../pilot/components/HangarPanel.jsx';
 import MechsPanel from '../pilot/components/MechsPanel.jsx';
-import ActionLog from '../pilot/components/ActionLog.jsx';
 import GmAuditPanel from '../pilot/components/GmAuditPanel.jsx';
 import ChangeLogPanel from '../pilot/components/ChangeLogPanel.jsx';
 import NavDrawer from '../components/NavDrawer.jsx';
@@ -148,7 +149,6 @@ export default function PilotProfilePage() {
         <MechsPanel state={state} dispatch={dispatch} />
         <SkillTriggers state={state} dispatch={dispatch} />
         <ContactsPanel state={state} dispatch={dispatch} />
-        <ProjectsPanel state={state} dispatch={dispatch} />
         <DowntimePanel
           state={state}
           dispatch={dispatch}
@@ -169,7 +169,6 @@ export default function PilotProfilePage() {
         />
         <HangarPanel state={state} dispatch={dispatch} />
         <NarrativeEditor state={state} dispatch={dispatch} />
-        <ActionLog state={state} dispatch={dispatch} />
         {/* Shown to everyone, GMs included: this is the everyday undo, and hiding it
             behind the collapsed GM panel made the feature invisible to a GM. The GM
             panel below stays as the forensic view (who changed what, journal clears). */}

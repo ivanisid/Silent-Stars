@@ -2,7 +2,7 @@ import { Card } from './ui';
 
 export default function NarrativeEditor({ state, dispatch }) {
   return (
-    <Card title="НАРАТИВ">
+    <Card title="ЗАПИСНИК">
       <div style={{ padding: 20 }}>
         <textarea
           value={state.narrative}
