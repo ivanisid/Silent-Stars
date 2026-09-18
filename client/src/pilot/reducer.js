@@ -9,6 +9,7 @@ import {
   MAX_LL,
   REDISTRIBUTE_ALL_COST,
   BOND_XP_PER_POWER,
+  BOND_POWERS_ON_CHOOSE,
   BOND_POWERS_FOR_VETERAN,
   BOND_POWERS_FOR_MASTER,
   limitedRefillPr,
@@ -276,8 +277,9 @@ export function pilotReducer(state, action) {
     // бонду свій, а бонду ще немає.
     case 'SCORE_IDEALS': {
       const m = state.bond.marked;
-      const hasBond = state.bond.archetype.trim() !== '';
-      const keys = hasBond ? ['major0', 'major1', 'major2', 'minor'] : ['major1', 'major2'];
+      const keys = state.bond.confirmed
+        ? ['major0', 'major1', 'major2', 'minor']
+        : ['major1', 'major2'];
       const gained = keys.filter((k) => m[k]).length;
       if (gained === 0) return state;
       const next = state.bond.xp + gained;
@@ -293,12 +295,35 @@ export function pilotReducer(state, action) {
         `Ідеали за гру: +${gained} XP бонду (${state.bond.xp} → ${next})`,
       );
     }
+    // Вибір бонду на Тірі 2 дає 2 сили плюс по одній за кожен скид лічильника XP,
+    // зроблений до вибору. Фіксується один раз — повторно нарахувати не можна.
+    case 'CONFIRM_BOND_CHOICE': {
+      if (state.bond.confirmed) return state;
+      if (!state.bond.archetype.trim()) return state;
+      const earned = state.bond.deferredResets;
+      const owed = state.bond.powersOwed + BOND_POWERS_ON_CHOOSE + earned;
+      return log(
+        { ...state, bond: { ...state.bond, confirmed: true, powersOwed: owed, deferredResets: 0 } },
+        `Бонд обрано: «${state.bond.archetype.trim()}» — ${BOND_POWERS_ON_CHOOSE} сили` +
+          (earned > 0 ? ` + ${earned} за Тір 1 без бонду` : '') +
+          ` (доступно сил: ${owed})`,
+      );
+    }
+
     // Обмін 8 XP на нову силу. XP не обрізається на 8: надлишок лишається на наступну.
     case 'CLAIM_BOND_POWER': {
       const name = state.bond.newPower.trim();
-      if (!name) return state;
+      if (!name || !state.bond.confirmed) return state;
+
+      // Спершу витрачаються сили, на які вже є право, і тільки потім XP.
+      if (state.bond.powersOwed > 0) {
+        const owed = state.bond.powersOwed - 1;
+        return log(
+          { ...state, bond: { ...state.bond, powersOwed: owed, powers: [...state.bond.powers, name], newPower: '' } },
+          `Сила бонду: «${name}» (лишилось нерозподілених: ${owed})`,
+        );
+      }
       if (state.bond.xp < BOND_XP_PER_POWER) return state;
-      if (!state.bond.archetype.trim()) return state;
       const xp = state.bond.xp - BOND_XP_PER_POWER;
       return log(
         { ...state, bond: { ...state.bond, xp, powers: [...state.bond.powers, name], newPower: '' } },
@@ -308,7 +333,7 @@ export function pilotReducer(state, action) {
     // Без обраного бонду 8 XP не дають силу — лічильник скидається, і кожен скид
     // потім конвертується в силу при виборі бонду.
     case 'RESET_DEFERRED_XP': {
-      if (state.bond.archetype.trim()) return state;
+      if (state.bond.confirmed) return state;
       if (state.bond.xp < BOND_XP_PER_POWER) return state;
       const xp = state.bond.xp - BOND_XP_PER_POWER;
       const resets = state.bond.deferredResets + 1;

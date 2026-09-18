@@ -3,6 +3,7 @@ import { nextBurdenSize } from '../logic';
 import {
   SHARED_MAJOR_IDEALS,
   BOND_XP_PER_POWER,
+  BOND_POWERS_ON_CHOOSE,
   BOND_POWERS_FOR_VETERAN,
   BOND_POWERS_FOR_MASTER,
 } from '../constants';
@@ -196,9 +197,10 @@ function Ideal({ label, text, checked, onToggle, muted }) {
 
 function BondSection({ state, dispatch }) {
   const b = state.bond;
-  const hasBond = b.archetype.trim() !== '';
+  const hasBond = b.confirmed;
   const own = b.powers.length;
-  const canClaim = hasBond && b.xp >= BOND_XP_PER_POWER;
+  const canConfirm = !b.confirmed && b.archetype.trim() !== '';
+  const canClaim = hasBond && (b.powersOwed > 0 || b.xp >= BOND_XP_PER_POWER);
   const canReset = !hasBond && b.xp >= BOND_XP_PER_POWER;
   const veteranUnlocked = own >= BOND_POWERS_FOR_VETERAN;
   const masterUnlocked = own >= BOND_POWERS_FOR_MASTER;
@@ -208,11 +210,15 @@ function BondSection({ state, dispatch }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
         <div className="field-label" style={{ marginBottom: 0 }}>БОНД</div>
-        {canClaim && (
+        {b.powersOwed > 0 ? (
+          <div style={{ background: 'var(--warn-bg)', color: 'var(--warn)', border: '1px solid var(--warn-border)', fontSize: 11, padding: '4px 10px', letterSpacing: 1 }}>
+            НЕРОЗПОДІЛЕНИХ СИЛ: {b.powersOwed}
+          </div>
+        ) : canClaim ? (
           <div style={{ background: 'var(--warn-bg)', color: 'var(--warn)', border: '1px solid var(--warn-border)', fontSize: 11, padding: '4px 10px', letterSpacing: 1 }}>
             СИЛА В ОЧІКУВАННІ ({BOND_XP_PER_POWER} XP)
           </div>
-        )}
+        ) : null}
       </div>
 
       <input
@@ -223,10 +229,20 @@ function BondSection({ state, dispatch }) {
         style={{ marginTop: 10, padding: '8px 10px', fontSize: 14, width: 320, maxWidth: '100%' }}
       />
 
+      {canConfirm && (
+        <button className="btn" type="button" style={{ marginTop: 10, marginLeft: 8, fontSize: 11 }} onClick={() => dispatch({ type: 'CONFIRM_BOND_CHOICE' })}>
+          ЗАФІКСУВАТИ ВИБІР — {BOND_POWERS_ON_CHOOSE + b.deferredResets} СИЛ
+        </button>
+      )}
+
       {!hasBond && (
         <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginTop: 8, lineHeight: 1.6 }}>
           Поки бонд не обрано, XP дають лише два спільні major ideals. Досягнувши{' '}
           {BOND_XP_PER_POWER} XP, лічильник можна скинути — скидів зараз: <b>{b.deferredResets}</b>.
+          <br />
+          Вибір бонду дасть {BOND_POWERS_ON_CHOOSE} сили
+          {b.deferredResets > 0 ? ` + ${b.deferredResets} за скиди` : ''}. Самі бонди, ідеали
+          та назви сил — у COMP/CON; тут лише облік.
         </div>
       )}
 
@@ -282,7 +298,7 @@ function BondSection({ state, dispatch }) {
         <input type="text" value={b.newPower} onChange={(e) => dispatch({ type: 'SET_BOND_NEW_POWER', value: e.target.value })} placeholder="Назва нової сили" style={{ flex: 1, minWidth: 180, padding: '8px 10px', fontSize: 13 }} />
         {canClaim && (
           <button className="btn" type="button" onClick={() => dispatch({ type: 'CLAIM_BOND_POWER' })}>
-            ВЗЯТИ ЗА {BOND_XP_PER_POWER} XP
+            {b.powersOwed > 0 ? 'ЗАПИСАТИ СИЛУ' : `ВЗЯТИ ЗА ${BOND_XP_PER_POWER} XP`}
           </button>
         )}
         {canReset && (

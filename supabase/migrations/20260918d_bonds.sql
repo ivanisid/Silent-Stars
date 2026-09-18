@@ -19,7 +19,11 @@ set state = jsonb_set(
     'foreignPower', '',
     'veteranPower', '',
     'masterPower', '',
-    'deferredResets', 0
+    'deferredResets', 0,
+    -- Пілоти, у яких архетип уже вписано, вважаються такими, що бонд обрали: сили
+    -- за вибір їм не нараховуються заднім числом.
+    'confirmed', coalesce(btrim(state->'bond'->>'archetype'), '') <> '',
+    'powersOwed', 0
   ) || coalesce(state->'bond', '{}'::jsonb)
 )
 where jsonb_typeof(state->'bond') = 'object'

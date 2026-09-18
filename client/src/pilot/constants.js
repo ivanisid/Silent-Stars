@@ -39,6 +39,9 @@ export const SHARED_MAJOR_IDEALS = [
 
 // Кожні 8 XP — нова bond power.
 export const BOND_XP_PER_POWER = 8;
+// Вибір бонду на Тірі 2 одразу дає стільки сил, плюс по одній за кожен скид лічильника
+// XP, зроблений поки бонд ще не було обрано.
+export const BOND_POWERS_ON_CHOOSE = 2;
 // Маючи стільки власних сил, можна взяти одну силу з чужого бонду й отримати veteran power.
 export const BOND_POWERS_FOR_VETERAN = 2;
 // Стільки власних сил дають master power.
