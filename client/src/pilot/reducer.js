@@ -404,6 +404,58 @@ export function pilotReducer(state, action) {
       if (def?.clearsStress) next = { ...next, stress: 0 };
       return log(next, `Даунтайм «${def?.title || action.key}»: Д20(${die})+${mod}=${total} → ${tier}`);
     }
+    // ---------- Get rest ----------
+    // Три опції, кожна витрачає щотижневий заряд. Кубики задані правилами точно,
+    // тож кидає додаток, а не гравець.
+    case 'REST_DRINK': {
+      const { used, max } = state.weeklyCharges;
+      if (used >= max) return state;
+      const die = 1 + Math.floor(Math.random() * 4);
+      const removed = Math.min(state.stress, Math.floor(state.stress / 2) + die);
+      const next = state.stress - removed;
+      return log(
+        { ...state, stress: next, weeklyCharges: { ...state.weeklyCharges, used: used + 1 } },
+        `Get a Damn Drink: знято половину (${Math.floor(state.stress / 2)}) + 1Д4(${die}) — стрес ${state.stress} → ${next}`,
+      );
+    }
+    case 'REST_AID': {
+      const { used, max } = state.weeklyCharges;
+      if (used >= max) return state;
+      const b = state.burdens.find((x) => x.id === action.id);
+      if (!b) return state;
+      const die = 1 + Math.floor(Math.random() * 4);
+      const healed = b.healed + die;
+      const spent = { ...state.weeklyCharges, used: used + 1 };
+      if (healed >= b.size) {
+        return log(
+          { ...state, burdens: state.burdens.filter((x) => x.id !== b.id), weeklyCharges: spent },
+          `Get aid: 1Д4(${die}) — burden «${b.name || 'без назви'}» вилікувано`,
+        );
+      }
+      return log(
+        {
+          ...state,
+          burdens: state.burdens.map((x) => (x.id === b.id ? { ...x, healed } : x)),
+          weeklyCharges: spent,
+        },
+        `Get aid: 1Д4(${die}) — burden «${b.name || 'без назви'}» ${b.healed} → ${healed}/${b.size}`,
+      );
+    }
+    case 'REST_MEDICAL': {
+      const { used, max } = state.weeklyCharges;
+      if (used >= max) return state;
+      return log(
+        {
+          ...state,
+          hp: { ...state.hp, current: state.hp.max },
+          downAndOut: false,
+          weeklyCharges: { ...state.weeklyCharges, used: used + 1 },
+        },
+        `Get medical help: ХП відновлено до ${state.hp.max}` +
+          (state.downAndOut ? ', стан down and out знято' : ''),
+      );
+    }
+
     case 'USE_FOCUS': {
       const { used, max } = state.weeklyCharges;
       if (used >= max) return state;

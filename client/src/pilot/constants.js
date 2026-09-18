@@ -145,12 +145,14 @@ export const SHOP_DATA = [
   { key: 'core', title: 'Заряд Core Power', price: 1000, unspecified: true },
 ];
 
-// "Даунтайм" tab — 1 charge per mission.
+// Передмісійні дії — 1 заряд на місію. Назви й тригери взяті з правил; таблиці
+// наслідків за результатом кидка — гомбрю, правилами не задані (там сказано, що ціну
+// дії конкретизує ГМ).
 export const MISSION_DOWNTIME_DATA = [
   {
     key: 'info',
-    title: 'Збір інформації',
-    trigger: 'Д20 + Investigate / Hack or Fix / Get Hold of Something / Act Unseen or Unheard',
+    title: 'Gather information · Збір інформації',
+    trigger: 'Д20 + Investigate / Pull Rank / Spot / Word on the Street / Act Unseen or Unheard',
     note: 'Розкрий пункт з дошки завдань (сили ворога · поле бою · контекст місії · резерв з таблиці) та отримай всю інформацію з його підпунктів.',
     showRoll: true,
     tiers: {
@@ -161,8 +163,8 @@ export const MISSION_DOWNTIME_DATA = [
   },
   {
     key: 'contact',
-    title: 'Знайти контакт',
-    trigger: 'Д20 + Charm / Word on the Streets / Pull Rank / Get a Hold of Something',
+    title: 'Get connected · Знайти контакт',
+    trigger: 'Д20 + Stay Cool / Show Off / Lead or Inspire / Get a Hold of Something / Charm',
     note: "Дія завжди знаходить контакт — кидок визначає умови. Контакт заноситься у записник і спільний список ГМ (ім'я · коло · профіль допомоги · стан боргу). Повторно шукати вже знайомого контакта не можна — звернення до нього йде через купівлю резерву за ману.\n\nТаблиця послуг/боргів (1Д4 або на вибір ГМа): прикрити контакта чи його людину на місії · дістати й передати річ · наративна допомога (витратити свою наступну даунтайм-дію на контакта) або бойова допомога (затримка появи NPC на 1-2 ранди) · виконати завдання в інтересах контакта як додаткову ціль місії · свій варіант за столом.",
     showRoll: true,
     tiers: {
@@ -173,8 +175,8 @@ export const MISSION_DOWNTIME_DATA = [
   },
   {
     key: 'barter',
-    title: 'Бартер',
-    trigger: 'Д20 + Get a Hold of Something / Word on the Streets / Charm / Threaten',
+    title: 'Scrounge and Barter · Бартер',
+    trigger: 'Д20 + Read a Situation / Get a Hold of Something / Charm / Word on the Street',
     note: 'Пошук мех- чи тактичних резервів (сумарний ранг ≤3, знайдені резерви можуть повторюватись) з таблиці Даунтайм-резервів чи магазину.\n\nПримітка: резерви, що дають рем-комплекти чи лімітні заряди, отримуються в кількості 2 штуки за 1 резерв.',
     showRoll: true,
     tiers: {
@@ -186,43 +188,78 @@ export const MISSION_DOWNTIME_DATA = [
 ];
 
 // "Час простою" tab — 1 charge per week.
+// Щотижневі дії — 1 заряд на тиждень, відновлюється щопонеділка.
+// minTier — з якого тіру дія доступна: чотири дії відкриваються лише на Тірі 2 і
+// потребують заявки в Discord.
 export const WEEKLY_DOWNTIME_DATA = [
   {
-    key: 'steam',
-    title: 'Випустити пару',
-    trigger: 'Д20 + Survive / Charm / Word on the Streets / Read a Situation / Stay Cool / Apply Fists to Faces',
-    note: 'Стрес очищується повністю незалежно від результату кидка — кидок лише визначає, чим обернулась ніч.',
-    showRoll: true,
-    clearsStress: true,
-    tiers: {
-      low: 'Ніч вийшла з-під контролю. Кинь 1Д4:\n· Заплати 100 мани за гарний відпочинок.\n· На наступній місії візьми лише 1 пілотський гір.\n· Наступний кидок «Знайти контакт»: 20+ рахується як 10-19, а 10-19 як 1-9.\n· Втрать 15 жетонів фракції, де немає негативної репутації, на вибір.',
-      mid: 'Пригода з ціною. Оберіть один пункт з таблиці 1–9.',
-      high: 'Ніч вдалась. Кинь 1Д4:\n· Наступний кидок «Знайти контакт»: 1-9 рахується як 10-19, а 10-19 як 20+.\n· Розкрий 2 підпункти з дії «Збір інформації».\n· +2 XP бонду.',
-    },
+    key: 'printer',
+    title: 'Printer use',
+    trigger: 'Витрата PR',
+    note: 'Скористайтесь потужностями принтера гільдії, витративши зароблені PR: додатковий ремонт, поповнення зарядів, повний ремонт чи передрук меха.\n\nСписок і ціни — на панелі PRINTER REQUISITION.',
+    showRoll: false,
+    minTier: 1,
   },
   {
-    key: 'focus',
-    title: 'Сфокусуватись',
-    trigger: '',
-    note: '',
+    key: 'creative',
+    title: 'Get Creative',
+    trigger: 'Д20 + відповідний тригер, перед початком наступної місії',
+    note: 'Оберіть бажаний мех-резерв і створіть лічильник на стільки секцій, скільки в резерву рангів. Коли всі секції заповнені — резерв ваш, і він не згорає після місії.',
     showRoll: false,
-    isFocusPanel: true,
+    isCreativePanel: true,
+    minTier: 1,
   },
   {
-    key: 'price',
-    title: 'Ціна за силу',
-    trigger: 'Керування скіл-тригерами пілота',
-    note: '',
+    key: 'rest',
+    title: 'Get rest',
+    trigger: 'Без кидка — оберіть одну опцію',
+    note: 'Відпочинок або лікування: час, коли можна відволіктись від роботи в гільдії чи отримати допомогу.',
     showRoll: false,
-    isSkillPanel: true,
+    isRestPanel: true,
+    minTier: 1,
   },
   {
     key: 'projprogress',
     title: 'Прогрес проекту',
     trigger: '',
-    note: 'Просуває обраний проєкт на одну стадію (макс. 3).',
+    note: 'Просуває обраний проєкт на одну стадію (макс. 3).\n\nУ переліку щотижневих дій нових правил цієї дії немає — лишена як була.',
     showRoll: false,
     isProjectPanel: true,
+    minTier: 1,
+  },
+  {
+    key: 'buytime',
+    title: 'Buy some time',
+    trigger: 'Заявка в Discord',
+    note: 'Дає додаткові секції на глобальні лічильники: відстрочує настання подій у світі, даючи більше вікно для повʼязаних з подією місій.',
+    showRoll: false,
+    minTier: 2,
+  },
+  {
+    key: 'diving',
+    title: 'Go diving',
+    trigger: '2Д20 — таблиці gain та loss',
+    note: 'Назвіть те, що шукаєте: гарно проведений час, увагу чи допомогу конкретної людини, корисну інформацію, контакт чи звʼязок. Готуйтесь знайти щось нове і щось втратити.\n\nНа відміну від інших щотижневих дій потребує кидка 2Д20 за зовнішніми таблицями gain/loss — у додатку вони не відтворені.',
+    showRoll: false,
+    minTier: 2,
+  },
+  {
+    key: 'focused',
+    title: 'Get focused',
+    trigger: 'Заявка в Discord, затвердження ГМ',
+    note: 'Вивчіть новий skill trigger з доступних або придумайте свій, вужчий за впливом. Або вивчіть унікальну навичку — керування транспортом, рідкісні мови, знання у вузькій сфері; такі навички можуть давати ACCURACY в наративних сценах.',
+    showRoll: false,
+    isFocusPanel: true,
+    isSkillPanel: true,
+    minTier: 2,
+  },
+  {
+    key: 'poweratcost',
+    title: 'Power at a cost',
+    trigger: 'Заявка в Discord з відміткою ГМ',
+    note: 'Здобути екстраординарну перевагу на час наступної гри: унікальний резерв, екзотичне спорядження, допомога від корпорацій. Будьте готові заплатити високу ціну, яка може перманентно вплинути на персонажа.',
+    showRoll: false,
+    minTier: 2,
   },
 ];
 
