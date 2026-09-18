@@ -12,7 +12,9 @@ export const RESERVE_CATEGORIES = [
   { key: 'resource', label: 'РЕСУРС РЕЗЕРВИ' },
 ];
 
-// Ціна за рангом. Ранги 1–2 купуються без downtime-дії, ранг 3 потребує Printer use.
+// Ціна за рангом. Правила прямо кажуть лише, що ранги 1–2 купуються за PR «без
+// використання downtime дії». Про ранг 3 не сказано нічого — ні що він її потребує,
+// ні яку саме, тож жодного обмеження тут не закладено.
 export const RESERVE_RANK_PR = { 1: 10, 2: 20, 3: 40 };
 export const RESERVE_FREE_BUY_MAX_RANK = 2;
 

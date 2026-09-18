@@ -106,7 +106,7 @@ function ReservesTab({ state, dispatch }) {
         <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginTop: 8, lineHeight: 1.5 }}>
           {rank <= RESERVE_FREE_BUY_MAX_RANK
             ? 'Купується без downtime-дії.'
-            : 'Потребує downtime-дії Printer use.'}
+            : 'Правила не кажуть, чи потрібна тут downtime-дія і яка саме.'}
         </div>
 
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 10 }}>
