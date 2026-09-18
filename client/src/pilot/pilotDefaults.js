@@ -80,6 +80,8 @@ export function createDefaultPilotState() {
     // Придбані/створені резерви. gamesLeft null — резерв не згорає сам
     // (отриманий за Get Creative); число — скільки ігор він ще живе.
     reserves: [],
+    // Безкоштовна покупка резерву за PR: один мех-резерв на місію, без downtime-дії.
+    reserveFreeBuy: { max: 1, used: 0 },
     contacts: [],
     contactDraft: { name: '', circle: '', help: '', debt: '' },
     projects: [],

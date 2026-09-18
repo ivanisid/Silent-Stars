@@ -30,7 +30,7 @@ import {
   skillCapUsed,
 } from './logic';
 import { mergeMechsByName } from './compconImport';
-import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft } from './reserves';
+import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft, reserveIsFreeBuy } from './reserves';
 
 const ALL_DOWNTIME_DATA = [...MISSION_DOWNTIME_DATA, ...WEEKLY_DOWNTIME_DATA];
 
@@ -380,9 +380,12 @@ export function pilotReducer(state, action) {
         downtime: { ...state.downtime, modifiers: { ...state.downtime.modifiers, [action.key]: action.mod } },
       };
     case 'RESET_CHARGES': {
-      const field = action.pool === 'weekly' ? 'weeklyCharges' : 'downtimeCharges';
-      const msg = action.pool === 'weekly' ? 'Тижневі заряди скинуто (новий тиждень)' : 'Даунтайм-заряди скинуто (нова місія)';
-      return log({ ...state, [field]: { ...state[field], used: 0 } }, msg);
+      const weekly = action.pool === 'weekly';
+      const field = weekly ? 'weeklyCharges' : 'downtimeCharges';
+      const msg = weekly ? 'Тижневі заряди скинуто (новий тиждень)' : 'Даунтайм-заряди скинуто (нова місія)';
+      // Нова місія повертає і безкоштовну покупку мех-резерву.
+      const extra = weekly ? {} : { reserveFreeBuy: { ...state.reserveFreeBuy, used: 0 } };
+      return log({ ...state, [field]: { ...state[field], used: 0 }, ...extra }, msg);
     }
     case 'ROLL_DOWNTIME': {
       const field = action.pool === 'weekly' ? 'weeklyCharges' : 'downtimeCharges';
@@ -677,18 +680,45 @@ export function pilotReducer(state, action) {
     // ---------- Резерви ----------
     case 'SET_SHOP_TAB':
       return { ...state, shop: { ...state.shop, tab: action.tab, item: null, error: '' } };
+    // Купівля резерву. Без downtime-дії дозволено рівно один мех-резерв; інші категорії
+    // та кожна наступна покупка йдуть «з дією» — саму дію додаток не списує, бо правила
+    // не кажуть, яка це дія.
     case 'BUY_RESERVE': {
       const def = reserveByKey(action.key);
       if (!def) return state;
       const cost = RESERVE_RANK_PR[def.rank];
       if (cost > state.pr) return { ...state, shop: { ...state.shop, error: 'Недостатньо PR.' } };
 
+      const free = reserveIsFreeBuy(def, state.reserveFreeBuy.used);
+      if (!free && !action.withAction) {
+        return {
+          ...state,
+          shop: {
+            ...state.shop,
+            error:
+              def.category === 'mech'
+                ? 'Безкоштовну покупку вже використано — потрібна downtime-дія.'
+                : 'Без downtime-дії можна взяти лише мех-резерв.',
+          },
+        };
+      }
+
       const gamesLeft = reserveGamesLeft(def.key, state.hangar.owned);
       const entry = { id: newId(state.reserves), key: def.key, source: 'pr', gamesLeft };
       const before = state.pr;
+      const next = {
+        ...state,
+        pr: before - cost,
+        reserves: [...state.reserves, entry],
+        reserveFreeBuy: free
+          ? { ...state.reserveFreeBuy, used: state.reserveFreeBuy.used + 1 }
+          : state.reserveFreeBuy,
+        shop: { ...state.shop, error: '' },
+      };
       return log(
-        { ...state, pr: before - cost, reserves: [...state.reserves, entry], shop: { ...state.shop, error: '' } },
+        next,
         `Резерв «${def.name}» (ранг ${def.rank}) за ${cost} PR` +
+          (free ? ' — без дії' : ' — з downtime-дією') +
           (gamesLeft > 1 ? `, діє ${gamesLeft} ігор` : '') +
           ` (PR ${before} → ${before - cost})`,
       );
