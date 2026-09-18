@@ -1,4 +1,4 @@
-import { GAMES_TABLE } from './constants';
+import { GAMES_TABLE, MANA_BASE_COST, TIER_MANA_STEP, MAX_LL } from './constants';
 
 export function pad(n) {
   return String(n).padStart(2, '0');
@@ -28,6 +28,30 @@ export function llTier(ll) {
   if (ll <= 5) return '1';
   if (ll <= 10) return '2';
   return '3';
+}
+
+// Скільки мани коштує підвищення з ll на ll+1.
+//
+// Перший перехід коштує MANA_BASE_COST, кожен наступний — на крок дорожче за попередній,
+// а крок береться за тіром рівня, НА який іде підвищення. Тому підвищення, що переводить
+// у наступний тір, уже дорожчає за його кроком, а не за кроком тіру, з якого виходиш.
+//
+// Повертає null для ll поза межами LL2..MAX_LL-1 — підвищувати нема з чого або нема куди.
+export function manaLevelCost(ll) {
+  if (!Number.isInteger(ll) || ll < 2 || ll >= MAX_LL) return null;
+  let cost = MANA_BASE_COST;
+  for (let target = 4; target <= ll + 1; target++) {
+    cost += TIER_MANA_STEP[llTier(target)];
+  }
+  return cost;
+}
+
+// Накопичена мана, потрібна щоб дійти з LL2 до вказаного рівня.
+export function manaTotalToLevel(ll) {
+  if (!Number.isInteger(ll) || ll < 2 || ll > MAX_LL) return null;
+  let total = 0;
+  for (let from = 2; from < ll; from++) total += manaLevelCost(from);
+  return total;
 }
 
 export function skillCapMax(ll, skillCapBonus) {
