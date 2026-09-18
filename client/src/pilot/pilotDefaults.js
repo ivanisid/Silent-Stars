@@ -84,8 +84,9 @@ export function createDefaultPilotState() {
     reserveFreeBuy: { max: 1, used: 0 },
     contacts: [],
     contactDraft: { name: '', circle: '', help: '', debt: '' },
-    projects: [],
-    projectDraft: { name: '', note: '' },
+    // Трекер Get Creative: один проєкт за раз, черги немає.
+    // key — резерв, який будується; filled — заповнені секції лічильника.
+    creative: { key: null, filled: 0, lastRoll: null },
     mechs: [],
     mechDraft: { name: '', hpMax: '', repairMax: '', frame: '' },
     llEdit: { open: false, ll: '' },

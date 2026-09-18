@@ -110,12 +110,6 @@ export function nextRelationship(rel) {
   return order[(idx + 1) % order.length];
 }
 
-export function nextProjectStatus(status) {
-  const order = ['активний', 'призупинено', 'завершено'];
-  const idx = order.indexOf(status);
-  return order[(idx + 1) % order.length];
-}
-
 export function logEntry(msg) {
   return { ts: nowTs(), msg };
 }

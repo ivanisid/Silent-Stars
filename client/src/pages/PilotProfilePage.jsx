@@ -14,9 +14,10 @@ import BondMenu from '../pilot/components/BondMenu.jsx';
 import SkillTriggers from '../pilot/components/SkillTriggers.jsx';
 import DowntimePanel from '../pilot/components/DowntimePanel.jsx';
 import ContactsPanel from '../pilot/components/ContactsPanel.jsx';
-// ProjectsPanel and ActionLog are deliberately not rendered — the projects panel is
-// parked for now and the action log was dropped from the sheet. Both components and
-// their reducer state are untouched, so bringing either back is an import and a line.
+// ActionLog is deliberately not rendered — it was dropped from the sheet, but the
+// component and its reducer state are untouched, so bringing it back is an import
+// and a line. The projects panel is gone entirely: its slot is now the Get Creative
+// tracker inside the weekly downtime card.
 import HangarPanel from '../pilot/components/HangarPanel.jsx';
 import MechsPanel from '../pilot/components/MechsPanel.jsx';
 import GmAuditPanel from '../pilot/components/GmAuditPanel.jsx';

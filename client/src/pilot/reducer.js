@@ -24,7 +24,6 @@ import {
   rollTier,
   relationshipLabel,
   nextRelationship,
-  nextProjectStatus,
   pushLog,
   skillCapMax,
   skillCapUsed,
@@ -554,182 +553,67 @@ export function pilotReducer(state, action) {
       );
     }
 
-    // ---------- Projects ----------
-    case 'SET_PROJECT_DRAFT_FIELD':
-      return { ...state, projectDraft: { ...state.projectDraft, [action.field]: action.value } };
-    case 'ADD_PROJECT': {
-      const { name, note } = state.projectDraft;
-      if (!name.trim()) return state;
-      const project = { name: name.trim(), note: note.trim(), status: 'активний', stage: 1 };
-      return log(
-        { ...state, projects: [...state.projects, project], projectDraft: { name: '', note: '' } },
-        `Проєкт додано: «${project.name}»`,
-      );
-    }
-    case 'REMOVE_PROJECT': {
-      const p = state.projects[action.idx];
-      return log(
-        { ...state, projects: state.projects.filter((_, i) => i !== action.idx) },
-        `Проєкт видалено: «${p?.name}»`,
-      );
-    }
-    case 'CYCLE_PROJECT_STATUS': {
-      const p = state.projects[action.idx];
-      const next = nextProjectStatus(p.status);
-      return log(
-        { ...state, projects: state.projects.map((pp, i) => (i === action.idx ? { ...pp, status: next } : pp)) },
-        `Проєкт «${p.name}»: статус → ${next}`,
-      );
-    }
-
-    case 'ADVANCE_PROJECT': {
+    // ---------- Get Creative ----------
+    // Один проєкт за раз. Щотижнева дія витрачається на початок: далі перед кожною
+    // місією кидається Д20, який заповнює секції за результатом (1–9 → 1, 10–19 → 2,
+    // 20+ → 3). Заповнений лічильник віддає резерв, і той не згорає після місії.
+    case 'START_CREATIVE': {
       const { used, max } = state.weeklyCharges;
       if (used >= max) return state;
-      const p = state.projects[action.idx];
-      if (!p || (p.stage || 1) >= 3) return state;
-      const nextStage = (p.stage || 1) + 1;
+      if (state.creative.key) return state;
+      const def = reserveByKey(action.key);
+      if (!def) return state;
       return log(
         {
           ...state,
-          projects: state.projects.map((pp, i) => (i === action.idx ? { ...pp, stage: nextStage } : pp)),
+          creative: { key: def.key, filled: 0, lastRoll: null },
           weeklyCharges: { ...state.weeklyCharges, used: used + 1 },
         },
-        `Проєкт «${p.name}»: стадія ${p.stage || 1} → ${nextStage}`,
+        `Get Creative: почато «${def.name}» — лічильник на ${def.rank} ${def.rank === 1 ? 'секцію' : 'секції'}`,
       );
     }
-
-    // ---------- Mana ----------
-    case 'OPEN_TX':
-      return { ...state, mana: { ...state.mana, txOpen: true, amount: '', comment: '', target: '', error: '' } };
-    case 'CLOSE_TX':
-      return { ...state, mana: { ...state.mana, txOpen: false } };
-    case 'SET_TX_TYPE':
-      return { ...state, mana: { ...state.mana, txType: action.value } };
-    case 'SET_TX_AMOUNT':
-      return { ...state, mana: { ...state.mana, amount: action.value } };
-    case 'SET_TX_COMMENT':
-      return { ...state, mana: { ...state.mana, comment: action.value } };
-    case 'SET_TX_TARGET':
-      return { ...state, mana: { ...state.mana, target: action.value } };
-    case 'SUBMIT_TX': {
-      const { txType, amount, comment, target, balance } = state.mana;
-      const amt = parseFloat(amount);
-      if (!amt || amt <= 0) {
-        return { ...state, mana: { ...state.mana, error: 'Вкажи додатну кількість.' } };
-      }
-      let nextBalance = balance;
-      let label = '';
-      if (txType === 'deposit') {
-        nextBalance = balance + amt;
-        label = `+${amt}${comment ? ' · ' + comment : ''}`;
-      } else if (txType === 'withdraw') {
-        if (amt > balance) return { ...state, mana: { ...state.mana, error: 'Недостатньо мани — баланс не може бути менше 0.' } };
-        nextBalance = balance - amt;
-        label = `−${amt}${comment ? ' · ' + comment : ''}`;
-      } else {
-        if (amt > balance) return { ...state, mana: { ...state.mana, error: 'Недостатньо мани для переказу.' } };
-        nextBalance = balance - amt;
-        label = `→ ${target || 'пілот'}: ${amt}${comment ? ' · ' + comment : ''}`;
-      }
-      const mana = pushManaHistory(
-        { ...state.mana, balance: nextBalance, txOpen: false, amount: '', comment: '', target: '', error: '' },
-        label,
-      );
-      return log({ ...state, mana }, `Мана: ${label}`);
-    }
-
-    // ---------- Hangar ----------
-    case 'TOGGLE_HANGAR_OPEN':
-      return { ...state, hangar: { ...state.hangar, open: !state.hangar.open } };
-    case 'OPEN_HANGAR_CONFIRM':
-      return { ...state, hangar: { ...state.hangar, confirm: action.key, error: '' } };
-    case 'CLOSE_HANGAR_CONFIRM':
-      return { ...state, hangar: { ...state.hangar, confirm: null, error: '' } };
-    case 'CONFIRM_HANGAR_BUY': {
-      const key = state.hangar.confirm;
-      const item = HANGAR_DATA.find((h) => h.key === key);
-      const owned = state.hangar.owned[key] || 0;
-      if (!item || owned >= item.prices.length) {
-        return { ...state, hangar: { ...state.hangar, confirm: null } };
-      }
-      const price = item.prices[owned];
-      if (price > state.mana.balance) {
-        return { ...state, hangar: { ...state.hangar, error: 'Недостатньо мани.' } };
-      }
-      const mana = pushManaHistory(
-        { ...state.mana, balance: state.mana.balance - price },
-        `−${price} · ${item.title}${item.prices.length > 1 ? ' рів.' + (owned + 1) : ''}`,
-      );
+    case 'ROLL_CREATIVE': {
+      const cur = state.creative;
+      const def = reserveByKey(cur.key);
+      if (!def) return state;
+      const die = 1 + Math.floor(Math.random() * 20);
+      const tier = rollTier(die);
+      const gain = tier === '20+' ? 3 : tier === '10–19' ? 2 : 1;
+      const filled = Math.min(def.rank, cur.filled + gain);
       return log(
-        {
-          ...state,
-          mana,
-          hangar: { ...state.hangar, owned: { ...state.hangar.owned, [key]: owned + 1 }, confirm: null, error: '' },
-        },
-        `Ангар: придбано «${item.title}»${item.prices.length > 1 ? ' рів.' + (owned + 1) : ''} за ${price} мани`,
+        { ...state, creative: { ...cur, filled, lastRoll: { die, tier, gain } } },
+        `Get Creative «${def.name}»: Д20(${die}) → ${tier}, +${gain} — ${cur.filled} → ${filled}/${def.rank}`,
+      );
+    }
+    case 'SHIFT_CREATIVE_SEG': {
+      const cur = state.creative;
+      const def = reserveByKey(cur.key);
+      if (!def) return state;
+      const filled = clamp(cur.filled + action.dir, 0, def.rank);
+      if (filled === cur.filled) return state;
+      return log({ ...state, creative: { ...cur, filled } }, `Get Creative «${def.name}»: ${cur.filled} → ${filled}/${def.rank}`);
+    }
+    // Заповнений лічильник: резерв іде в список з gamesLeft null — він не згорає.
+    case 'CLAIM_CREATIVE': {
+      const cur = state.creative;
+      const def = reserveByKey(cur.key);
+      if (!def || cur.filled < def.rank) return state;
+      const entry = { id: newId(state.reserves), key: def.key, source: 'creative', gamesLeft: null };
+      return log(
+        { ...state, reserves: [...state.reserves, entry], creative: { key: null, filled: 0, lastRoll: null } },
+        `Get Creative завершено: резерв «${def.name}» отримано, не згорає після місії`,
+      );
+    }
+    case 'CANCEL_CREATIVE': {
+      const def = reserveByKey(state.creative.key);
+      if (!def) return state;
+      return log(
+        { ...state, creative: { key: null, filled: 0, lastRoll: null } },
+        `Get Creative: проєкт «${def.name}» скасовано`,
       );
     }
 
-    // ---------- DC store (Особистий склад) ----------
-    case 'PR_SHIFT': {
-      const next = clamp(state.pr + action.dir, 0, prCap(state));
-      if (next === state.pr) return state;
-      return log({ ...state, pr: next }, `PR: ${state.pr} → ${next}`);
-    }
-
-    // ---------- Витрата PR на додатковий ремонт (prSpend) ----------
-    case 'OPEN_PR_SPEND':
-      return { ...state, prSpend: { item: action.key, mechId: null, pick: null, error: '' } };
-    case 'CLOSE_PR_SPEND':
-      return { ...state, prSpend: { item: null, mechId: null, pick: null, error: '' } };
-    case 'SET_PR_SPEND_MECH':
-      return { ...state, prSpend: { ...state.prSpend, mechId: action.mechId, pick: null } };
-    // Поповнення зарядів тепер бере систему цілком, а не розподіляє окремі заряди:
-    // ціна залежить від базового запасу саме цієї системи.
-    case 'SET_PR_SPEND_PICK':
-      return { ...state, prSpend: { ...state.prSpend, pick: action.idx, error: '' } };
-    case 'PR_SPEND_CONFIRM': {
-      const { item: key, mechId, pick } = state.prSpend;
-      const mech = findMech(state, mechId);
-      if (!mech) return { ...state, prSpend: { ...state.prSpend, error: 'Оберіть меха.' } };
-      if (key === 'refillone' && pick == null) {
-        return { ...state, prSpend: { ...state.prSpend, error: 'Оберіть систему.' } };
-      }
-      const cost = prServiceCost(key, mech, pick == null ? {} : { [pick]: 1 });
-      if (cost == null) return state;
-      if (cost > state.pr) return { ...state, prSpend: { ...state.prSpend, error: 'Недостатньо PR.' } };
-
-      const svc = PR_SERVICES.find((x) => x.key === key);
-      let nextState = updateMech(state, mechId, (m) => {
-        if (key === 'kit') return { ...m, repairCurrent: Math.min(m.repairMax, m.repairCurrent + 1) };
-        if (key === 'kitsfull') return { ...m, repairCurrent: m.repairMax };
-        if (key === 'refillone') {
-          return {
-            ...m,
-            limited: m.limited.map((li, i) => (i === pick ? { ...li, current: li.max, destroyed: false } : li)),
-          };
-        }
-        if (key === 'fullrepair') {
-          return {
-            ...m,
-            hpCurrent: m.hpMax,
-            repairCurrent: m.repairMax,
-            structureFilled: 0,
-            reactorFilled: 0,
-            overcharge: 0,
-            corePower: true,
-            limited: m.limited.map((li) => ({ ...li, current: li.max, destroyed: false })),
-          };
-        }
-        return m;
-      });
-
-      const before = state.pr;
-      nextState = { ...nextState, pr: before - cost, prSpend: { item: null, mechId: null, pick: null, error: '' } };
-      return log(nextState, `${mech.name}: «${svc.title}» за ${cost} PR (PR ${before} → ${before - cost})`);
-    }
-
-    // ---------- Резерви ----------
+    // ---------- Резерви ----------    // ---------- Резерви ----------
     case 'SET_SHOP_TAB':
       return { ...state, shop: { ...state.shop, tab: action.tab, item: null, error: '' } };
     // Купівля резерву. Без downtime-дії дозволено рівно один мех-резерв; інші категорії
