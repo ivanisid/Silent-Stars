@@ -8,6 +8,9 @@ import {
   PR_CAP_BUFFER,
   MAX_LL,
   REDISTRIBUTE_ALL_COST,
+  BOND_XP_PER_POWER,
+  BOND_POWERS_FOR_VETERAN,
+  BOND_POWERS_FOR_MASTER,
   limitedRefillPr,
 } from './constants';
 import {
@@ -254,18 +257,72 @@ export function pilotReducer(state, action) {
     // ---------- Bond ----------
     case 'SET_ARCHETYPE':
       return { ...state, bond: { ...state.bond, archetype: action.value } };
+    case 'SET_BOND_FIELD':
+      return { ...state, bond: { ...state.bond, [action.field]: action.value } };
     case 'SET_BOND_NEW_POWER':
       return { ...state, bond: { ...state.bond, newPower: action.value } };
     case 'SET_BOND_XP': {
       const next = toggleFilled(state.bond.xp, action.idx);
+      if (next === state.bond.xp) return state;
       return log({ ...state, bond: { ...state.bond, xp: next } }, `Bond XP: ${state.bond.xp} → ${next}`);
+    }
+    case 'TOGGLE_IDEAL':
+      return {
+        ...state,
+        bond: { ...state.bond, marked: { ...state.bond.marked, [action.key]: !state.bond.marked[action.key] } },
+      };
+    // Наприкінці гри кожен виконаний ідеал дає 1 XP, після чого відмітки знімаються.
+    // Поки бонд не обрано, рахуються лише два спільні major ideals — перший у кожного
+    // бонду свій, а бонду ще немає.
+    case 'SCORE_IDEALS': {
+      const m = state.bond.marked;
+      const hasBond = state.bond.archetype.trim() !== '';
+      const keys = hasBond ? ['major0', 'major1', 'major2', 'minor'] : ['major1', 'major2'];
+      const gained = keys.filter((k) => m[k]).length;
+      if (gained === 0) return state;
+      const next = state.bond.xp + gained;
+      return log(
+        {
+          ...state,
+          bond: {
+            ...state.bond,
+            xp: next,
+            marked: { major0: false, major1: false, major2: false, minor: false },
+          },
+        },
+        `Ідеали за гру: +${gained} XP бонду (${state.bond.xp} → ${next})`,
+      );
+    }
+    // Обмін 8 XP на нову силу. XP не обрізається на 8: надлишок лишається на наступну.
+    case 'CLAIM_BOND_POWER': {
+      const name = state.bond.newPower.trim();
+      if (!name) return state;
+      if (state.bond.xp < BOND_XP_PER_POWER) return state;
+      if (!state.bond.archetype.trim()) return state;
+      const xp = state.bond.xp - BOND_XP_PER_POWER;
+      return log(
+        { ...state, bond: { ...state.bond, xp, powers: [...state.bond.powers, name], newPower: '' } },
+        `Сила бонду за ${BOND_XP_PER_POWER} XP: «${name}» (XP ${state.bond.xp} → ${xp})`,
+      );
+    }
+    // Без обраного бонду 8 XP не дають силу — лічильник скидається, і кожен скид
+    // потім конвертується в силу при виборі бонду.
+    case 'RESET_DEFERRED_XP': {
+      if (state.bond.archetype.trim()) return state;
+      if (state.bond.xp < BOND_XP_PER_POWER) return state;
+      const xp = state.bond.xp - BOND_XP_PER_POWER;
+      const resets = state.bond.deferredResets + 1;
+      return log(
+        { ...state, bond: { ...state.bond, xp, deferredResets: resets } },
+        `Лічильник XP скинуто без бонду (всього скидів: ${resets})`,
+      );
     }
     case 'ADD_POWER': {
       const name = state.bond.newPower.trim();
       if (!name) return state;
       return log(
         { ...state, bond: { ...state.bond, powers: [...state.bond.powers, name], newPower: '' } },
-        `Сила бонду отримана: «${name}»`,
+        `Сила бонду додана вручну: «${name}»`,
       );
     }
     case 'REMOVE_POWER': {

@@ -45,7 +45,25 @@ export function createDefaultPilotState() {
     // Стан «down and out»: знімається дією Get medical help, яка автоматично забирає
     // наступну щотижневу downtime-дію.
     downAndOut: false,
-    bond: { archetype: '', xp: 0, powers: [], newPower: '' },
+    bond: {
+      archetype: '',
+      xp: 0,
+      powers: [],
+      newPower: '',
+      // Перший major ideal свій у кожного бонду — вводиться текстом, бо переліку бондів
+      // у додатку немає. Два інші беруться з SHARED_MAJOR_IDEALS.
+      majorIdealFirst: '',
+      // Особиста ціль на гру, обирається перед грою.
+      minorIdeal: '',
+      // Що з ідеалів виконано за цю гру; наприкінці гри перетворюється на XP.
+      marked: { major0: false, major1: false, major2: false, minor: false },
+      // Сила з чужого бонду й бонусні сили за неї та за п'ять власних.
+      foreignPower: '',
+      veteranPower: '',
+      masterPower: '',
+      // Скільки разів лічильник XP скидався, поки бонд ще не обрано.
+      deferredResets: 0,
+    },
     hp: { current: 6, max: 6 },
     downtime: { open: null, modifiers: {}, rolls: {} },
     downtimeCharges: { max: 1, used: 0 },

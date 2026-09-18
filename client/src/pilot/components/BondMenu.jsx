@@ -1,5 +1,11 @@
 import { Card, SegRow } from './ui';
 import { nextBurdenSize } from '../logic';
+import {
+  SHARED_MAJOR_IDEALS,
+  BOND_XP_PER_POWER,
+  BOND_POWERS_FOR_VETERAN,
+  BOND_POWERS_FOR_MASTER,
+} from '../constants';
 
 export default function BondMenu({ state, dispatch }) {
   const isHp = state.resourceMode === 'hp';
@@ -151,46 +157,162 @@ export default function BondMenu({ state, dispatch }) {
             </div>
           </div>
 
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-              <div className="field-label" style={{ marginBottom: 0 }}>БОНД</div>
-              {state.bond.xp >= 8 && (
-                <div style={{ background: 'var(--warn-bg)', color: 'var(--warn)', border: '1px solid var(--warn-border)', fontSize: 11, padding: '4px 10px', letterSpacing: 1 }}>
-                  СИЛА В ОЧІКУВАННІ (8 XP)
-                </div>
-              )}
-            </div>
-            <input
-              type="text"
-              value={state.bond.archetype}
-              onChange={(e) => dispatch({ type: 'SET_ARCHETYPE', value: e.target.value })}
-              placeholder="Архетип бонду"
-              style={{ marginTop: 10, padding: '8px 10px', fontSize: 14, width: 260, maxWidth: '100%' }}
-            />
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '12px 0 6px 0' }}>XP ({state.bond.xp}/8)</div>
-            <SegRow filled={state.bond.xp} count={8} size={22} onToggle={(idx) => dispatch({ type: 'SET_BOND_XP', idx })} />
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '16px 0 8px 0' }}>ЗДОБУТІ СИЛИ</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {state.bond.powers.map((p, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--input-bg)', border: '1px solid var(--panel-border)', padding: '7px 12px', fontSize: 13 }}>
-                  <span>{p}</span>
-                  <button type="button" onClick={() => dispatch({ type: 'REMOVE_POWER', idx })} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14 }}>✕</button>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <input
-                type="text"
-                value={state.bond.newPower}
-                onChange={(e) => dispatch({ type: 'SET_BOND_NEW_POWER', value: e.target.value })}
-                placeholder="Назва нової сили"
-                style={{ flex: 1, padding: '8px 10px', fontSize: 13 }}
-              />
-              <button className="btn" type="button" onClick={() => dispatch({ type: 'ADD_POWER' })}>+</button>
-            </div>
-          </div>
+          <BondSection state={state} dispatch={dispatch} />
         </div>
       )}
     </Card>
+  );
+}
+
+function Ideal({ label, text, checked, onToggle, muted }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        width: '100%',
+        boxSizing: 'border-box',
+        textAlign: 'left',
+        padding: '8px 10px',
+        fontSize: 12,
+        lineHeight: 1.5,
+        background: checked ? 'var(--header)' : 'var(--input-bg)',
+        border: `1px solid ${checked ? 'var(--accent)' : 'var(--input-border)'}`,
+        color: muted ? 'var(--text-dimmer)' : 'var(--text)',
+      }}
+    >
+      <span style={{ color: checked ? 'var(--accent)' : 'var(--text-dimmer)' }}>{checked ? '▪' : '▫'}</span>
+      <span style={{ flex: 1 }}>
+        <span style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>{label}</span>
+        <br />
+        {text || <span style={{ color: 'var(--text-dimmer)' }}>— не заповнено —</span>}
+      </span>
+    </button>
+  );
+}
+
+function BondSection({ state, dispatch }) {
+  const b = state.bond;
+  const hasBond = b.archetype.trim() !== '';
+  const own = b.powers.length;
+  const canClaim = hasBond && b.xp >= BOND_XP_PER_POWER;
+  const canReset = !hasBond && b.xp >= BOND_XP_PER_POWER;
+  const veteranUnlocked = own >= BOND_POWERS_FOR_VETERAN;
+  const masterUnlocked = own >= BOND_POWERS_FOR_MASTER;
+  const set = (field) => (e) => dispatch({ type: 'SET_BOND_FIELD', field, value: e.target.value });
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <div className="field-label" style={{ marginBottom: 0 }}>БОНД</div>
+        {canClaim && (
+          <div style={{ background: 'var(--warn-bg)', color: 'var(--warn)', border: '1px solid var(--warn-border)', fontSize: 11, padding: '4px 10px', letterSpacing: 1 }}>
+            СИЛА В ОЧІКУВАННІ ({BOND_XP_PER_POWER} XP)
+          </div>
+        )}
+      </div>
+
+      <input
+        type="text"
+        value={b.archetype}
+        onChange={(e) => dispatch({ type: 'SET_ARCHETYPE', value: e.target.value })}
+        placeholder="Архетип бонду (обирається на Тірі 2)"
+        style={{ marginTop: 10, padding: '8px 10px', fontSize: 14, width: 320, maxWidth: '100%' }}
+      />
+
+      {!hasBond && (
+        <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginTop: 8, lineHeight: 1.6 }}>
+          Поки бонд не обрано, XP дають лише два спільні major ideals. Досягнувши{' '}
+          {BOND_XP_PER_POWER} XP, лічильник можна скинути — скидів зараз: <b>{b.deferredResets}</b>.
+        </div>
+      )}
+
+      <div style={{ marginTop: 16 }}>
+        <div className="field-label">ІДЕАЛИ ЗА ЦЮ ГРУ</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <Ideal
+            label="MAJOR · власний для бонду"
+            text={b.majorIdealFirst}
+            checked={b.marked.major0}
+            muted={!hasBond}
+            onToggle={() => dispatch({ type: 'TOGGLE_IDEAL', key: 'major0' })}
+          />
+          <Ideal label="MAJOR · спільний" text={SHARED_MAJOR_IDEALS[0]} checked={b.marked.major1} onToggle={() => dispatch({ type: 'TOGGLE_IDEAL', key: 'major1' })} />
+          <Ideal label="MAJOR · спільний" text={SHARED_MAJOR_IDEALS[1]} checked={b.marked.major2} onToggle={() => dispatch({ type: 'TOGGLE_IDEAL', key: 'major2' })} />
+          <Ideal
+            label="MINOR · ціль на гру"
+            text={b.minorIdeal}
+            checked={b.marked.minor}
+            muted={!hasBond}
+            onToggle={() => dispatch({ type: 'TOGGLE_IDEAL', key: 'minor' })}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          <input type="text" value={b.majorIdealFirst} onChange={set('majorIdealFirst')} placeholder="Перший major ideal вашого бонду" style={{ flex: 1, minWidth: 220, padding: '7px 10px', fontSize: 12 }} />
+          <input type="text" value={b.minorIdeal} onChange={set('minorIdeal')} placeholder="Minor ideal на цю гру" style={{ flex: 1, minWidth: 220, padding: '7px 10px', fontSize: 12 }} />
+        </div>
+
+        <button className="btn" type="button" style={{ marginTop: 10, fontSize: 11 }} onClick={() => dispatch({ type: 'SCORE_IDEALS' })}>
+          ЗАРАХУВАТИ ІДЕАЛИ В КІНЦІ ГРИ
+        </button>
+      </div>
+
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '18px 0 6px 0' }}>
+        XP ({b.xp}/{BOND_XP_PER_POWER})
+      </div>
+      <SegRow filled={Math.min(b.xp, BOND_XP_PER_POWER)} count={BOND_XP_PER_POWER} size={22} onToggle={(idx) => dispatch({ type: 'SET_BOND_XP', idx })} />
+
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '16px 0 8px 0' }}>
+        ВЛАСНІ СИЛИ ({own})
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {b.powers.map((p, idx) => (
+          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--input-bg)', border: '1px solid var(--panel-border)', padding: '7px 12px', fontSize: 13 }}>
+            <span>{p}</span>
+            <button type="button" onClick={() => dispatch({ type: 'REMOVE_POWER', idx })} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        <input type="text" value={b.newPower} onChange={(e) => dispatch({ type: 'SET_BOND_NEW_POWER', value: e.target.value })} placeholder="Назва нової сили" style={{ flex: 1, minWidth: 180, padding: '8px 10px', fontSize: 13 }} />
+        {canClaim && (
+          <button className="btn" type="button" onClick={() => dispatch({ type: 'CLAIM_BOND_POWER' })}>
+            ВЗЯТИ ЗА {BOND_XP_PER_POWER} XP
+          </button>
+        )}
+        {canReset && (
+          <button className="btn" type="button" onClick={() => dispatch({ type: 'RESET_DEFERRED_XP' })}>
+            СКИНУТИ ЛІЧИЛЬНИК
+          </button>
+        )}
+        <button className="btn-ghost" type="button" onClick={() => dispatch({ type: 'ADD_POWER' })}>+ ВРУЧНУ</button>
+      </div>
+
+      {/* Сила з чужого бонду доступна від двох власних і сама дає veteran power;
+          п'ять власних дають master power. */}
+      <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div>
+          <div className="field-label">
+            СИЛА З ЧУЖОГО БОНДУ {veteranUnlocked ? '' : `· від ${BOND_POWERS_FOR_VETERAN} власних сил`}
+          </div>
+          <input type="text" value={b.foreignPower} onChange={set('foreignPower')} disabled={!veteranUnlocked} placeholder={veteranUnlocked ? 'Назва сили' : 'Ще недоступно'} style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', fontSize: 12, opacity: veteranUnlocked ? 1 : 0.5 }} />
+        </div>
+        <div>
+          <div className="field-label">VETERAN POWER {veteranUnlocked ? '' : '· ще недоступно'}</div>
+          <input type="text" value={b.veteranPower} onChange={set('veteranPower')} disabled={!veteranUnlocked} placeholder={veteranUnlocked ? 'Назва сили' : 'Ще недоступно'} style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', fontSize: 12, opacity: veteranUnlocked ? 1 : 0.5 }} />
+        </div>
+        <div>
+          <div className="field-label">
+            MASTER POWER {masterUnlocked ? '' : `· від ${BOND_POWERS_FOR_MASTER} власних сил`}
+          </div>
+          <input type="text" value={b.masterPower} onChange={set('masterPower')} disabled={!masterUnlocked} placeholder={masterUnlocked ? 'Назва сили' : 'Ще недоступно'} style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', fontSize: 12, opacity: masterUnlocked ? 1 : 0.5 }} />
+        </div>
+      </div>
+    </div>
   );
 }

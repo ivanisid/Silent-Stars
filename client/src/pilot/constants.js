@@ -28,6 +28,22 @@ export const MAX_LL = 12;
 // додатково по стільки мани кожен.
 export const REDISTRIBUTE_ALL_COST = 100;
 
+// ---------- Бонди ----------
+// Перший major ideal у кожного бонду свій (у The Harlequin — «I addressed challenges with
+// cunning, subterfuge, or deceit.»), а два інші однакові для всіх. Саме ці два рахуються,
+// коли гравець ще не обрав бонд.
+export const SHARED_MAJOR_IDEALS = [
+  'I expressed my heritage, background, or beliefs through my actions.',
+  'I struggled with issues from my burdens or background.',
+];
+
+// Кожні 8 XP — нова bond power.
+export const BOND_XP_PER_POWER = 8;
+// Маючи стільки власних сил, можна взяти одну силу з чужого бонду й отримати veteran power.
+export const BOND_POWERS_FOR_VETERAN = 2;
+// Стільки власних сил дають master power.
+export const BOND_POWERS_FOR_MASTER = 5;
+
 // Що дає підвищення рівня — показується в модалці підвищення.
 export const LEVEL_UP_GRANTS = [
   'Повний ремонт обраного меха',
