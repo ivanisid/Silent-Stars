@@ -168,6 +168,7 @@ export function mapCompconPilot(json) {
     ll: level,
     status: d.status === 'ACTIVE' ? 'active' : 'archive',
     stress: clamp(d.bond?.stress || 0, 0, 8),
+    stressMax: 8,
     bond: {
       archetype: bondData?.name || '',
       xp: clamp(d.bond?.xp || 0, 0, 8),

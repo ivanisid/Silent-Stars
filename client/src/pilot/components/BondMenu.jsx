@@ -1,11 +1,5 @@
 import { Card, SegRow } from './ui';
-import { burdenLabel } from '../logic';
-
-const TYPE_OPTIONS = [
-  { value: 'minor4', label: 'МІНОРНИЙ · 4' },
-  { value: 'middle6', label: 'МІДЛ · 6' },
-  { value: 'major8', label: 'МЕЙДЖОР · 8' },
-];
+import { nextBurdenSize } from '../logic';
 
 export default function BondMenu({ state, dispatch }) {
   const isHp = state.resourceMode === 'hp';
@@ -49,52 +43,111 @@ export default function BondMenu({ state, dispatch }) {
       ) : (
         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 26 }}>
           <div>
-            <div className="field-label">СТРЕС ({state.stress}/8)</div>
-            <SegRow filled={state.stress} count={8} size={26} onToggle={(idx) => dispatch({ type: 'SET_STRESS', idx })} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div className="field-label" style={{ marginBottom: 0 }}>СТРЕС ({state.stress}/{state.stressMax})</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-dimmer)' }}>ЛІМІТ</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={state.stressMax}
+                  onChange={(e) => dispatch({ type: 'SET_STRESS_MAX', value: e.target.value })}
+                  style={{ width: 56, padding: '4px 6px', fontSize: 12 }}
+                />
+              </div>
+              {state.downAndOut && (
+                <div style={{ background: 'var(--bad-bg)', color: 'var(--danger)', border: '1px solid var(--bad-border)', fontSize: 10, padding: '3px 8px', letterSpacing: 1 }}>
+                  DOWN AND OUT
+                </div>
+              )}
+              <button
+                className="btn-ghost"
+                type="button"
+                style={{ fontSize: 10, padding: '3px 8px', marginLeft: 'auto' }}
+                onClick={() => dispatch({ type: 'TOGGLE_DOWN_AND_OUT' })}
+              >
+                {state.downAndOut ? 'ЗНЯТИ DOWN AND OUT' : 'ПОЗНАЧИТИ DOWN AND OUT'}
+              </button>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <SegRow filled={state.stress} count={state.stressMax} size={26} onToggle={(idx) => dispatch({ type: 'SET_STRESS', idx })} />
+            </div>
+            {/* Стрес не витрачається, а записується — обидві дії його додають. */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+              <button
+                className="btn"
+                type="button"
+                style={{ fontSize: 11 }}
+                onClick={() => dispatch({ type: 'TAKE_STRESS', amount: 1, reason: 'допомога, +1 ACCURACY' })}
+              >
+                +1 СТРЕС · ДОПОМОГА (+1 ACCURACY)
+              </button>
+              <button
+                className="btn"
+                type="button"
+                style={{ fontSize: 11 }}
+                onClick={() => dispatch({ type: 'TAKE_STRESS', amount: 2, reason: 'push' })}
+              >
+                +2 СТРЕСУ · PUSH (перекид)
+              </button>
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginTop: 8, lineHeight: 1.6 }}>
+              Допомагаючи, ви розділяєте наслідки з тим, хто кидає. Push робить кидок ризиковим;
+              ризикований стає героїчним, героїчний перекинути не можна.
+            </div>
           </div>
 
           <div>
-            <div className="field-label">БЬОРДЕНИ</div>
-            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-              {state.burdens.map((b, bi) => {
-                const size = b.type === 'minor4' ? 4 : b.type === 'middle6' ? 6 : 8;
-                return (
-                  <div key={bi} style={{ flex: 1, minWidth: 220, background: 'var(--input-bg)', border: '1px solid var(--panel-border)', padding: 14 }}>
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-                      {TYPE_OPTIONS.map((t) => (
-                        <button
-                          key={t.value}
-                          type="button"
-                          onClick={() => dispatch({ type: 'SET_BURDEN_TYPE', bi, value: t.value })}
-                          style={{
-                            fontSize: 10,
-                            letterSpacing: 0.5,
-                            padding: '4px 6px',
-                            background: b.type === t.value ? 'var(--header)' : 'transparent',
-                            color: b.type === t.value ? 'var(--text)' : 'var(--text-dimmer)',
-                            border: '1px solid var(--input-border)',
-                          }}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <div className="field-label" style={{ marginBottom: 0 }}>
+                BURDEN-И ({state.burdens.length}/3)
+              </div>
+              {nextBurdenSize(state.burdens.length) == null ? (
+                <div style={{ background: 'var(--bad-bg)', color: 'var(--danger)', border: '1px solid var(--bad-border)', fontSize: 11, padding: '4px 10px', letterSpacing: 1 }}>
+                  ЧЕТВЕРТИЙ BURDEN — СМЕРТЬ ПЕРСОНАЖА
+                </div>
+              ) : (
+                <button className="btn-ghost" type="button" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => dispatch({ type: 'ADD_BURDEN' })}>
+                  + BURDEN ({nextBurdenSize(state.burdens.length)} СЕГМ.)
+                </button>
+              )}
+            </div>
+
+            {state.burdens.length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--text-dimmer)', marginTop: 10 }}>
+                Burden-ів немає. Перший матиме 4 сегменти, другий 6, третій 8.
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 10 }}>
+              {state.burdens.map((b) => (
+                <div key={b.id} style={{ flex: 1, minWidth: 220, background: 'var(--input-bg)', border: '1px solid var(--panel-border)', padding: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                     <input
                       type="text"
                       value={b.name}
-                      onChange={(e) => dispatch({ type: 'SET_BURDEN_NAME', bi, value: e.target.value })}
-                      placeholder="Назва бьордена"
-                      style={{ marginBottom: 12, padding: '7px 10px', fontSize: 13, width: '100%' }}
+                      onChange={(e) => dispatch({ type: 'SET_BURDEN_NAME', id: b.id, value: e.target.value })}
+                      placeholder="Опишіть травму"
+                      style={{ flex: 1, padding: '7px 10px', fontSize: 13 }}
                     />
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>Прогрес лікування ({burdenLabel(b.type)})</div>
-                    <div style={{ marginBottom: 12 }}>
-                      <SegRow filled={b.filled} count={size} size={20} gap={6} onToggle={(idx) => dispatch({ type: 'SET_BURDEN_SEG', bi, idx })} />
-                    </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginBottom: 4 }}>ЛІКУВАННЯ</div>
-                    <SegRow filled={b.heal} count={4} size={16} gap={6} onToggle={(idx) => dispatch({ type: 'SET_BURDEN_HEAL', bi, idx })} />
+                    <button
+                      type="button"
+                      onClick={() => dispatch({ type: 'REMOVE_BURDEN', id: b.id })}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14 }}
+                    >
+                      ✕
+                    </button>
                   </div>
-                );
-              })}
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+                    ЛІКУВАННЯ {b.healed}/{b.size} — заповниться повністю, burden зникне
+                  </div>
+                  <SegRow filled={b.healed} count={b.size} size={20} gap={6} onToggle={(idx) => dispatch({ type: 'SET_BURDEN_HEALED', id: b.id, idx })} />
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginTop: 10, lineHeight: 1.6 }}>
+              Burden сам по собі не заважає в наративних сценах — хіба що ви самі візьмете
+              на кидок 1 DIFFICULTY і отримаєте за це XP.
             </div>
           </div>
 

@@ -13,6 +13,8 @@ import {
 import {
   clamp,
   manaLevelCost,
+  newId,
+  nextBurdenSize,
   toggleFilled,
   shopPrice,
   rollTier,
@@ -160,37 +162,96 @@ export function pilotReducer(state, action) {
     case 'SET_RESOURCE_MODE':
       return { ...state, resourceMode: action.mode };
 
-    // ---------- Stress / Burdens / Bond ----------
+    // ---------- Stress / Burdens ----------
     case 'SET_STRESS': {
-      const next = toggleFilled(state.stress, action.idx);
+      const next = Math.min(toggleFilled(state.stress, action.idx), state.stressMax);
+      if (next === state.stress) return state;
       return log({ ...state, stress: next }, `Стрес: ${state.stress} → ${next}`);
+    }
+    case 'SET_STRESS_MAX': {
+      const next = clamp(parseInt(action.value, 10) || 0, 1, 20);
+      if (next === state.stressMax) return state;
+      return log(
+        { ...state, stressMax: next, stress: Math.min(state.stress, next) },
+        `Ліміт стресу: ${state.stressMax} → ${next}`,
+      );
+    }
+    // Стрес не витрачається, а записується: допомога і push коштують саме того, що
+    // пілот бере на себе ще стресу. Перевищення ліміту дає burden.
+    case 'TAKE_STRESS': {
+      const amount = action.amount || 1;
+      const raw = state.stress + amount;
+      const overflow = raw > state.stressMax;
+      let next = { ...state, stress: Math.min(raw, state.stressMax) };
+      const reason = action.reason ? ` (${action.reason})` : '';
+
+      if (!overflow) {
+        return log(next, `Стрес +${amount}${reason}: ${state.stress} → ${next.stress}`);
+      }
+
+      const active = state.burdens.length;
+      const size = nextBurdenSize(active);
+      if (size == null) {
+        // Четвертий burden — це смерть. Додаток її не оформлює сам, лише фіксує.
+        return log(
+          next,
+          `Стрес +${amount}${reason} перевищив ліміт, але burden-ів уже три — ЧЕТВЕРТИЙ BURDEN ОЗНАЧАЄ СМЕРТЬ ПЕРСОНАЖА`,
+        );
+      }
+      next = {
+        ...next,
+        burdens: [...state.burdens, { id: newId(state.burdens), name: '', size, healed: 0 }],
+      };
+      return log(
+        next,
+        `Стрес +${amount}${reason} перевищив ліміт ${state.stressMax} — отримано burden на ${size} сегментів, пілот не діє далі в сцені`,
+      );
+    }
+    case 'ADD_BURDEN': {
+      const size = nextBurdenSize(state.burdens.length);
+      if (size == null) {
+        return log(state, 'ЧЕТВЕРТИЙ BURDEN ОЗНАЧАЄ СМЕРТЬ ПЕРСОНАЖА — не записано автоматично');
+      }
+      return log(
+        { ...state, burdens: [...state.burdens, { id: newId(state.burdens), name: '', size, healed: 0 }] },
+        `Отримано burden на ${size} сегментів`,
+      );
     }
     case 'SET_BURDEN_NAME':
       return {
         ...state,
-        burdens: state.burdens.map((b, i) => (i === action.bi ? { ...b, name: action.value } : b)),
+        burdens: state.burdens.map((b) => (b.id === action.id ? { ...b, name: action.value } : b)),
       };
-    case 'SET_BURDEN_SEG': {
-      const b = state.burdens[action.bi];
-      const next = toggleFilled(b.filled, action.idx);
+    // Сегменти burden-а — це прогрес лікування: коли заповнені всі, він зникає.
+    case 'SET_BURDEN_HEALED': {
+      const b = state.burdens.find((x) => x.id === action.id);
+      if (!b) return state;
+      const next = toggleFilled(b.healed, action.idx);
+      if (next >= b.size) {
+        return log(
+          { ...state, burdens: state.burdens.filter((x) => x.id !== action.id) },
+          `Burden «${b.name || 'без назви'}» вилікувано`,
+        );
+      }
       return log(
-        { ...state, burdens: state.burdens.map((bb, i) => (i === action.bi ? { ...bb, filled: next } : bb)) },
-        `Бьорден «${b.name || burdenNameFallback(action.bi)}»: прогрес ${b.filled} → ${next}`,
+        { ...state, burdens: state.burdens.map((x) => (x.id === action.id ? { ...x, healed: next } : x)) },
+        `Burden «${b.name || 'без назви'}»: лікування ${b.healed} → ${next}/${b.size}`,
       );
     }
-    case 'SET_BURDEN_HEAL': {
-      const b = state.burdens[action.bi];
-      const next = toggleFilled(b.heal, action.idx);
+    case 'REMOVE_BURDEN': {
+      const b = state.burdens.find((x) => x.id === action.id);
+      if (!b) return state;
       return log(
-        { ...state, burdens: state.burdens.map((bb, i) => (i === action.bi ? { ...bb, heal: next } : bb)) },
-        `Бьорден «${b.name || burdenNameFallback(action.bi)}»: лікування ${b.heal} → ${next}`,
+        { ...state, burdens: state.burdens.filter((x) => x.id !== action.id) },
+        `Burden «${b.name || 'без назви'}» прибрано вручну`,
       );
     }
-    case 'SET_BURDEN_TYPE':
-      return {
-        ...state,
-        burdens: state.burdens.map((b, i) => (i === action.bi ? { ...b, type: action.value, filled: 0 } : b)),
-      };
+    case 'TOGGLE_DOWN_AND_OUT': {
+      const next = !state.downAndOut;
+      return log({ ...state, downAndOut: next }, `Down and out: ${next ? 'отримано' : 'знято'}`);
+    }
+
+    // ---------- Bond ----------
     case 'SET_ARCHETYPE':
       return { ...state, bond: { ...state.bond, archetype: action.value } };
     case 'SET_BOND_NEW_POWER':
@@ -280,7 +341,7 @@ export function pilotReducer(state, action) {
       if (!name.trim()) return state;
       const ll = state.ll;
       if (skillCapUsed(state.skillTriggers) + level > skillCapMax(ll, state.skillCapBonus)) return state;
-      const trigger = { id: Date.now(), name: name.trim(), desc: desc.trim(), level };
+      const trigger = { id: newId(state.skillTriggers), name: name.trim(), desc: desc.trim(), level };
       return log(
         {
           ...state,
@@ -608,7 +669,7 @@ export function pilotReducer(state, action) {
       const hp = parseInt(hpMax, 10) || 10;
       const rep = parseInt(repairMax, 10) || 5;
       const mech = {
-        id: Date.now(),
+        id: newId(state.mechs),
         name: name.trim(),
         // COMP/CON imports fill this from frameData; typed in by hand there is no source
         // to pair it with, so the badge shows the chassis alone.
@@ -843,8 +904,4 @@ export function pilotReducer(state, action) {
     default:
       return state;
   }
-}
-
-function burdenNameFallback(idx) {
-  return ['мінорний', 'мідл', 'мейджор'][idx] || 'бьорден';
 }

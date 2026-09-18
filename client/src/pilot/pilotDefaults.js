@@ -37,11 +37,14 @@ export function createDefaultPilotState() {
       history: [],
     },
     stress: 0,
-    burdens: [
-      { type: 'minor4', filled: 0, heal: 0, name: '' },
-      { type: 'middle6', filled: 0, heal: 0, name: '' },
-      { type: 'major8', filled: 0, heal: 0, name: '' },
-    ],
+    // Базово 8; окремі bond powers цей ліміт змінюють, тому він редагований.
+    stressMax: 8,
+    // Burden-и не існують наперед — вони створюються, коли стрес перевищує ліміт
+    // або коли їх записує гравець. Розмір задається порядковим номером, не вибором.
+    burdens: [],
+    // Стан «down and out»: знімається дією Get medical help, яка автоматично забирає
+    // наступну щотижневу downtime-дію.
+    downAndOut: false,
     bond: { archetype: '', xp: 0, powers: [], newPower: '' },
     hp: { current: 6, max: 6 },
     downtime: { open: null, modifiers: {}, rolls: {} },

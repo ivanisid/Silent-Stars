@@ -65,16 +65,27 @@ export function buildSegs(filled, count) {
   return Array.from({ length: count }, (_, i) => ({ filled: i < filled, idx: i }));
 }
 
-export function burdenSize(type) {
-  if (type === 'minor4') return 4;
-  if (type === 'middle6') return 6;
-  return 8; // major8
+// Ідентифікатор для нового елемента списку. Date.now() сам по собі не годиться:
+// два елементи, створені в одну мілісекунду, дістають однаковий id, і видалення
+// одного прибирає обидва. Тримаємось часової мітки, але гарантуємо унікальність.
+export function newId(items) {
+  const maxExisting = (items || []).reduce((m, it) => Math.max(m, Number(it.id) || 0), 0);
+  return Math.max(Date.now(), maxExisting + 1);
 }
 
-export function burdenLabel(type) {
-  if (type === 'minor4') return 'МІНОРНИЙ · 4';
-  if (type === 'middle6') return 'МІДЛ · 6';
-  return 'МЕЙДЖОР · 8';
+// Розмір лічильника burden-а задається не вибором, а порядковим номером серед
+// невилікуваних: перший — 4 сегменти, другий — 6, третій — 8. Вилікуваний burden
+// звільняє місце, тож наступний знову починається з меншого.
+export const BURDEN_SIZES = [4, 6, 8];
+
+// Скільки сегментів матиме наступний burden при activeCount невилікуваних.
+// null означає, що наступний був би четвертим — а це смерть персонажа.
+export function nextBurdenSize(activeCount) {
+  return activeCount < BURDEN_SIZES.length ? BURDEN_SIZES[activeCount] : null;
+}
+
+export function burdenLabel(size) {
+  return `${size} СЕГМЕНТІВ`;
 }
 
 export function shopPrice(item) {
