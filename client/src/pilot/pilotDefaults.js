@@ -24,7 +24,7 @@ export function createDefaultPilotState() {
     hangar: { owned: {}, confirm: null, error: '', open: false },
     // Тір 1 стартує з готовим запасом PR (правила: «На старті кожен гравець вже має 30PR»).
     pr: PR_START,
-    shop: { open: false, item: null, mechId: null, alloc: {}, picked: null, qty: 1, error: '' },
+    shop: { open: false, tab: 'reserves', item: null, mechId: null, alloc: {}, picked: null, qty: 1, error: '' },
     prSpend: { item: null, mechId: null, alloc: {}, error: '' },
     mana: {
       balance: 0,
@@ -77,6 +77,9 @@ export function createDefaultPilotState() {
     skillTriggers: [],
     skillCapBonus: 0,
     skillDraft: { name: '', desc: '', level: 1 },
+    // Придбані/створені резерви. gamesLeft null — резерв не згорає сам
+    // (отриманий за Get Creative); число — скільки ігор він ще живе.
+    reserves: [],
     contacts: [],
     contactDraft: { name: '', circle: '', help: '', debt: '' },
     projects: [],

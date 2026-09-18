@@ -30,6 +30,7 @@ import {
   skillCapUsed,
 } from './logic';
 import { mergeMechsByName } from './compconImport';
+import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft } from './reserves';
 
 const ALL_DOWNTIME_DATA = [...MISSION_DOWNTIME_DATA, ...WEEKLY_DOWNTIME_DATA];
 
@@ -671,6 +672,56 @@ export function pilotReducer(state, action) {
       const before = state.pr;
       nextState = { ...nextState, pr: before - cost, prSpend: { item: null, mechId: null, pick: null, error: '' } };
       return log(nextState, `${mech.name}: «${svc.title}» за ${cost} PR (PR ${before} → ${before - cost})`);
+    }
+
+    // ---------- Резерви ----------
+    case 'SET_SHOP_TAB':
+      return { ...state, shop: { ...state.shop, tab: action.tab, item: null, error: '' } };
+    case 'BUY_RESERVE': {
+      const def = reserveByKey(action.key);
+      if (!def) return state;
+      const cost = RESERVE_RANK_PR[def.rank];
+      if (cost > state.pr) return { ...state, shop: { ...state.shop, error: 'Недостатньо PR.' } };
+
+      const gamesLeft = reserveGamesLeft(def.key, state.hangar.owned);
+      const entry = { id: newId(state.reserves), key: def.key, source: 'pr', gamesLeft };
+      const before = state.pr;
+      return log(
+        { ...state, pr: before - cost, reserves: [...state.reserves, entry], shop: { ...state.shop, error: '' } },
+        `Резерв «${def.name}» (ранг ${def.rank}) за ${cost} PR` +
+          (gamesLeft > 1 ? `, діє ${gamesLeft} ігор` : '') +
+          ` (PR ${before} → ${before - cost})`,
+      );
+    }
+    case 'REMOVE_RESERVE': {
+      const entry = state.reserves.find((r) => r.id === action.id);
+      if (!entry) return state;
+      const def = reserveByKey(entry.key);
+      return log(
+        { ...state, reserves: state.reserves.filter((r) => r.id !== action.id) },
+        `Резерв «${def?.name || entry.key}» використано або прибрано`,
+      );
+    }
+    // Кінець місії: куплені резерви згорають, крім тих, що живуть кілька ігор,
+    // і тих, що отримані за Get Creative (gamesLeft === null).
+    case 'BURN_MISSION_RESERVES': {
+      if (state.reserves.length === 0) return state;
+      const kept = [];
+      const burned = [];
+      state.reserves.forEach((r) => {
+        if (r.gamesLeft == null) return kept.push(r);
+        const left = r.gamesLeft - 1;
+        if (left > 0) kept.push({ ...r, gamesLeft: left });
+        else burned.push(r);
+      });
+      if (burned.length === 0 && kept.length === state.reserves.length) {
+        return log({ ...state, reserves: kept }, 'Кінець місії: термін дії резервів оновлено');
+      }
+      const names = burned.map((r) => reserveByKey(r.key)?.name || r.key).join(', ');
+      return log(
+        { ...state, reserves: kept },
+        `Кінець місії: згоріло резервів — ${burned.length}${names ? ` (${names})` : ''}`,
+      );
     }
 
     // ---------- Shop (mana store) ----------
