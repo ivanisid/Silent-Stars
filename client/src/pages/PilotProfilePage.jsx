@@ -20,8 +20,7 @@ import ContactsPanel from '../pilot/components/ContactsPanel.jsx';
 // tracker inside the weekly downtime card.
 import HangarPanel from '../pilot/components/HangarPanel.jsx';
 import MechsPanel from '../pilot/components/MechsPanel.jsx';
-import GmAuditPanel from '../pilot/components/GmAuditPanel.jsx';
-import ChangeLogPanel from '../pilot/components/ChangeLogPanel.jsx';
+import OperationsLogPanel from '../pilot/components/OperationsLogPanel.jsx';
 import NavDrawer from '../components/NavDrawer.jsx';
 import NarrativeEditor from '../pilot/components/NarrativeEditor.jsx';
 
@@ -35,7 +34,7 @@ const SAVE_DEBOUNCE_MS = 800;
 
 export default function PilotProfilePage() {
   const { id } = useParams();
-  const { isGm } = useAuth();
+  const { user } = useAuth();
   const [pilot, setPilot] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [state, dispatch] = useReducer(pilotReducer, null);
@@ -170,11 +169,14 @@ export default function PilotProfilePage() {
         />
         <HangarPanel state={state} dispatch={dispatch} />
         <NarrativeEditor state={state} dispatch={dispatch} />
-        {/* Shown to everyone, GMs included: this is the everyday undo, and hiding it
-            behind the collapsed GM panel made the feature invisible to a GM. The GM
-            panel below stays as the forensic view (who changed what, journal clears). */}
-        <ChangeLogPanel pilotId={id} refreshKey={savedTick} onReverted={reloadPilot} />
-        {isGm && <GmAuditPanel pilotId={id} refreshKey={savedTick} onReverted={reloadPilot} />}
+        {/* Один журнал для обох ролей: свої операції гравець відкочує сам, чужі —
+            ГМ. Що видно, вирішує сервер, а не ця сторінка. */}
+        <OperationsLogPanel
+          pilotId={id}
+          refreshKey={savedTick}
+          onReverted={reloadPilot}
+          own={pilot?.user_id === user?.id}
+        />
       </div>
 
       <ShopDrawer state={state} dispatch={dispatch} />
