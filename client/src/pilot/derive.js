@@ -1,15 +1,23 @@
-import { GAMES_TABLE, HANGAR_DATA, PR_CAP_BASE, PR_CAP_BUFFER } from './constants';
-import { computeLL, llTier, skillCapMax, skillCapUsed } from './logic';
+import { HANGAR_DATA, PR_CAP_BASE, PR_CAP_BUFFER } from './constants';
+import { llTier, manaLevelCost, skillCapMax, skillCapUsed } from './logic';
 
 // Cross-cutting computed values used by multiple panels — the parts of the original
 // renderVals() that aren't purely local to one component.
 export function derivePilotView(state) {
-  const ll = computeLL(state.games);
+  // Рівень зберігається, а не рахується з ігор: його купують за ману. Смуга прогресу
+  // тепер показує накопичену ману відносно ціни наступного рівня.
+  const ll = state.ll;
   const tier = llTier(ll);
-  const prevGames = GAMES_TABLE[ll - 2] || 0;
-  const nextGames = ll < 12 ? GAMES_TABLE[ll - 1] : null;
-  const pct = nextGames ? Math.min(100, Math.round(((state.games - prevGames) / (nextGames - prevGames)) * 100)) : 100;
-  const llNextLabel = nextGames ? `${nextGames - state.games} ігор до ЛЛ ${ll + 1}` : 'МАКСИМАЛЬНИЙ ЛЛ';
+  const levelCost = manaLevelCost(ll);
+  const balance = state.mana.balance;
+  const pct = levelCost == null ? 100 : Math.min(100, Math.round((balance / levelCost) * 100));
+  const canLevelUp = levelCost != null && balance >= levelCost;
+  const llNextLabel =
+    levelCost == null
+      ? 'МАКСИМАЛЬНИЙ ЛЛ'
+      : canLevelUp
+        ? `ВИСТАЧАЄ НА ЛЛ ${ll + 1}`
+        : `${levelCost - balance} мани до ЛЛ ${ll + 1}`;
 
   // PR — єдиний пул пілота, видимий завжди: 30 PR є вже на старті, до покупки чого-небудь.
   // «Ресурсний буфер» більше не відкриває склад, а лише піднімає кап.
@@ -22,6 +30,8 @@ export function derivePilotView(state) {
     ll,
     tier,
     pct,
+    levelCost,
+    canLevelUp,
     llNextLabel,
     prCap,
     skillCapMax: capMax,

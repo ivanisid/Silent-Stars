@@ -1,4 +1,4 @@
-import { GAMES_TABLE, MANA_BASE_COST, TIER_MANA_STEP, MAX_LL } from './constants';
+import { MANA_BASE_COST, TIER_MANA_STEP, MAX_LL } from './constants';
 
 export function pad(n) {
   return String(n).padStart(2, '0');
@@ -11,14 +11,6 @@ export function nowTs() {
 
 export function clamp(n, lo, hi) {
   return Math.min(hi, Math.max(lo, n));
-}
-
-export function computeLL(games) {
-  let ll = 2;
-  for (let i = 0; i < GAMES_TABLE.length; i++) {
-    if (games >= GAMES_TABLE[i]) ll = i + 2;
-  }
-  return Math.min(ll, 12);
 }
 
 // Тір 1 — LL2–LL5, Тір 2 — LL6–LL10, Тір 3 — LL11–LL12. Гра починається з LL2,

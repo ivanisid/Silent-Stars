@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
-import { computeLL, llTier } from '../pilot/logic';
+import { llTier } from '../pilot/logic';
 import NavDrawer from '../components/NavDrawer.jsx';
 import DateTimeField from '../components/DateTimeField.jsx';
 
@@ -366,7 +366,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
                   )}
                   <span className="title-font" style={{ fontSize: 14, letterSpacing: 1 }}>{g.callsign || '—'}</span>
                   <span style={{ color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
-                    ЛЛ {computeLL(g.games)} · Т{llTier(computeLL(g.games))}
+                    ЛЛ {g.ll} · Т{llTier(g.ll)}
                   </span>
                   {g.mech && (
                     <span style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>▮ {g.mech}</span>

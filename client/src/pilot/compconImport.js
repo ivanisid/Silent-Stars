@@ -1,5 +1,5 @@
 import { createDefaultPilotState } from './pilotDefaults';
-import { GAMES_TABLE } from './constants';
+import { MAX_LL } from './constants';
 import { clamp, nowTs, skillCapMax } from './logic';
 
 // Imports a "Save Pilot" export from COMP/CON (the Lancer TTRPG companion app).
@@ -159,13 +159,13 @@ export function mapCompconPilot(json) {
   }
   const d = json.data;
 
-  const level = clamp(parseInt(d.level, 10) || 2, 2, 12);
-  const games = GAMES_TABLE[level - 2];
+  // Рівень пілота переноситься напряму: LL більше не виводиться з кількості ігор.
+  const level = clamp(parseInt(d.level, 10) || 2, 2, MAX_LL);
 
   const bondData = d.bond?.data;
   const state = {
     ...createDefaultPilotState(),
-    games,
+    ll: level,
     status: d.status === 'ACTIVE' ? 'active' : 'archive',
     stress: clamp(d.bond?.stress || 0, 0, 8),
     bond: {

@@ -16,6 +16,9 @@ function nowTs() {
 export function createDefaultPilotState() {
   return {
     games: 0,
+    // Рівень ліцензії більше не виводиться з кількості ігор — він купується за ману
+    // і зберігається окремо. games лишається лічильником зіграних ігор.
+    ll: 2,
     status: 'active',
     resourceMode: 'full',
     hangar: { owned: {}, confirm: null, error: '', open: false },
@@ -54,6 +57,7 @@ export function createDefaultPilotState() {
     mechs: [],
     mechDraft: { name: '', hpMax: '', repairMax: '', frame: '' },
     llEdit: { open: false, ll: '' },
+    levelUp: { open: false, mechId: null, allTalents: false, allLicenses: false, error: '' },
     mechEditId: null,
     mechEdit: { hpMax: '', repairMax: '', frame: '' },
     limitedDraft: {},

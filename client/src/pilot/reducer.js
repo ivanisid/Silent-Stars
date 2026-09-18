@@ -1,5 +1,4 @@
 import {
-  GAMES_TABLE,
   SHOP_DATA,
   HANGAR_DATA,
   MISSION_DOWNTIME_DATA,
@@ -7,11 +6,13 @@ import {
   PR_SERVICES,
   PR_CAP_BASE,
   PR_CAP_BUFFER,
+  MAX_LL,
+  REDISTRIBUTE_ALL_COST,
   limitedRefillPr,
 } from './constants';
 import {
   clamp,
-  computeLL,
+  manaLevelCost,
   toggleFilled,
   shopPrice,
   rollTier,
@@ -77,19 +78,85 @@ export function pilotReducer(state, action) {
       const open = !state.llEdit.open;
       return {
         ...state,
-        llEdit: { ...state.llEdit, open, ll: open ? String(computeLL(state.games)) : state.llEdit.ll },
+        llEdit: { ...state.llEdit, open, ll: open ? String(state.ll) : state.llEdit.ll },
       };
     }
     case 'SET_LL_EDIT_LL':
       return { ...state, llEdit: { ...state.llEdit, ll: action.value } };
+    // Ручне виправлення рівня оминає ману: це інструмент звірки, а не підвищення.
     case 'SAVE_LL_EDIT': {
-      const ll = clamp(parseInt(state.llEdit.ll, 10) || 2, 2, 12);
-      const games = GAMES_TABLE[ll - 2];
+      const ll = clamp(parseInt(state.llEdit.ll, 10) || 2, 2, MAX_LL);
+      if (ll === state.ll) return { ...state, llEdit: { ...state.llEdit, open: false } };
       return log(
-        { ...state, games, llEdit: { ...state.llEdit, open: false } },
-        `ЛЛ встановлено вручну: ${ll} (ігор: ${games})`,
+        { ...state, ll, llEdit: { ...state.llEdit, open: false } },
+        `ЛЛ виправлено вручну: ${state.ll} → ${ll}`,
       );
     }
+    // ---------- Підвищення рівня за ману ----------
+    // Рівень не піднімається сам при накопиченні мани: це явна покупка, яка списує ману
+    // з гаманця. Модалка потрібна навіть коли вибирати нема чого, бо підвищення дає
+    // ще й безкоштовний повний ремонт одного меха та платні перерозподіли.
+    case 'OPEN_LEVEL_UP': {
+      if (manaLevelCost(state.ll) == null) return state;
+      const only = state.mechs.length === 1 ? state.mechs[0].id : null;
+      return { ...state, levelUp: { open: true, mechId: only, allTalents: false, allLicenses: false, error: '' } };
+    }
+    case 'CLOSE_LEVEL_UP':
+      return { ...state, levelUp: { open: false, mechId: null, allTalents: false, allLicenses: false, error: '' } };
+    case 'SET_LEVEL_UP_MECH':
+      return { ...state, levelUp: { ...state.levelUp, mechId: action.mechId, error: '' } };
+    case 'TOGGLE_LEVEL_UP_EXTRA':
+      return { ...state, levelUp: { ...state.levelUp, [action.field]: !state.levelUp[action.field], error: '' } };
+    case 'CONFIRM_LEVEL_UP': {
+      const lu = state.levelUp;
+      const base = manaLevelCost(state.ll);
+      if (base == null) return state;
+
+      const extras = (lu.allTalents ? REDISTRIBUTE_ALL_COST : 0) + (lu.allLicenses ? REDISTRIBUTE_ALL_COST : 0);
+      const totalCost = base + extras;
+      if (totalCost > state.mana.balance) {
+        return { ...state, levelUp: { ...lu, error: 'Недостатньо мани.' } };
+      }
+      // Мех обов'язковий лише коли він є: пілот без меха просто не отримує ремонту.
+      if (state.mechs.length > 0 && lu.mechId == null) {
+        return { ...state, levelUp: { ...lu, error: 'Оберіть меха для повного ремонту.' } };
+      }
+
+      const nextLl = state.ll + 1;
+      let next = { ...state, ll: nextLl };
+
+      if (lu.mechId != null) {
+        next = updateMech(next, lu.mechId, (m) => ({
+          ...m,
+          hpCurrent: m.hpMax,
+          repairCurrent: m.repairMax,
+          structureFilled: 0,
+          reactorFilled: 0,
+          overcharge: 0,
+          corePower: true,
+          limited: m.limited.map((li) => ({ ...li, current: li.max, destroyed: false })),
+        }));
+      }
+
+      const mana = pushManaHistory(
+        { ...next.mana, balance: next.mana.balance - totalCost },
+        `−${totalCost} · ЛЛ ${state.ll} → ${nextLl}`,
+      );
+      next = { ...next, mana, levelUp: { open: false, mechId: null, allTalents: false, allLicenses: false, error: '' } };
+
+      const repaired = state.mechs.find((m) => m.id === lu.mechId);
+      const notes = [
+        repaired ? `повний ремонт «${repaired.name}»` : null,
+        lu.allTalents ? `перерозподіл усіх талантів (+${REDISTRIBUTE_ALL_COST})` : null,
+        lu.allLicenses ? `перерозподіл усіх ліцензій (+${REDISTRIBUTE_ALL_COST})` : null,
+      ].filter(Boolean);
+
+      return log(
+        next,
+        `ЛЛ ${state.ll} → ${nextLl} за ${totalCost} мани` + (notes.length ? ` · ${notes.join(', ')}` : ''),
+      );
+    }
+
     case 'SET_RESOURCE_MODE':
       return { ...state, resourceMode: action.mode };
 
@@ -211,7 +278,7 @@ export function pilotReducer(state, action) {
     case 'ADD_SKILL_TRIGGER': {
       const { name, desc, level } = state.skillDraft;
       if (!name.trim()) return state;
-      const ll = computeLL(state.games);
+      const ll = state.ll;
       if (skillCapUsed(state.skillTriggers) + level > skillCapMax(ll, state.skillCapBonus)) return state;
       const trigger = { id: Date.now(), name: name.trim(), desc: desc.trim(), level };
       return log(
@@ -235,7 +302,7 @@ export function pilotReducer(state, action) {
       if (!t) return state;
       const next = t.level + action.delta;
       if (next < 1 || next > 3) return state;
-      const ll = computeLL(state.games);
+      const ll = state.ll;
       const used = skillCapUsed(state.skillTriggers) - t.level + next;
       if (used > skillCapMax(ll, state.skillCapBonus)) return state;
       return log(
@@ -759,7 +826,7 @@ export function pilotReducer(state, action) {
       };
       let msg = `Синхронізовано з Adventure League CSV (${entryCount} записів): мана → ${manaTotal}`;
       if (levelFound) {
-        next = { ...next, games: GAMES_TABLE[clamp(levelFound, 2, 12) - 2] };
+        next = { ...next, ll: clamp(levelFound, 2, MAX_LL) };
         msg += `, рівень → ${levelFound}`;
       }
       return log(next, msg);

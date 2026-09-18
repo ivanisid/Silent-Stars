@@ -46,6 +46,9 @@ function toPilotSummary(row) {
     background: row.background,
     status: row.state?.status || 'active',
     games: row.state?.games || 0,
+    // Рівень зберігається окремо від кількості ігор; у старих записів його ще немає,
+    // тож fallback на стартовий LL2.
+    ll: row.state?.ll ?? 2,
     hp: row.state?.hp || null,
     mana: row.state?.mana?.balance ?? 0,
     stress: row.state?.stress ?? 0,
