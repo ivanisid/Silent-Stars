@@ -21,10 +21,12 @@ export function computeLL(games) {
   return Math.min(ll, 12);
 }
 
+// Тір 1 — LL2–LL5, Тір 2 — LL6–LL10, Тір 3 — LL11–LL12. Гра починається з LL2,
+// тож нижче другого рівня ліцензії тіру немає.
 export function llTier(ll) {
   if (ll <= 1) return '0';
   if (ll <= 5) return '1';
-  if (ll <= 8) return '2';
+  if (ll <= 10) return '2';
   return '3';
 }
 
