@@ -59,14 +59,8 @@ export function burdenLabel(type) {
   return 'МЕЙДЖОР · 8';
 }
 
-export function dcrSpentOf(d) {
-  return (d.kits || 0) + 2 * (d.packs || 0) + (d.allRefill ? 2 : 0);
-}
-
-export function shopPrice(item, sh) {
-  if (!item) return 0;
-  if (item.key === 'repair1') return item.price * (sh.qty || 1);
-  return item.price;
+export function shopPrice(item) {
+  return item ? item.price : 0;
 }
 
 export function rollTier(total) {

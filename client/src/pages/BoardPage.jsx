@@ -108,7 +108,7 @@ function CreateSlotForm({ onCreated }) {
   const [deadline, setDeadline] = useState(null);
   const [seats, setSeats] = useState(4);
   const [rewardMana, setRewardMana] = useState(0);
-  const [rewardDc, setRewardDc] = useState(0);
+  const [rewardPr, setRewardPr] = useState(0);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -119,9 +119,9 @@ function CreateSlotForm({ onCreated }) {
     const seatsNum = Number(seats);
     if (!Number.isInteger(seatsNum) || seatsNum < 1) return setError('Кількість місць — ціле число від 1.');
     const manaNum = Number(rewardMana);
-    const dcNum = Number(rewardDc);
+    const prNum = Number(rewardPr);
     if (!Number.isInteger(manaNum) || manaNum < 0) return setError('Нагорода в мані — ціле число від 0.');
-    if (!Number.isInteger(dcNum) || dcNum < 0) return setError('Нагорода в DC — ціле число від 0.');
+    if (!Number.isInteger(prNum) || prNum < 0) return setError('Нагорода в PR — ціле число від 0.');
     setBusy(true);
     setError('');
     try {
@@ -132,7 +132,7 @@ function CreateSlotForm({ onCreated }) {
         signupDeadline: deadline.toISOString(),
         seats: seatsNum,
         rewardMana: manaNum,
-        rewardDc: dcNum,
+        rewardPr: prNum,
       });
       setTitle('');
       setDescription('');
@@ -140,7 +140,7 @@ function CreateSlotForm({ onCreated }) {
       setDeadline(null);
       setSeats(4);
       setRewardMana(0);
-      setRewardDc(0);
+      setRewardPr(0);
       setOpen(false);
       onCreated();
     } catch (err) {
@@ -184,8 +184,8 @@ function CreateSlotForm({ onCreated }) {
             <input type="number" min={0} value={rewardMana} onChange={(e) => setRewardMana(e.target.value)} style={{ width: 90, padding: '8px 10px', fontSize: 13 }} />
           </div>
           <div>
-            <div className="field-label">НАГОРОДА · DC</div>
-            <input type="number" min={0} value={rewardDc} onChange={(e) => setRewardDc(e.target.value)} style={{ width: 70, padding: '8px 10px', fontSize: 13 }} />
+            <div className="field-label">НАГОРОДА · PR</div>
+            <input type="number" min={0} value={rewardPr} onChange={(e) => setRewardPr(e.target.value)} style={{ width: 70, padding: '8px 10px', fontSize: 13 }} />
           </div>
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.6 }}>
@@ -212,7 +212,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
   const [picked, setPicked] = useState(() => new Set());
   const [editReward, setEditReward] = useState(false);
   const [rMana, setRMana] = useState(0);
-  const [rDc, setRDc] = useState(0);
+  const [rPr, setRPr] = useState(0);
 
   const badge = statusBadge(slot);
   const isOpen = slot.status === 'open';
@@ -282,7 +282,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
             <span style={{ fontSize: 11, color: 'var(--text-soft-dim)', lineHeight: 1.6 }}>
               {awarded > 0
                 ? `Нагороди нараховано · ${awarded} ${pluralPilots(awarded)} · ${slot.rewardMana} М кожному` +
-                  `${slot.rewardDc > 0 ? ` · ${slot.rewardDc} DC на меха` : ''} · +1 зіграна гра`
+                  `${slot.rewardPr > 0 ? ` · ${slot.rewardPr} PR` : ''} · +1 зіграна гра`
                 : 'Нікого не затверджено — нагород не нараховано'}
             </span>
           </div>
@@ -324,8 +324,8 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
           <span>ЗАПИСАЛОСЬ: <span style={{ color: contest ? 'var(--warn)' : 'var(--text-bright)' }}>{slot.signups.length}</span></span>
           <span>
             НАГОРОДА:{' '}
-            <span style={{ color: slot.rewardMana || slot.rewardDc ? GOLD : 'var(--text-dimmer)' }}>
-              {slot.rewardMana} М · {slot.rewardDc} DC
+            <span style={{ color: slot.rewardMana || slot.rewardPr ? GOLD : 'var(--text-dimmer)' }}>
+              {slot.rewardMana} М · {slot.rewardPr} PR
             </span>
           </span>
         </div>
@@ -478,8 +478,8 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
                   <input type="number" min={0} value={rMana} onChange={(e) => setRMana(e.target.value)} style={{ width: 90, padding: '7px 10px', fontSize: 13 }} />
                 </div>
                 <div>
-                  <div className="field-label">DC</div>
-                  <input type="number" min={0} value={rDc} onChange={(e) => setRDc(e.target.value)} style={{ width: 70, padding: '7px 10px', fontSize: 13 }} />
+                  <div className="field-label">PR</div>
+                  <input type="number" min={0} value={rPr} onChange={(e) => setRPr(e.target.value)} style={{ width: 70, padding: '7px 10px', fontSize: 13 }} />
                 </div>
                 <button
                   className="btn"
@@ -487,12 +487,12 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
                   disabled={busy}
                   onClick={() => {
                     const m = Number(rMana);
-                    const d = Number(rDc);
+                    const d = Number(rPr);
                     if (!Number.isInteger(m) || m < 0 || !Number.isInteger(d) || d < 0) {
                       return setError('Нагорода — цілі числа від 0.');
                     }
                     setEditReward(false);
-                    run(() => api.gmUpdateSlotReward(slot.id, { rewardMana: m, rewardDc: d }));
+                    run(() => api.gmUpdateSlotReward(slot.id, { rewardMana: m, rewardPr: d }));
                   }}
                 >
                   ЗБЕРЕГТИ НАГОРОДУ
@@ -508,7 +508,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
                 disabled={busy}
                 onClick={() => {
                   setRMana(slot.rewardMana);
-                  setRDc(slot.rewardDc);
+                  setRPr(slot.rewardPr);
                   setEditReward(true);
                 }}
               >
@@ -542,7 +542,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
                   const msg =
                     `Завершити гру і видати нагороду ${awarded} ${pluralPilots(awarded)}?\n\n` +
                     `Кожен отримає ${slot.rewardMana} М і +1 зіграну гру, ` +
-                    `а ${slot.rewardDc} DC ляжуть на меха, з яким він записався. ` +
+                    `а ${slot.rewardPr} PR — у його пул PR (надлишок понад кап згорить). ` +
                     'Це діє одразу й не скасовується.';
                   if (!window.confirm(msg)) return;
                   run(() => api.gmCloseGame(slot.id));

@@ -156,7 +156,7 @@ export const api = {
     return data;
   },
 
-  gmCreateSlot: async ({ title, description, gameAt, signupDeadline, seats, rewardMana, rewardDc }) => {
+  gmCreateSlot: async ({ title, description, gameAt, signupDeadline, seats, rewardMana, rewardPr }) => {
     const { error } = await supabase.from('game_slots').insert({
       title: title.trim(),
       description: description.trim(),
@@ -164,17 +164,17 @@ export const api = {
       signup_deadline: signupDeadline,
       seats,
       reward_mana: rewardMana,
-      reward_dc: rewardDc,
+      reward_pr: rewardPr,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
   },
 
   // Reward stays editable until the slot is closed — closing is what pays it out.
-  gmUpdateSlotReward: async (slotId, { rewardMana, rewardDc }) => {
+  gmUpdateSlotReward: async (slotId, { rewardMana, rewardPr }) => {
     const { error } = await supabase
       .from('game_slots')
-      .update({ reward_mana: rewardMana, reward_dc: rewardDc })
+      .update({ reward_mana: rewardMana, reward_pr: rewardPr })
       .eq('id', slotId);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -231,7 +231,7 @@ export const api = {
     return { ok: true };
   },
 
-  // Hidden GM audit: mana/DC operations distilled server-side from pilot_audit_log,
+  // Hidden GM audit: mana/PR operations distilled server-side from pilot_audit_log,
   // which the player cannot clear (unlike the visible action log). RLS makes this
   // return an empty list for non-GMs.
   gmPilotAuditLog: async (pilotId) => {

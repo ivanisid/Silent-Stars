@@ -1,3 +1,5 @@
+import { PR_START } from './constants';
+
 // Factory for a brand-new pilot's mechanics state.
 // Deliberately empty/zeroed (not the demo seed data from the original design mockup) —
 // see docs/pilot-mechanics-spec.md section "deviations".
@@ -17,10 +19,10 @@ export function createDefaultPilotState() {
     status: 'active',
     resourceMode: 'full',
     hangar: { owned: {}, confirm: null, error: '', open: false },
-    dcStore: 0,
+    // Тір 1 стартує з готовим запасом PR (правила: «На старті кожен гравець вже має 30PR»).
+    pr: PR_START,
     shop: { open: false, item: null, mechId: null, alloc: {}, picked: null, qty: 1, error: '' },
-    dcr: { open: false, mechId: null, total: '', kits: 0, packs: 0, alloc: {}, allRefill: false, error: '' },
-    buf: { item: null, mechId: null, alloc: {}, error: '' },
+    prSpend: { item: null, mechId: null, alloc: {}, error: '' },
     mana: {
       balance: 0,
       txOpen: false,

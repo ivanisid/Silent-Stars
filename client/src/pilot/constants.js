@@ -6,6 +6,43 @@ export const OC_STEPS = ['+1', '+1D3', '+1D6', '+1D6+4'];
 
 export const CHARGES_MAX = 1;
 
+// ---------- Економіка ----------
+// Новий пілот стартує на Тірі 1 (LL2) з готовим запасом PR.
+export const PR_START = 30;
+// Базовий кап PR. «Ресурсний буфер» (покращення ангару, Тір 2) піднімає його до PR_CAP_BUFFER.
+export const PR_CAP_BASE = 100;
+export const PR_CAP_BUFFER = 200;
+
+// Пороги мани для підвищення ліцензії: MANA_LEVEL_COSTS[ll] — скільки коштує перехід
+// з ll на ll+1. Два переходи правилами не задані (LL5→LL6 і LL10→LL11) і стоять як null —
+// UI показує їх як невизначені, а не підставляє вгадане число.
+export const MANA_LEVEL_COSTS = {
+  2: 1000,
+  3: 1100,
+  4: 1200,
+  5: null,
+  6: 1400,
+  7: 1600,
+  8: 1800,
+  9: 2500,
+  10: null,
+  11: 3000,
+};
+
+// Додатковий ремонт за PR (витрачається downtime-дією Printer use, окрім купівлі
+// резервів рангу 1–2, яка дії не потребує).
+// refillone коштує залежно від базового запасу зарядів самої системи — див. limitedRefillPr().
+export const PR_SERVICES = [
+  { key: 'kit', title: '1 Ремонтний комплект', cost: 10 },
+  { key: 'kitsfull', title: 'Поповнення всіх ремонтних комплектів', cost: 50 },
+  { key: 'refillone', title: 'Відновлення лімітних зарядів однієї системи', cost: null },
+  { key: 'fullrepair', title: 'Повний ремонт / передрук меха', cost: 100, manaCost: 500 },
+];
+
+// Чим більший базовий запас зарядів у системи, тим дешевше її поповнити:
+// 1 заряд — 30 PR, 2 — 20 PR, 3 і більше — 10 PR.
+export const LIMITED_REFILL_PR = { 1: 30, 2: 20, 3: 10 };
+
 export const HANGAR_DATA = [
   {
     key: 'parking',
@@ -33,13 +70,13 @@ export const HANGAR_DATA = [
   },
   {
     key: 'buffer',
+    // Тір 2. Правила задають ефект (кап PR 100 → 200), але не ціну — на відміну від
+    // решти покращень ангару, у яких вона вказана в мані + PR. prices лишається як було,
+    // поки ціну не задано; див. docs/pilot-mechanics-spec.md.
     title: 'Ресурсний буфер',
-    prices: [1000, 1000],
-    desc: '',
-    levelTexts: [
-      'Перед місією гравець може попросити гільдію покласти частину DC на особистий склад.\nDC можуть накопичуватись на складі до 5 одиниць.\nІнші гравці можуть передавати DC після виконання місій гравцям групи до їх буферу — за наявності цього апгрейду та місця в ньому.\nОбмін накопичених DC:\n2 DC — 1 ремкомплект чи 3 лімітні заряди\n5 DC — скид OVERCHARGE до першого рівня',
-      'Збільшує ліміт накопичення DC до 10 шт.\nДодає послугу:\n10 DC — повний ремонт',
-    ],
+    prices: [1000],
+    desc: 'Розширює максимальний запас PR до 200 одиниць.',
+    levelTexts: [],
   },
   {
     key: 'storage',
@@ -60,25 +97,21 @@ export const HANGAR_DATA = [
   },
 ];
 
-export function bufServices(hangarOwned) {
-  const list = [
-    { key: 'kit', title: '1 Ремкомплект', cost: 2 },
-    { key: 'charges', title: '3 Лімітні заряди', cost: 2 },
-    { key: 'ocreset', title: 'Скид OVERCHARGE до першого рівня', cost: 5 },
-  ];
-  if ((hangarOwned?.buffer || 0) >= 2) {
-    list.push({ key: 'fullrepair', title: 'Повний ремонт (РІВЕНЬ 2)', cost: 10 });
-  }
-  return list;
+// Ціна поповнення лімітних зарядів однієї системи, за її базовим запасом.
+// Правила задають 1/2/3 заряди; 4+ трактуємо як 3 (найдешевший щабель).
+export function limitedRefillPr(baseMax) {
+  const n = Math.max(1, Math.min(3, Number(baseMax) || 1));
+  return LIMITED_REFILL_PR[n];
 }
 
+// Магазин за ману. Ремонт переїхав на PR (PR_SERVICES), тож тут лишається тільки те,
+// що за новими правилами купується саме маною.
+// «3 Лімітні заряди» і «Заряд Core Power» у нових правилах не згадані взагалі — ні ціни
+// в мані, ні в PR. Лишені зі старими цінами, доки їх доля не визначена.
 export const SHOP_DATA = [
-  { key: 'repair1', title: '1 Ремонтний набір', price: 200 },
-  { key: 'charges3', title: '3 Лімітні заряди', price: 300 },
-  { key: 'repairfull', title: 'Повний кап рем. комплектів', price: 700 },
-  { key: 'refillone', title: 'Поповнення всіх лімітних зарядів однієї зброї/системи', price: 300 },
-  { key: 'core', title: 'Заряд Core Power', price: 1000 },
-  { key: 'fullrepair', title: 'Повний ремонт', price: 2000 },
+  { key: 'fullrepair', title: 'Повний ремонт / передрук меха', price: 500 },
+  { key: 'charges3', title: '3 Лімітні заряди', price: 300, unspecified: true },
+  { key: 'core', title: 'Заряд Core Power', price: 1000, unspecified: true },
 ];
 
 // "Даунтайм" tab — 1 charge per mission.

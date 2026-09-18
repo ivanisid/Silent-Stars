@@ -1,9 +1,18 @@
-import { GAMES_TABLE, SHOP_DATA, HANGAR_DATA, MISSION_DOWNTIME_DATA, WEEKLY_DOWNTIME_DATA, bufServices } from './constants';
+import {
+  GAMES_TABLE,
+  SHOP_DATA,
+  HANGAR_DATA,
+  MISSION_DOWNTIME_DATA,
+  WEEKLY_DOWNTIME_DATA,
+  PR_SERVICES,
+  PR_CAP_BASE,
+  PR_CAP_BUFFER,
+  limitedRefillPr,
+} from './constants';
 import {
   clamp,
   computeLL,
   toggleFilled,
-  dcrSpentOf,
   shopPrice,
   rollTier,
   relationshipLabel,
@@ -32,8 +41,19 @@ function findMech(state, id) {
   return state.mechs.find((m) => m.id === id);
 }
 
-function dcStoreCap(state) {
-  return (state.hangar.owned.buffer || 0) >= 2 ? 10 : 5;
+function prCap(state) {
+  return (state.hangar.owned.buffer || 0) >= 1 ? PR_CAP_BUFFER : PR_CAP_BASE;
+}
+
+// Ціна послуги за PR. Для поповнення зарядів однієї системи вона залежить від самої
+// системи, тож рахується з обраної в модалці, а не береться зі списку.
+function prServiceCost(key, mech, alloc) {
+  const svc = PR_SERVICES.find((x) => x.key === key);
+  if (!svc) return null;
+  if (key !== 'refillone') return svc.cost;
+  const idx = Object.keys(alloc || {})[0];
+  const li = idx == null ? null : mech?.limited[idx];
+  return li ? limitedRefillPr(li.max) : null;
 }
 
 function pushManaHistory(mana, label) {
@@ -385,56 +405,44 @@ export function pilotReducer(state, action) {
     }
 
     // ---------- DC store (Особистий склад) ----------
-    case 'DC_STORE_INC': {
-      const cap = dcStoreCap(state);
-      if (state.dcStore >= cap) return state;
-      return log({ ...state, dcStore: state.dcStore + 1 }, `Склад DC: ${state.dcStore} → ${state.dcStore + 1}`);
-    }
-    case 'DC_STORE_DEC': {
-      if (state.dcStore <= 0) return state;
-      return log({ ...state, dcStore: state.dcStore - 1 }, `Склад DC: ${state.dcStore} → ${state.dcStore - 1}`);
+    case 'PR_SHIFT': {
+      const next = clamp(state.pr + action.dir, 0, prCap(state));
+      if (next === state.pr) return state;
+      return log({ ...state, pr: next }, `PR: ${state.pr} → ${next}`);
     }
 
-    // ---------- Buffer exchange (buf) ----------
-    case 'OPEN_BUF':
-      return { ...state, buf: { item: action.key, mechId: null, alloc: {}, error: '' } };
-    case 'CLOSE_BUF':
-      return { ...state, buf: { item: null, mechId: null, alloc: {}, error: '' } };
-    case 'SET_BUF_MECH':
-      return { ...state, buf: { ...state.buf, mechId: action.mechId, alloc: {} } };
-    case 'BUF_ALLOC_SHIFT': {
-      const { alloc, mechId } = state.buf;
+    // ---------- Витрата PR на додатковий ремонт (prSpend) ----------
+    case 'OPEN_PR_SPEND':
+      return { ...state, prSpend: { item: action.key, mechId: null, pick: null, error: '' } };
+    case 'CLOSE_PR_SPEND':
+      return { ...state, prSpend: { item: null, mechId: null, pick: null, error: '' } };
+    case 'SET_PR_SPEND_MECH':
+      return { ...state, prSpend: { ...state.prSpend, mechId: action.mechId, pick: null } };
+    // Поповнення зарядів тепер бере систему цілком, а не розподіляє окремі заряди:
+    // ціна залежить від базового запасу саме цієї системи.
+    case 'SET_PR_SPEND_PICK':
+      return { ...state, prSpend: { ...state.prSpend, pick: action.idx, error: '' } };
+    case 'PR_SPEND_CONFIRM': {
+      const { item: key, mechId, pick } = state.prSpend;
       const mech = findMech(state, mechId);
-      const cur = alloc[action.idx] || 0;
-      const total = Object.values(alloc).reduce((a, b) => a + b, 0);
-      if (action.dir > 0) {
-        if (total >= 3) return state;
-        const li = mech?.limited[action.idx];
-        if (li && li.current + cur >= li.max) return state;
+      if (!mech) return { ...state, prSpend: { ...state.prSpend, error: 'Оберіть меха.' } };
+      if (key === 'refillone' && pick == null) {
+        return { ...state, prSpend: { ...state.prSpend, error: 'Оберіть систему.' } };
       }
-      const next = Math.max(0, cur + action.dir);
-      return { ...state, buf: { ...state.buf, alloc: { ...alloc, [action.idx]: next } } };
-    }
-    case 'BUF_CONFIRM': {
-      const { item: key, mechId, alloc } = state.buf;
-      const mech = findMech(state, mechId);
-      if (!mech) return { ...state, buf: { ...state.buf, error: 'Оберіть меха.' } };
-      const svc = bufServices(state.hangar.owned).find((s) => s.key === key);
-      if (!svc) return state;
-      if (svc.cost > state.dcStore) return { ...state, buf: { ...state.buf, error: 'Недостатньо DC на складі.' } };
-      if (key === 'charges' && Object.values(alloc).reduce((a, b) => a + b, 0) === 0) {
-        return { ...state, buf: { ...state.buf, error: 'Розподіліть хоча б один заряд.' } };
-      }
+      const cost = prServiceCost(key, mech, pick == null ? {} : { [pick]: 1 });
+      if (cost == null) return state;
+      if (cost > state.pr) return { ...state, prSpend: { ...state.prSpend, error: 'Недостатньо PR.' } };
 
+      const svc = PR_SERVICES.find((x) => x.key === key);
       let nextState = updateMech(state, mechId, (m) => {
         if (key === 'kit') return { ...m, repairCurrent: Math.min(m.repairMax, m.repairCurrent + 1) };
-        if (key === 'charges') {
+        if (key === 'kitsfull') return { ...m, repairCurrent: m.repairMax };
+        if (key === 'refillone') {
           return {
             ...m,
-            limited: m.limited.map((li, i) => ({ ...li, current: Math.min(li.max, li.current + (alloc[i] || 0)) })),
+            limited: m.limited.map((li, i) => (i === pick ? { ...li, current: li.max, destroyed: false } : li)),
           };
         }
-        if (key === 'ocreset') return { ...m, overcharge: 0 };
         if (key === 'fullrepair') {
           return {
             ...m,
@@ -450,112 +458,9 @@ export function pilotReducer(state, action) {
         return m;
       });
 
-      const before = state.dcStore;
-      nextState = { ...nextState, dcStore: before - svc.cost, buf: { item: null, mechId: null, alloc: {}, error: '' } };
-      return log(nextState, `Склад: обмін «${svc.title}» (DC ${before} → ${before - svc.cost})`);
-    }
-
-    // ---------- DC repair modal (dcr) ----------
-    case 'OPEN_DCR':
-      return { ...state, dcr: { open: true, mechId: null, total: '', kits: 0, packs: 0, alloc: {}, allRefill: false, error: '' } };
-    case 'CLOSE_DCR':
-      return { ...state, dcr: { ...state.dcr, open: false } };
-    // The budget is whatever the chosen mech carries, so overspending is impossible by
-    // construction rather than by validation: every DCR guard already measures against
-    // `total`. Switching mechs re-reads it and clears a selection priced for the old budget.
-    case 'SET_DCR_MECH': {
-      const mech = findMech(state, action.mechId);
-      return {
-        ...state,
-        dcr: {
-          ...state.dcr,
-          mechId: action.mechId,
-          total: String(mech?.dc || 0),
-          kits: 0,
-          packs: 0,
-          alloc: {},
-          allRefill: false,
-          error: '',
-        },
-      };
-    }
-    case 'DCR_SHIFT': {
-      const d = state.dcr;
-      const total = parseFloat(d.total) || 0;
-      const cur = d[action.field] || 0;
-      const unitCost = action.field === 'kits' ? 1 : 2;
-      if (action.dir > 0) {
-        if (dcrSpentOf(d) + unitCost > total) return state;
-        if (action.field === 'kits') {
-          const mech = findMech(state, d.mechId);
-          if (mech && mech.repairCurrent + (cur + 1) > mech.repairMax) return state;
-        }
-      }
-      const next = Math.max(0, cur + action.dir);
-      const patch = { [action.field]: next };
-      if (action.field === 'packs' && action.dir < 0) patch.alloc = {};
-      return { ...state, dcr: { ...d, ...patch } };
-    }
-    case 'DCR_ALLOC_SHIFT': {
-      const d = state.dcr;
-      const mech = findMech(state, d.mechId);
-      const cur = d.alloc[action.idx] || 0;
-      const total = Object.values(d.alloc).reduce((a, b) => a + b, 0);
-      if (action.dir > 0) {
-        if (total >= 3 * (d.packs || 0)) return state;
-        const li = mech?.limited[action.idx];
-        if (li && li.current + cur >= li.max) return state;
-      }
-      const next = Math.max(0, cur + action.dir);
-      return { ...state, dcr: { ...d, alloc: { ...d.alloc, [action.idx]: next } } };
-    }
-    case 'DCR_TOGGLE_ALL_REFILL': {
-      const d = state.dcr;
-      if (!d.allRefill) {
-        const total = parseFloat(d.total) || 0;
-        if (dcrSpentOf(d) + 2 > total) return { ...state, dcr: { ...d, error: 'Недостатньо DC.' } };
-      }
-      return { ...state, dcr: { ...d, allRefill: !d.allRefill, error: '' } };
-    }
-    case 'DCR_CONFIRM': {
-      const d = state.dcr;
-      const total = parseFloat(d.total) || 0;
-      const spent = dcrSpentOf(d);
-      if (total <= 0) return { ...state, dcr: { ...d, error: 'Вкажіть кількість DC.' } };
-      if (spent <= 0) return { ...state, dcr: { ...d, error: 'Оберіть хоча б один обмін.' } };
-      const mech = findMech(state, d.mechId);
-      if (!mech) return { ...state, dcr: { ...d, error: 'Оберіть меха.' } };
-      if (spent > total) return { ...state, dcr: { ...d, error: 'Витрачено більше, ніж є DC.' } };
-
-      // Spending draws the mech's own counter down; what is left stays on the mech until
-      // the pilot banks it or the next closed game overwrites it.
-      const leftover = total - spent;
-      let nextState = updateMech(state, d.mechId, (m) => ({
-        ...m,
-        dc: Math.max(0, (m.dc || 0) - spent),
-        repairCurrent: Math.min(m.repairMax, m.repairCurrent + d.kits),
-        limited: m.limited.map((li, i) => ({
-          ...li,
-          current: Math.min(li.max, li.current + (d.alloc[i] || 0) + (d.allRefill ? 1 : 0)),
-        })),
-      }));
-
-      const hasBuffer = (state.hangar.owned.buffer || 0) >= 1;
-
-      nextState = {
-        ...nextState,
-        dcr: { open: false, mechId: null, total: '', kits: 0, packs: 0, alloc: {}, allRefill: false, error: '' },
-      };
-      const leftoverNote =
-        leftover <= 0
-          ? ''
-          : hasBuffer
-            ? `· лишилось ${leftover} DC — можна перекинути в буфер`
-            : `· лишилось ${leftover} DC (згорять — немає буфера)`;
-      return log(
-        nextState,
-        `Ремонт за DC (${mech.name}): ремкомплекти +${d.kits}, пакети зарядів ×${d.packs}${d.allRefill ? ', поповнено всі системи' : ''}. Витрачено ${spent}/${total} DC ${leftoverNote}`,
-      );
+      const before = state.pr;
+      nextState = { ...nextState, pr: before - cost, prSpend: { item: null, mechId: null, pick: null, error: '' } };
+      return log(nextState, `${mech.name}: «${svc.title}» за ${cost} PR (PR ${before} → ${before - cost})`);
     }
 
     // ---------- Shop (mana store) ----------
@@ -596,28 +501,15 @@ export function pilotReducer(state, action) {
       if (!item) return state;
       if (!mech) return { ...state, shop: { ...s, error: 'Оберіть меха.' } };
 
-      if (item.key === 'repair1') {
-        const free = mech.repairMax - mech.repairCurrent;
-        if (free <= 0) return { ...state, shop: { ...s, error: 'Рем. комплекти вже на капі.' } };
-        if (s.qty > free) return { ...state, shop: { ...s, error: `Більше капу: вільно лише ${free}.` } };
-      }
-      const totalPrice = shopPrice(item, s);
+      const totalPrice = shopPrice(item);
       if (totalPrice > state.mana.balance) return { ...state, shop: { ...s, error: 'Недостатньо мани.' } };
       if (item.key === 'charges3' && Object.values(s.alloc).reduce((a, b) => a + b, 0) === 0) {
         return { ...state, shop: { ...s, error: 'Розподіліть хоча б один заряд.' } };
       }
-      if (item.key === 'refillone' && s.picked === null) {
-        return { ...state, shop: { ...s, error: 'Оберіть зброю або систему.' } };
-      }
 
       let nextState = updateMech(state, s.mechId, (m) => {
-        if (item.key === 'repair1') return { ...m, repairCurrent: Math.min(m.repairMax, m.repairCurrent + s.qty) };
         if (item.key === 'charges3') {
           return { ...m, limited: m.limited.map((li, i) => ({ ...li, current: Math.min(li.max, li.current + (s.alloc[i] || 0)) })) };
-        }
-        if (item.key === 'repairfull') return { ...m, repairCurrent: m.repairMax };
-        if (item.key === 'refillone') {
-          return { ...m, limited: m.limited.map((li, i) => (i === s.picked ? { ...li, current: li.max } : li)) };
         }
         if (item.key === 'core') return { ...m, corePower: true };
         if (item.key === 'fullrepair') {
@@ -663,9 +555,6 @@ export function pilotReducer(state, action) {
         reactorFilled: 0,
         corePower: true,
         overcharge: 0,
-        // Mission DC the GM credits to this mech when a game closes. Burns on the next
-        // credit — only what the pilot moves to the buffer survives.
-        dc: 0,
         limited: [],
       };
       return log(
@@ -695,26 +584,6 @@ export function pilotReducer(state, action) {
     }
     // Mission DC sits on the mech that flew the game. Mechs saved before this field
     // existed read as 0, so the counter works without migrating anyone's state.
-    case 'SHIFT_MECH_DC': {
-      const m = findMech(state, action.id);
-      const cur = m.dc || 0;
-      const next = Math.max(0, cur + action.dir);
-      if (next === cur) return state;
-      return log(updateMech(state, action.id, (mm) => ({ ...mm, dc: next })), `${m.name}: DC ${cur} → ${next}`);
-    }
-    // Banking what a mission left over. Capped by the buffer's own room, so the button can
-    // never move more DC than there is or more than will fit.
-    case 'MECH_DC_TO_BUFFER': {
-      const m = findMech(state, action.id);
-      const have = m.dc || 0;
-      if (have <= 0 || (state.hangar.owned.buffer || 0) < 1) return state;
-      const moved = Math.min(have, Math.max(0, dcStoreCap(state) - state.dcStore));
-      if (moved <= 0) return state;
-      return log(
-        updateMech({ ...state, dcStore: state.dcStore + moved }, action.id, (mm) => ({ ...mm, dc: (mm.dc || 0) - moved })),
-        `${m.name}: ${moved} DC → буфер (склад ${state.dcStore} → ${state.dcStore + moved})`,
-      );
-    }
     case 'TOGGLE_MECH_CORE': {
       const m = findMech(state, action.id);
       const next = !m.corePower;

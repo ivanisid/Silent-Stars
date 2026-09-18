@@ -8,7 +8,7 @@ import { MISSION_DOWNTIME_DATA, WEEKLY_DOWNTIME_DATA } from '../pilot/constants'
 import Header from '../pilot/components/Header.jsx';
 import SyncTools from '../pilot/components/SyncTools.jsx';
 import ManaPanel from '../pilot/components/ManaPanel.jsx';
-import DcStorePanel from '../pilot/components/DcStorePanel.jsx';
+import PrPanel from '../pilot/components/PrPanel.jsx';
 import ShopDrawer from '../pilot/components/ShopDrawer.jsx';
 import BondMenu from '../pilot/components/BondMenu.jsx';
 import SkillTriggers from '../pilot/components/SkillTriggers.jsx';
@@ -25,9 +25,8 @@ import NavDrawer from '../components/NavDrawer.jsx';
 import NarrativeEditor from '../pilot/components/NarrativeEditor.jsx';
 
 import ManaTxModal from '../pilot/components/modals/ManaTxModal.jsx';
-import DcRepairModal from '../pilot/components/modals/DcRepairModal.jsx';
 import ShopModal from '../pilot/components/modals/ShopModal.jsx';
-import BufModal from '../pilot/components/modals/BufModal.jsx';
+import PrSpendModal from '../pilot/components/modals/PrSpendModal.jsx';
 import HangarConfirmModal from '../pilot/components/modals/HangarConfirmModal.jsx';
 
 const SAVE_DEBOUNCE_MS = 800;
@@ -141,7 +140,7 @@ export default function PilotProfilePage() {
             <ManaPanel state={state} dispatch={dispatch} />
           </div>
           <div style={{ flex: 1, minWidth: 320 }}>
-            <DcStorePanel state={state} dispatch={dispatch} />
+            <PrPanel state={state} dispatch={dispatch} />
           </div>
         </div>
 
@@ -180,9 +179,8 @@ export default function PilotProfilePage() {
       <NavDrawer />
 
       <ManaTxModal state={state} dispatch={dispatch} />
-      <DcRepairModal state={state} dispatch={dispatch} />
       <ShopModal state={state} dispatch={dispatch} />
-      <BufModal state={state} dispatch={dispatch} />
+      <PrSpendModal state={state} dispatch={dispatch} />
       <HangarConfirmModal state={state} dispatch={dispatch} />
     </div>
   );

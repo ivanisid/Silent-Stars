@@ -1,4 +1,4 @@
-import { GAMES_TABLE, HANGAR_DATA } from './constants';
+import { GAMES_TABLE, HANGAR_DATA, PR_CAP_BASE, PR_CAP_BUFFER } from './constants';
 import { computeLL, llTier, skillCapMax, skillCapUsed } from './logic';
 
 // Cross-cutting computed values used by multiple panels — the parts of the original
@@ -11,8 +11,9 @@ export function derivePilotView(state) {
   const pct = nextGames ? Math.min(100, Math.round(((state.games - prevGames) / (nextGames - prevGames)) * 100)) : 100;
   const llNextLabel = nextGames ? `${nextGames - state.games} ігор до ЛЛ ${ll + 1}` : 'МАКСИМАЛЬНИЙ ЛЛ';
 
-  const dcStoreVisible = (state.hangar.owned.buffer || 0) >= 1;
-  const dcStoreCap = (state.hangar.owned.buffer || 0) >= 2 ? 10 : 5;
+  // PR — єдиний пул пілота, видимий завжди: 30 PR є вже на старті, до покупки чого-небудь.
+  // «Ресурсний буфер» більше не відкриває склад, а лише піднімає кап.
+  const prCap = (state.hangar.owned.buffer || 0) >= 1 ? PR_CAP_BUFFER : PR_CAP_BASE;
 
   const capMax = skillCapMax(ll, state.skillCapBonus);
   const capUsed = skillCapUsed(state.skillTriggers);
@@ -22,8 +23,7 @@ export function derivePilotView(state) {
     tier,
     pct,
     llNextLabel,
-    dcStoreVisible,
-    dcStoreCap,
+    prCap,
     skillCapMax: capMax,
     skillCapUsed: capUsed,
   };
