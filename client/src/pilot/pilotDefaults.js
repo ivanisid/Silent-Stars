@@ -1,4 +1,4 @@
-import { PR_START } from './constants';
+import { PR_START, PR_CAP_BASE } from './constants';
 
 // Factory for a brand-new pilot's mechanics state.
 // Deliberately empty/zeroed (not the demo seed data from the original design mockup) —
@@ -97,4 +97,67 @@ export function createDefaultPilotState() {
     actionLog: [{ ts: nowTs(), msg: 'Пілота створено.' }],
     narrative: '',
   };
+}
+
+// Пороги кількості ігор, за якими рівень виводився до переходу на ману.
+const LEGACY_GAMES_TABLE = [0, 3, 6, 9, 12, 16, 20, 24, 29, 34, 39, 44];
+
+function legacyLl(games) {
+  let ll = 2;
+  for (let i = 0; i < LEGACY_GAMES_TABLE.length; i++) {
+    if ((games || 0) >= LEGACY_GAMES_TABLE[i]) ll = i + 2;
+  }
+  return Math.min(ll, 12);
+}
+
+// Приводить будь-який збережений стан до поточної форми.
+//
+// Потрібно не лише для старих рядків: revert_pilot_state замінює стан знімком з
+// аудиту цілком, а знімки, зроблені до міграцій, не мають половини теперішніх полів —
+// без цього відкат на такий запис ламав би профіль. Міграції роблять те саме в базі,
+// тут це страховка на боці клієнта для всього, що приходить повз них.
+export function normalizePilotState(raw) {
+  const base = createDefaultPilotState();
+  if (!raw || typeof raw !== 'object') return base;
+
+  const next = { ...base, ...raw };
+
+  // DC → PR: перенос 1:1, обрізаний новим капом.
+  if (raw.pr == null && raw.dcStore != null) {
+    next.pr = Math.min(Number(raw.dcStore) || 0, PR_CAP_BASE);
+  }
+  // Рівень: раніше виводився з кількості ігор.
+  if (raw.ll == null) next.ll = legacyLl(raw.games);
+
+  // Burden-и: було три наперед створені слоти з вибором типу.
+  if (Array.isArray(raw.burdens) && raw.burdens.some((b) => b && b.size === undefined)) {
+    next.burdens = raw.burdens
+      .filter((b) => b && ((b.name || '').trim() !== '' || (b.filled || 0) > 0))
+      .map((b, i) => {
+        const size = b.type === 'minor4' ? 4 : b.type === 'middle6' ? 6 : 8;
+        return { id: Date.now() + i, name: b.name || '', size, healed: Math.min(b.filled || 0, size - 1) };
+      });
+  }
+
+  // Бонд: нові поля поверх наявних, вибір вважається зробленим, якщо архетип уже вписано.
+  next.bond = {
+    ...base.bond,
+    ...(raw.bond || {}),
+    marked: { ...base.bond.marked, ...(raw.bond?.marked || {}) },
+    confirmed: raw.bond?.confirmed ?? ((raw.bond?.archetype || '').trim() !== ''),
+  };
+
+  next.mana = { ...base.mana, ...(raw.mana || {}) };
+  next.shop = { ...base.shop, ...(raw.shop || {}) };
+  next.hangar = { ...base.hangar, ...(raw.hangar || {}) };
+  next.mechs = (raw.mechs || []).map(({ dc, ...m }) => m);
+
+  // Поля, яких у новій формі більше немає.
+  delete next.dcStore;
+  delete next.buf;
+  delete next.dcr;
+  delete next.projects;
+  delete next.projectDraft;
+
+  return next;
 }

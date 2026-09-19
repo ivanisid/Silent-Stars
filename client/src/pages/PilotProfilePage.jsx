@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { pilotReducer } from '../pilot/reducer';
+import { normalizePilotState } from '../pilot/pilotDefaults';
 import { MISSION_DOWNTIME_DATA, WEEKLY_DOWNTIME_DATA } from '../pilot/constants';
 
 import Header from '../pilot/components/Header.jsx';
@@ -53,7 +54,7 @@ export default function PilotProfilePage() {
         if (cancelled) return;
         setPilot(p);
         isFirstStateSet.current = true;
-        dispatch({ type: '__INIT__', state: p.state });
+        dispatch({ type: '__INIT__', state: normalizePilotState(p.state) });
       })
       .catch((err) => setLoadError(err.message));
     return () => {
@@ -69,7 +70,7 @@ export default function PilotProfilePage() {
     const p = await api.getPilot(id);
     setPilot(p);
     isFirstStateSet.current = true;
-    dispatch({ type: '__INIT__', state: p.state });
+    dispatch({ type: '__INIT__', state: normalizePilotState(p.state) });
     setSaveStatus('saved');
   }
 
