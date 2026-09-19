@@ -554,6 +554,85 @@ export function pilotReducer(state, action) {
       );
     }
 
+    // ---------- Mana ----------
+    case 'OPEN_TX':
+      return { ...state, mana: { ...state.mana, txOpen: true, amount: '', comment: '', target: '', error: '' } };
+    case 'CLOSE_TX':
+      return { ...state, mana: { ...state.mana, txOpen: false } };
+    case 'SET_TX_TYPE':
+      return { ...state, mana: { ...state.mana, txType: action.value } };
+    case 'SET_TX_AMOUNT':
+      return { ...state, mana: { ...state.mana, amount: action.value } };
+    case 'SET_TX_COMMENT':
+      return { ...state, mana: { ...state.mana, comment: action.value } };
+    case 'SET_TX_TARGET':
+      return { ...state, mana: { ...state.mana, target: action.value } };
+    case 'SUBMIT_TX': {
+      const { txType, amount, comment, target, balance } = state.mana;
+      const amt = parseFloat(amount);
+      if (!amt || amt <= 0) {
+        return { ...state, mana: { ...state.mana, error: 'Вкажи додатну кількість.' } };
+      }
+      let nextBalance = balance;
+      let label = '';
+      if (txType === 'deposit') {
+        nextBalance = balance + amt;
+        label = `+${amt}${comment ? ' · ' + comment : ''}`;
+      } else if (txType === 'withdraw') {
+        if (amt > balance) return { ...state, mana: { ...state.mana, error: 'Недостатньо мани — баланс не може бути менше 0.' } };
+        nextBalance = balance - amt;
+        label = `−${amt}${comment ? ' · ' + comment : ''}`;
+      } else {
+        if (amt > balance) return { ...state, mana: { ...state.mana, error: 'Недостатньо мани для переказу.' } };
+        nextBalance = balance - amt;
+        label = `→ ${target || 'пілот'}: ${amt}${comment ? ' · ' + comment : ''}`;
+      }
+      const mana = pushManaHistory(
+        { ...state.mana, balance: nextBalance, txOpen: false, amount: '', comment: '', target: '', error: '' },
+        label,
+      );
+      return log({ ...state, mana }, `Мана: ${label}`);
+    }
+
+    // ---------- Hangar ----------
+    case 'TOGGLE_HANGAR_OPEN':
+      return { ...state, hangar: { ...state.hangar, open: !state.hangar.open } };
+    case 'OPEN_HANGAR_CONFIRM':
+      return { ...state, hangar: { ...state.hangar, confirm: action.key, error: '' } };
+    case 'CLOSE_HANGAR_CONFIRM':
+      return { ...state, hangar: { ...state.hangar, confirm: null, error: '' } };
+    case 'CONFIRM_HANGAR_BUY': {
+      const key = state.hangar.confirm;
+      const item = HANGAR_DATA.find((h) => h.key === key);
+      const owned = state.hangar.owned[key] || 0;
+      if (!item || owned >= item.prices.length) {
+        return { ...state, hangar: { ...state.hangar, confirm: null } };
+      }
+      const price = item.prices[owned];
+      if (price > state.mana.balance) {
+        return { ...state, hangar: { ...state.hangar, error: 'Недостатньо мани.' } };
+      }
+      const mana = pushManaHistory(
+        { ...state.mana, balance: state.mana.balance - price },
+        `−${price} · ${item.title}${item.prices.length > 1 ? ' рів.' + (owned + 1) : ''}`,
+      );
+      return log(
+        {
+          ...state,
+          mana,
+          hangar: { ...state.hangar, owned: { ...state.hangar.owned, [key]: owned + 1 }, confirm: null, error: '' },
+        },
+        `Ангар: придбано «${item.title}»${item.prices.length > 1 ? ' рів.' + (owned + 1) : ''} за ${price} мани`,
+      );
+    }
+
+    // ---------- DC store (Особистий склад) ----------
+    case 'PR_SHIFT': {
+      const next = clamp(state.pr + action.dir, 0, prCap(state));
+      if (next === state.pr) return state;
+      return log({ ...state, pr: next }, `PR: ${state.pr} → ${next}`);
+    }
+
     // ---------- Витрата PR на додатковий ремонт (prSpend) ----------
     case 'OPEN_PR_SPEND':
       return { ...state, prSpend: { item: action.key, mechId: null, pick: null, error: '' } };
