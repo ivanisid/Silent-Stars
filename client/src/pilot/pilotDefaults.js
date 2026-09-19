@@ -132,20 +132,25 @@ export function normalizePilotState(raw) {
   // тоді й коштує тепер. Зіграні ігри були прогресом до рівня, тож стають маною-XP:
   // частка пройденого шляху, помножена на ціну наступного рівня.
   if (raw.pr == null) {
-    const fromMana = Math.floor((Number(raw.mana?.balance) || 0) / 20);
-    next.pr = Math.min(fromMana + (Number(raw.dcStore) || 0), PR_CAP_BASE);
+    const oldMana = Number(raw.mana?.balance) || 0;
+    const dc = Number(raw.dcStore) || 0;
+    // У PR іде рівно стільки, скільки влазить під кап; решта старої мани не згорає,
+    // а лишається як XP — разом із тим, що не добрало до цілого PR.
+    const prFromMana = Math.min(Math.floor(oldMana / 20), Math.max(0, PR_CAP_BASE - dc));
+    next.pr = Math.min(prFromMana + dc, PR_CAP_BASE);
+    const leftover = oldMana - prFromMana * 20;
 
     const cost = manaLevelCost(ll);
-    let carried = 0;
+    let progress = 0;
     if (cost != null) {
       const prev = LEGACY_GAMES_TABLE[ll - 2] ?? 0;
       const nextTh = LEGACY_GAMES_TABLE[ll - 1];
       if (nextTh != null && nextTh > prev) {
         const frac = Math.min(1, Math.max(0, ((raw.games || 0) - prev) / (nextTh - prev)));
-        carried = Math.round(frac * cost);
+        progress = Math.round(frac * cost);
       }
     }
-    next.mana = { ...base.mana, ...(raw.mana || {}), balance: carried };
+    next.mana = { ...base.mana, ...(raw.mana || {}), balance: progress + leftover };
   }
 
   // Burden-и: було три наперед створені слоти з вибором типу.

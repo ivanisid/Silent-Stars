@@ -7,11 +7,14 @@
 --   зіграні ігри → мана: частка пройденого шляху до наступного рівня, помножена
 --                        на ціну цього рівня. Зіграна 1 гра з 3 потрібних дає 1/3
 --                        ціни рівня.
---   стара мана   → PR:   200 мани = 10 PR, плюс уже перенесені DC, з обрізанням
---                        по капу 100 PR. Курс узятий з купівельної спроможності:
---                        ремонтний комплект коштував 200 мани, а тепер 10 PR;
---                        повний ремонт коштував 2000 мани, а тепер 100 PR — обидві
---                        позиції сходяться на цьому курсі точно.
+--   стара мана   → PR:   200 мани = 10 PR, плюс уже перенесені DC. Курс узятий з
+--                        купівельної спроможності: ремонтний комплект коштував
+--                        200 мани, а тепер 10 PR; повний ремонт коштував 2000 мани,
+--                        а тепер 100 PR — обидві позиції сходяться точно.
+--                        У PR іде стільки, скільки влазить під кап 100; решта не
+--                        згорає, а додається до мани як XP — разом із тим, що не
+--                        добрало до цілого PR. Тож PR×20 + мана завжди дорівнює
+--                        старому балансу.
 --
 -- Має виконуватись ПІСЛЯ 20260918_pr_economy.sql (яка кладе DC у state.pr) і
 -- 20260918b_mana_levels.sql (яка проставляє state.ll).
@@ -50,22 +53,30 @@ calc as (
     coalesce((p.state->>'ll')::int, 2) as ll
   from public.pilots p
 ),
+split as (
+  select
+    c.*,
+    -- Скільки PR можна взяти зі старої мани, не перевищивши кап разом із DC.
+    least(floor(c.old_mana / 20)::int, greatest(0, 100 - c.pr_from_dc)) as pr_from_mana
+  from calc c
+),
 conv as (
   select
-    c.id,
-    -- Частка пройденого шляху між порогом поточного рівня й порогом наступного.
-    case
-      when public.mana_level_cost(c.ll) is null then 0
+    s.id,
+    least(100, s.pr_from_mana + s.pr_from_dc) as new_pr,
+    -- Частка пройденого шляху між порогом поточного рівня й порогом наступного,
+    -- плюс уся стара мана, що не пішла в PR.
+    (case
+      when public.mana_level_cost(s.ll) is null then 0
       else round(
-        public.mana_level_cost(c.ll) *
+        public.mana_level_cost(s.ll) *
         least(1, greatest(0,
-          (c.games - (select g[c.ll - 1] from thresholds))::numeric
-          / nullif((select g[c.ll] from thresholds) - (select g[c.ll - 1] from thresholds), 0)
+          (s.games - (select g[s.ll - 1] from thresholds))::numeric
+          / nullif((select g[s.ll] from thresholds) - (select g[s.ll - 1] from thresholds), 0)
         ))
       )
-    end as new_mana,
-    least(100, floor(c.old_mana / 20)::int + c.pr_from_dc) as new_pr
-  from calc c
+    end) + (s.old_mana - s.pr_from_mana * 20) as new_mana
+  from split s
 )
 update public.pilots p
 set state = jsonb_set(
