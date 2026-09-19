@@ -9,9 +9,9 @@ import {
 } from '../reserves';
 
 const TABS = [
-  { key: 'repair', label: 'РЕМОНТ', hint: 'за PR' },
-  { key: 'reserves', label: 'РЕЗЕРВИ', hint: 'за PR' },
-  { key: 'mana', label: 'ЗА МАНУ', hint: 'екзотика' },
+  { key: 'repair', label: 'PRINTER', hint: 'ремонт за PR' },
+  { key: 'reserves', label: 'RESERVES', hint: 'резерви за PR' },
+  { key: 'mana', label: 'LUXURY', hint: 'за ману' },
 ];
 
 const RANKS = [1, 2, 3];
@@ -240,23 +240,28 @@ function ManaTab({ state, dispatch }) {
       <div style={{ padding: '10px 20px 4px 20px', fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>
         ПОЗИЦІЯ / ЦІНА
       </div>
-      {SHOP_DATA.map((it) => (
-        <div key={it.key} style={{ padding: '12px 20px', borderTop: '1px solid var(--rule)' }}>
-          <div style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
-            {it.title}
-            {/* Позиції, яких нові правила не згадують — лишені зі старою ціною. */}
-            {it.unspecified && (
-              <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 8 }}>ЦІНА НЕ ПІДТВЕРДЖЕНА</span>
-            )}
+      {SHOP_DATA.map((it) => {
+        const affordable = state.mana.balance >= it.price;
+        return (
+          <div key={it.key} style={{ padding: '12px 20px', borderTop: '1px solid var(--rule)' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
+              {it.title}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{it.price} М</div>
+              <button
+                className="btn"
+                type="button"
+                disabled={!affordable}
+                style={{ marginLeft: 'auto', fontSize: 11, opacity: affordable ? 1 : 0.55, cursor: affordable ? 'pointer' : 'not-allowed' }}
+                onClick={() => dispatch({ type: 'OPEN_SHOP_MODAL', key: it.key })}
+              >
+                КУПИТИ
+              </button>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-            <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{it.price} М</div>
-            <button className="btn" type="button" style={{ marginLeft: 'auto', fontSize: 11 }} onClick={() => dispatch({ type: 'OPEN_SHOP_MODAL', key: it.key })}>
-              КУПИТИ
-            </button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
       <div style={{ padding: '14px 20px 0 20px', fontSize: 10, color: 'var(--text-dimmer)', lineHeight: 1.6 }}>
         Екзотичне спорядження купується тут же, коли ГМ назве позицію й ціну — сталого
         переліку в правилах немає.

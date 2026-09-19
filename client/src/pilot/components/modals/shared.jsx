@@ -22,24 +22,3 @@ export function MechSelect({ mechs, mechId, onPick }) {
     </div>
   );
 }
-
-export function AllocRows({ mech, alloc, limitLeft, onShift }) {
-  if (!mech) return null;
-  return (
-    <div>
-      <div className="field-label">РОЗПОДІЛІТЬ ЗАРЯДИ · ЗАЛИШИЛОСЬ: {limitLeft}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {mech.limited.map((li, idx) => (
-          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ fontSize: 12, color: 'var(--text-soft)', flex: 1 }}>
-              {li.name} ({li.current}/{li.max})
-            </div>
-            <button type="button" onClick={() => onShift(idx, -1)} style={{ background: 'var(--btn-bg)', color: 'var(--text)', border: '1px solid var(--btn-border)', padding: '4px 10px', fontSize: 12 }}>−</button>
-            <div style={{ minWidth: 20, textAlign: 'center', fontSize: 13 }}>{alloc[idx] || 0}</div>
-            <button type="button" onClick={() => onShift(idx, 1)} style={{ background: 'var(--btn-bg)', color: 'var(--text)', border: '1px solid var(--btn-border)', padding: '4px 10px', fontSize: 12 }}>+</button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}

@@ -1,5 +1,6 @@
 import {
   SHOP_DATA,
+  PR_PACK_SIZE,
   HANGAR_DATA,
   MISSION_DOWNTIME_DATA,
   WEEKLY_DOWNTIME_DATA,
@@ -742,7 +743,7 @@ export function pilotReducer(state, action) {
       );
     }
 
-    // ---------- Резерви ----------    // ---------- Резерви ----------
+    // ---------- Резерви ----------
     case 'SET_SHOP_TAB':
       return { ...state, shop: { ...state.shop, tab: action.tab, item: null, error: '' } };
     // Відкрити шухляду одразу на потрібній вкладці — з панелі PR, щоб не шукати її вручну.
@@ -825,51 +826,52 @@ export function pilotReducer(state, action) {
     // ---------- Shop (mana store) ----------
     case 'TOGGLE_SHOP_DRAWER':
       return { ...state, shop: { ...state.shop, open: !state.shop.open } };
+    // Кількість, розподіл зарядів і вибір системи більше не потрібні: усе, що їх
+    // вимагало, переїхало на PR.
     case 'OPEN_SHOP_MODAL':
-      return { ...state, shop: { ...state.shop, item: action.key, mechId: null, alloc: {}, picked: null, qty: 1, error: '' } };
+      return { ...state, shop: { ...state.shop, item: action.key, mechId: null, error: '' } };
     case 'CLOSE_SHOP_MODAL':
-      return { ...state, shop: { ...state.shop, item: null } };
+      return { ...state, shop: { ...state.shop, item: null, error: '' } };
     case 'SET_SHOP_MECH':
-      return { ...state, shop: { ...state.shop, mechId: action.mechId, alloc: {}, picked: null, qty: 1 } };
-    case 'SHOP_QTY_SHIFT': {
-      const s = state.shop;
-      const mech = findMech(state, s.mechId);
-      const cap = mech ? Math.max(1, mech.repairMax - mech.repairCurrent) : 10;
-      const next = clamp((s.qty || 1) + action.dir, 1, cap);
-      return { ...state, shop: { ...s, qty: next } };
-    }
-    case 'SHOP_ALLOC_SHIFT': {
-      const s = state.shop;
-      const mech = findMech(state, s.mechId);
-      const cur = s.alloc[action.idx] || 0;
-      const total = Object.values(s.alloc).reduce((a, b) => a + b, 0);
-      if (action.dir > 0) {
-        if (total >= 3) return state;
-        const li = mech?.limited[action.idx];
-        if (li && li.current + cur >= li.max) return state;
-      }
-      const next = Math.max(0, cur + action.dir);
-      return { ...state, shop: { ...s, alloc: { ...s.alloc, [action.idx]: next } } };
-    }
-    case 'SET_SHOP_PICK':
-      return { ...state, shop: { ...state.shop, picked: action.idx } };
+      return { ...state, shop: { ...state.shop, mechId: action.mechId, error: '' } };
     case 'SHOP_CONFIRM': {
       const s = state.shop;
       const item = SHOP_DATA.find((it) => it.key === s.item);
-      const mech = findMech(state, s.mechId);
       if (!item) return state;
-      if (!mech) return { ...state, shop: { ...s, error: 'Оберіть меха.' } };
 
-      const totalPrice = shopPrice(item);
-      if (totalPrice > state.mana.balance) return { ...state, shop: { ...s, error: 'Недостатньо мани.' } };
-      if (item.key === 'charges3' && Object.values(s.alloc).reduce((a, b) => a + b, 0) === 0) {
-        return { ...state, shop: { ...s, error: 'Розподіліть хоча б один заряд.' } };
+      const price = shopPrice(item);
+      if (price > state.mana.balance) return { ...state, shop: { ...s, error: 'Недостатньо мани.' } };
+
+      const spend = (st, note) => {
+        const mana = pushManaHistory(
+          { ...st.mana, balance: st.mana.balance - price },
+          `−${price} · ${item.title}`,
+        );
+        return log(
+          { ...st, mana, shop: { ...s, item: null, error: '' } },
+          `Магазин: придбано «${item.title}» за ${price} мани${note ? ` (${note})` : ''}`,
+        );
+      };
+
+      // Пачка PR іде пілоту, не меху. Надлишок понад кап не нараховується, і про це
+      // краще сказати до покупки, ніж мовчки з'їсти ману.
+      if (item.key === 'prpack') {
+        const cap = prCap(state);
+        if (state.pr >= cap) {
+          return { ...state, shop: { ...s, error: `PR уже на капі (${cap}).` } };
+        }
+        const next = Math.min(state.pr + PR_PACK_SIZE, cap);
+        const gained = next - state.pr;
+        return spend(
+          { ...state, pr: next },
+          gained < PR_PACK_SIZE ? `+${gained} PR — решта не влізла в кап ${cap}` : `PR ${state.pr} → ${next}`,
+        );
       }
 
-      let nextState = updateMech(state, s.mechId, (m) => {
-        if (item.key === 'charges3') {
-          return { ...m, limited: m.limited.map((li, i) => ({ ...li, current: Math.min(li.max, li.current + (s.alloc[i] || 0)) })) };
-        }
+      const mech = findMech(state, s.mechId);
+      if (item.needsMech && !mech) return { ...state, shop: { ...s, error: 'Оберіть меха.' } };
+
+      const nextState = updateMech(state, s.mechId, (m) => {
         if (item.key === 'core') return { ...m, corePower: true };
         if (item.key === 'fullrepair') {
           return {
@@ -886,9 +888,7 @@ export function pilotReducer(state, action) {
         return m;
       });
 
-      const mana = pushManaHistory({ ...state.mana, balance: state.mana.balance - totalPrice }, `−${totalPrice} · ${item.title}`);
-      nextState = { ...nextState, mana, shop: { ...s, item: null, error: '' } };
-      return log(nextState, `Магазин: придбано «${item.title}» за ${totalPrice} мани (${mech.name})`);
+      return spend(nextState, mech?.name);
     }
 
     // ---------- Mechs ----------

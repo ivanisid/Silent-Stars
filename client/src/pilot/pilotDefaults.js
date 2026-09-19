@@ -25,7 +25,7 @@ export function createDefaultPilotState() {
     hangar: { owned: {}, confirm: null, error: '', open: false },
     // Тір 1 стартує з готовим запасом PR (правила: «На старті кожен гравець вже має 30PR»).
     pr: PR_START,
-    shop: { open: false, tab: 'reserves', item: null, mechId: null, alloc: {}, picked: null, qty: 1, error: '' },
+    shop: { open: false, tab: 'repair', item: null, mechId: null, error: '' },
     prSpend: { item: null, mechId: null, pick: null, error: '' },
     mana: {
       balance: 0,
@@ -172,7 +172,9 @@ export function normalizePilotState(raw) {
   };
 
   if (raw.pr != null) next.mana = { ...base.mana, ...(raw.mana || {}) };
-  next.shop = { ...base.shop, ...(raw.shop || {}) };
+  // Старі поля магазину (alloc/picked/qty) більше не використовуються.
+  const { alloc: _a, picked: _p, qty: _q, ...shop } = raw.shop || {};
+  next.shop = { ...base.shop, ...shop };
   next.hangar = { ...base.hangar, ...(raw.hangar || {}) };
   next.mechs = (raw.mechs || []).map(({ dc, ...m }) => m);
 
