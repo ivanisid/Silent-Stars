@@ -1,4 +1,4 @@
-import { GAMES_TABLE } from './constants';
+import { MANA_BASE_COST, TIER_MANA_STEP, MAX_LL } from './constants';
 
 export function pad(n) {
   return String(n).padStart(2, '0');
@@ -13,19 +13,37 @@ export function clamp(n, lo, hi) {
   return Math.min(hi, Math.max(lo, n));
 }
 
-export function computeLL(games) {
-  let ll = 2;
-  for (let i = 0; i < GAMES_TABLE.length; i++) {
-    if (games >= GAMES_TABLE[i]) ll = i + 2;
-  }
-  return Math.min(ll, 12);
-}
-
+// Тір 1 — LL2–LL5, Тір 2 — LL6–LL10, Тір 3 — LL11–LL12. Гра починається з LL2,
+// тож нижче другого рівня ліцензії тіру немає.
 export function llTier(ll) {
   if (ll <= 1) return '0';
   if (ll <= 5) return '1';
-  if (ll <= 8) return '2';
+  if (ll <= 10) return '2';
   return '3';
+}
+
+// Скільки мани коштує підвищення з ll на ll+1.
+//
+// Перший перехід коштує MANA_BASE_COST, кожен наступний — на крок дорожче за попередній,
+// а крок береться за тіром рівня, НА який іде підвищення. Тому підвищення, що переводить
+// у наступний тір, уже дорожчає за його кроком, а не за кроком тіру, з якого виходиш.
+//
+// Повертає null для ll поза межами LL2..MAX_LL-1 — підвищувати нема з чого або нема куди.
+export function manaLevelCost(ll) {
+  if (!Number.isInteger(ll) || ll < 2 || ll >= MAX_LL) return null;
+  let cost = MANA_BASE_COST;
+  for (let target = 4; target <= ll + 1; target++) {
+    cost += TIER_MANA_STEP[llTier(target)];
+  }
+  return cost;
+}
+
+// Накопичена мана, потрібна щоб дійти з LL2 до вказаного рівня.
+export function manaTotalToLevel(ll) {
+  if (!Number.isInteger(ll) || ll < 2 || ll > MAX_LL) return null;
+  let total = 0;
+  for (let from = 2; from < ll; from++) total += manaLevelCost(from);
+  return total;
 }
 
 export function skillCapMax(ll, skillCapBonus) {
@@ -47,26 +65,31 @@ export function buildSegs(filled, count) {
   return Array.from({ length: count }, (_, i) => ({ filled: i < filled, idx: i }));
 }
 
-export function burdenSize(type) {
-  if (type === 'minor4') return 4;
-  if (type === 'middle6') return 6;
-  return 8; // major8
+// Ідентифікатор для нового елемента списку. Date.now() сам по собі не годиться:
+// два елементи, створені в одну мілісекунду, дістають однаковий id, і видалення
+// одного прибирає обидва. Тримаємось часової мітки, але гарантуємо унікальність.
+export function newId(items) {
+  const maxExisting = (items || []).reduce((m, it) => Math.max(m, Number(it.id) || 0), 0);
+  return Math.max(Date.now(), maxExisting + 1);
 }
 
-export function burdenLabel(type) {
-  if (type === 'minor4') return 'МІНОРНИЙ · 4';
-  if (type === 'middle6') return 'МІДЛ · 6';
-  return 'МЕЙДЖОР · 8';
+// Розмір лічильника burden-а задається не вибором, а порядковим номером серед
+// невилікуваних: перший — 4 сегменти, другий — 6, третій — 8. Вилікуваний burden
+// звільняє місце, тож наступний знову починається з меншого.
+export const BURDEN_SIZES = [4, 6, 8];
+
+// Скільки сегментів матиме наступний burden при activeCount невилікуваних.
+// null означає, що наступний був би четвертим — а це смерть персонажа.
+export function nextBurdenSize(activeCount) {
+  return activeCount < BURDEN_SIZES.length ? BURDEN_SIZES[activeCount] : null;
 }
 
-export function dcrSpentOf(d) {
-  return (d.kits || 0) + 2 * (d.packs || 0) + (d.allRefill ? 2 : 0);
+export function burdenLabel(size) {
+  return `${size} СЕГМЕНТІВ`;
 }
 
-export function shopPrice(item, sh) {
-  if (!item) return 0;
-  if (item.key === 'repair1') return item.price * (sh.qty || 1);
-  return item.price;
+export function shopPrice(item) {
+  return item ? item.price : 0;
 }
 
 export function rollTier(total) {
@@ -84,12 +107,6 @@ export function relationshipLabel(rel) {
 export function nextRelationship(rel) {
   const order = ['bad', 'neutral', 'good'];
   const idx = order.indexOf(rel);
-  return order[(idx + 1) % order.length];
-}
-
-export function nextProjectStatus(status) {
-  const order = ['активний', 'призупинено', 'завершено'];
-  const idx = order.indexOf(status);
   return order[(idx + 1) % order.length];
 }
 

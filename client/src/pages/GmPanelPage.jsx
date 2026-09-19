@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
-import { computeLL, llTier } from '../pilot/logic';
+import { llTier } from '../pilot/logic';
 import NavDrawer from '../components/NavDrawer.jsx';
 
 function formatDate(iso) {
@@ -134,7 +134,7 @@ export default function GmPanelPage() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {group.pilots.map((p) => {
-                  const ll = computeLL(p.games);
+                  const ll = p.ll;
                   return (
                     <button
                       key={p.id}

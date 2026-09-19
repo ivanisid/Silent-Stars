@@ -1,5 +1,6 @@
 import { Card } from './ui';
-import { PROJECT_STAGE_LABELS } from '../constants';
+import { llTier } from '../logic';
+import { RESERVES, reserveByKey } from '../reserves';
 
 const MOD_OPTIONS = [0, 2, 4, 6];
 
@@ -14,6 +15,7 @@ export default function DowntimePanel({ state, dispatch, data, pool, title, capL
   const chargesField = pool === 'weekly' ? 'weeklyCharges' : 'downtimeCharges';
   const { used, max } = state[chargesField];
   const remaining = max - used;
+  const tier = Number(llTier(state.ll));
 
   return (
     <Card
@@ -29,7 +31,8 @@ export default function DowntimePanel({ state, dispatch, data, pool, title, capL
     >
       <div>
         {data.map((d) => {
-          const open = state.downtime.open === d.key;
+          const locked = (d.minTier || 1) > tier;
+          const open = !locked && state.downtime.open === d.key;
           const roll = state.downtime.rolls[d.key];
           const curMod = state.downtime.modifiers[d.key] || 0;
 
@@ -37,6 +40,7 @@ export default function DowntimePanel({ state, dispatch, data, pool, title, capL
             <div key={d.key} style={{ borderBottom: '1px solid var(--rule)' }}>
               <button
                 type="button"
+                disabled={locked}
                 onClick={() => dispatch({ type: 'TOGGLE_DOWNTIME', key: d.key })}
                 style={{
                   width: '100%',
@@ -44,21 +48,82 @@ export default function DowntimePanel({ state, dispatch, data, pool, title, capL
                   textAlign: 'left',
                   background: 'transparent',
                   border: 'none',
-                  color: 'var(--text)',
+                  color: locked ? 'var(--text-dimmer)' : 'var(--text)',
                   padding: '14px 20px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
+                  cursor: locked ? 'not-allowed' : 'pointer',
                 }}
               >
                 <span style={{ fontSize: 14 }}>{d.title}</span>
-                <span style={{ color: 'var(--accent)' }}>{open ? '−' : '+'}</span>
+                {locked ? (
+                  <span style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>
+                    З ТІРУ {d.minTier}
+                  </span>
+                ) : (
+                  <span style={{ color: 'var(--accent)' }}>{open ? '−' : '+'}</span>
+                )}
               </button>
 
               {open && (
                 <div style={{ padding: '0 20px 18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {d.trigger && <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{d.trigger}</div>}
                   {d.note && <div style={{ fontSize: 12, color: 'var(--text-soft-dim)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{d.note}</div>}
+
+                  {d.isRestPanel && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <button
+                        className="btn"
+                        type="button"
+                        disabled={remaining <= 0 || state.stress <= 0}
+                        onClick={() => dispatch({ type: 'REST_DRINK' })}
+                        style={{ textAlign: 'left', fontSize: 12 }}
+                      >
+                        GET A DAMN DRINK — зняти половину стресу + 1Д4
+                        <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginTop: 3 }}>
+                          зараз стресу: {state.stress}/{state.stressMax}
+                        </div>
+                      </button>
+
+                      <div>
+                        <div className="field-label">GET AID — полікувати 1Д4 сегментів burden-а</div>
+                        {state.burdens.length === 0 ? (
+                          <div style={{ fontSize: 11, color: 'var(--text-dimmer)' }}>Burden-ів немає.</div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {state.burdens.map((b) => (
+                              <button
+                                key={b.id}
+                                className="btn-ghost"
+                                type="button"
+                                disabled={remaining <= 0}
+                                onClick={() => dispatch({ type: 'REST_AID', id: b.id })}
+                                style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, padding: '7px 12px' }}
+                              >
+                                <span>{b.name || 'без назви'}</span>
+                                <span style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>{b.healed}/{b.size}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        className="btn"
+                        type="button"
+                        disabled={remaining <= 0}
+                        onClick={() => dispatch({ type: 'REST_MEDICAL' })}
+                        style={{ textAlign: 'left', fontSize: 12 }}
+                      >
+                        GET MEDICAL HELP — повне ХП і зняття down and out
+                        <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginTop: 3 }}>
+                          ХП: {state.hp.current}/{state.hp.max}
+                          {state.downAndOut ? ' · down and out активний' : ''}
+                        </div>
+                      </button>
+                    </div>
+                  )}
 
                   {d.isSkillPanel && (
                     <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
@@ -78,33 +143,8 @@ export default function DowntimePanel({ state, dispatch, data, pool, title, capL
                     </button>
                   )}
 
-                  {d.isProjectPanel && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {state.projects.length === 0 && (
-                        <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>Немає жодного проєкту.</div>
-                      )}
-                      {state.projects.map((p, idx) => {
-                        const stage = p.stage || 1;
-                        const maxed = stage >= 3;
-                        return (
-                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--input-bg)', padding: '8px 12px' }}>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 13 }}>{p.name}</div>
-                              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Стадія {stage}/3 · {PROJECT_STAGE_LABELS[stage]}</div>
-                            </div>
-                            <button
-                              type="button"
-                              className="btn"
-                              disabled={remaining <= 0 || maxed}
-                              onClick={() => dispatch({ type: 'ADVANCE_PROJECT', idx })}
-                              style={{ fontSize: 11 }}
-                            >
-                              {maxed ? 'МАКС.' : 'ПРОСУНУТИ'}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
+                  {d.isCreativePanel && (
+                    <CreativePanel state={state} dispatch={dispatch} remaining={remaining} />
                   )}
 
                   {d.showRoll && (
@@ -163,5 +203,94 @@ export default function DowntimePanel({ state, dispatch, data, pool, title, capL
         })}
       </div>
     </Card>
+  );
+}
+
+// Трекер Get Creative: вибір мех-резерву, лічильник на стільки секцій, скільки в нього
+// рангів, і кидок Д20 перед місією. Один проєкт за раз.
+function CreativePanel({ state, dispatch, remaining }) {
+  const cur = state.creative;
+  const def = reserveByKey(cur.key);
+
+  if (!def) {
+    const options = RESERVES.filter((r) => r.category === 'mech');
+    return (
+      <div>
+        <div className="field-label">ОБЕРІТЬ МЕХ-РЕЗЕРВ</div>
+        {remaining <= 0 && (
+          <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginBottom: 8 }}>
+            Тижневий заряд витрачено — почати проєкт не вийде.
+          </div>
+        )}
+        <select
+          value=""
+          disabled={remaining <= 0}
+          onChange={(e) => e.target.value && dispatch({ type: 'START_CREATIVE', key: e.target.value })}
+          style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: 12 }}
+        >
+          <option value="">— оберіть резерв —</option>
+          {options.map((r) => (
+            <option key={r.key} value={r.key}>
+              {r.name} — ранг {r.rank}, {r.rank} сегм.
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
+  const done = cur.filled >= def.rank;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div>
+        <div style={{ fontSize: 13, color: 'var(--text-bright)' }}>{def.name}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+          ранг {def.rank} · {cur.filled}/{def.rank} секцій
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6 }}>
+        {Array.from({ length: def.rank }, (_, i) => (
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              height: 18,
+              background: i < cur.filled ? 'var(--accent)' : 'var(--input-bg)',
+              border: '1px solid var(--accent-dim)',
+            }}
+          />
+        ))}
+      </div>
+
+      {cur.lastRoll && (
+        <div style={{ fontSize: 12, color: tierColor(cur.lastRoll.tier) }}>
+          Д20({cur.lastRoll.die}) → {cur.lastRoll.tier}, +{cur.lastRoll.gain}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {!done && (
+          <button className="btn" type="button" style={{ fontSize: 11 }} onClick={() => dispatch({ type: 'ROLL_CREATIVE' })}>
+            КИНУТИ Д20 ПЕРЕД МІСІЄЮ
+          </button>
+        )}
+        {done && (
+          <button className="btn" type="button" style={{ fontSize: 11 }} onClick={() => dispatch({ type: 'CLAIM_CREATIVE' })}>
+            ЗАБРАТИ РЕЗЕРВ
+          </button>
+        )}
+        <button className="btn-ghost" type="button" style={{ fontSize: 10, padding: '5px 10px' }} onClick={() => dispatch({ type: 'SHIFT_CREATIVE_SEG', dir: -1 })}>
+          −1 СЕКЦІЯ
+        </button>
+        <button className="btn-ghost" type="button" style={{ fontSize: 10, padding: '5px 10px' }} onClick={() => dispatch({ type: 'SHIFT_CREATIVE_SEG', dir: 1 })}>
+          +1 СЕКЦІЯ
+        </button>
+        <button className="btn-ghost" type="button" style={{ fontSize: 10, padding: '5px 10px', marginLeft: 'auto' }} onClick={() => dispatch({ type: 'CANCEL_CREATIVE' })}>
+          СКАСУВАТИ
+        </button>
+      </div>
+    </div>
   );
 }

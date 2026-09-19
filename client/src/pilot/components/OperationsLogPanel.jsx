@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react';
 import { api } from '../../api';
 import { Card } from './ui';
 
-// The pilot's own recorded changes, each one revertible. Sourced from the server
-// audit log rather than state.actionLog, because the journal only holds text — the
-// audit log holds the state before and after, which is what an undo needs.
+// One log for both roles. The player reads their own currency operations and can undo
+// them; the GM reads and undoes the same rows in anyone's sheet. Sourced from the
+// server audit log rather than state.actionLog, because the journal only holds text —
+// the audit log holds the state before and after, which is what an undo needs.
 //
 // Granularity is one save, not one click: edits are autosaved on a debounce, so a
 // burst of changes lands as a single revertible entry.
+
+const GOLD = 'var(--gm-ink)';
 
 function formatDate(iso) {
   const d = new Date(iso);
@@ -30,7 +33,13 @@ export function Delta({ label, oldVal, newVal }) {
   );
 }
 
-export default function ChangeLogPanel({ pilotId, refreshKey, onReverted }) {
+// A row where the journal shrank without anything being added: the player cleared it.
+// Visible to both sides now — the log lives on the server and can't be wiped either way.
+function journalCleared(r) {
+  return r.action === 'update' && r.logNewCount < r.logOldCount && r.logAdded.length === 0;
+}
+
+export default function OperationsLogPanel({ pilotId, refreshKey, onReverted, own }) {
   const [rows, setRows] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -40,7 +49,7 @@ export default function ChangeLogPanel({ pilotId, refreshKey, onReverted }) {
     setLoading(true);
     setError('');
     try {
-      setRows(await api.pilotChangeLog(pilotId));
+      setRows(await api.pilotOperationsLog(pilotId));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -58,13 +67,13 @@ export default function ChangeLogPanel({ pilotId, refreshKey, onReverted }) {
   async function revert(row) {
     if (!window.confirm(
       `Повернути персонажа до стану перед операцією від ${formatDate(row.changedAt)}?\n\n` +
-      'Усі зміни, зроблені після неї, буде скасовано.',
+      'Усі зміни, зроблені після неї, буде скасовано. Відкат теж потрапить у журнал.',
     )) return;
     setBusyId(row.id);
     setError('');
     try {
       await api.revertPilotState(row.id);
-      await onReverted();
+      await onReverted?.();
       await load();
     } catch (err) {
       setError(err.message);
@@ -75,28 +84,53 @@ export default function ChangeLogPanel({ pilotId, refreshKey, onReverted }) {
 
   return (
     <Card
-      title="ІСТОРІЯ ОПЕРАЦІЙ"
+      title="ЖУРНАЛ ОПЕРАЦІЙ"
       right={
-        <button className="btn-ghost" type="button" style={{ fontSize: 11, padding: '4px 10px' }} disabled={loading} onClick={load}>
-          {loading ? 'ОНОВЛЮЄТЬСЯ…' : 'ОНОВИТИ'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {rows !== null && (
+            <span style={{ fontSize: 11, color: 'var(--text-dimmer)' }}>операцій: {rows.length}</span>
+          )}
+          <button className="btn-ghost" type="button" style={{ fontSize: 11, padding: '4px 10px' }} disabled={loading} onClick={load}>
+            {loading ? 'ОНОВЛЮЄТЬСЯ…' : 'ОНОВИТИ'}
+          </button>
+        </div>
       }
     >
       <div style={{ padding: 20 }}>
         {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
         {rows !== null && rows.length === 0 && !error && (
-          <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>Записаних операцій ще немає.</div>
+          <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>Операцій з маною чи PR ще не зафіксовано.</div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 360, overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 420, overflowY: 'auto' }}>
           {(rows || []).map((r) => (
             <div key={r.id} style={{ borderTop: '1px solid var(--rule)', padding: '9px 0' }}>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 11, color: 'var(--text-dimmer)', whiteSpace: 'nowrap' }}>
                   {formatDate(r.changedAt)}
                 </span>
+
+                {/* У своєму чарнику автор завжди ти — показуємо його лише в чужому. */}
+                {!own && r.nick && (
+                  <span style={{ fontSize: 11, color: GOLD, whiteSpace: 'nowrap' }}>{r.nick}</span>
+                )}
+
+                {r.action === 'insert' && (
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>пілота створено</span>
+                )}
+                {r.action === 'delete' && (
+                  <span style={{ fontSize: 11, color: 'var(--danger)' }}>пілота видалено</span>
+                )}
+
                 <Delta label="МАНА" oldVal={r.manaOld} newVal={r.manaNew} />
-                <Delta label="DC" oldVal={r.dcOld} newVal={r.dcNew} />
+                <Delta label="PR" oldVal={r.prOld} newVal={r.prNew} />
+
+                {journalCleared(r) && (
+                  <span style={{ fontSize: 11, color: 'var(--danger)', letterSpacing: 1 }}>
+                    ⚠ ЖУРНАЛ ДІЙ ОЧИЩЕНО ({r.logOldCount} → {r.logNewCount})
+                  </span>
+                )}
+
                 <button
                   className="btn-ghost"
                   type="button"
@@ -107,6 +141,7 @@ export default function ChangeLogPanel({ pilotId, refreshKey, onReverted }) {
                   {busyId === r.id ? 'ВІДКОЧУЄТЬСЯ…' : '↶ ВІДКОТИТИ'}
                 </button>
               </div>
+
               {r.logAdded.length > 0 && (
                 <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {r.logAdded.map((e, j) => (
@@ -122,7 +157,8 @@ export default function ChangeLogPanel({ pilotId, refreshKey, onReverted }) {
 
         <div style={{ marginTop: 14, fontSize: 10, color: 'var(--text-dimmer)', lineHeight: 1.6 }}>
           Відкат повертає персонажа до стану перед обраною операцією й скасовує все, що
-          було після неї. Кожен відкат теж записується в історію.
+          було після неї. Кожен відкат теж записується — журнал лежить на сервері й не
+          очищується з чарника.
         </div>
       </div>
     </Card>

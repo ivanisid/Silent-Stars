@@ -46,6 +46,9 @@ function toPilotSummary(row) {
     background: row.background,
     status: row.state?.status || 'active',
     games: row.state?.games || 0,
+    // Рівень зберігається окремо від кількості ігор; у старих записів його ще немає,
+    // тож fallback на стартовий LL2.
+    ll: row.state?.ll ?? 2,
     hp: row.state?.hp || null,
     mana: row.state?.mana?.balance ?? 0,
     stress: row.state?.stress ?? 0,
@@ -156,7 +159,7 @@ export const api = {
     return data;
   },
 
-  gmCreateSlot: async ({ title, description, gameAt, signupDeadline, seats, rewardMana, rewardDc }) => {
+  gmCreateSlot: async ({ title, description, gameAt, signupDeadline, seats, rewardMana, rewardPr }) => {
     const { error } = await supabase.from('game_slots').insert({
       title: title.trim(),
       description: description.trim(),
@@ -164,17 +167,17 @@ export const api = {
       signup_deadline: signupDeadline,
       seats,
       reward_mana: rewardMana,
-      reward_dc: rewardDc,
+      reward_pr: rewardPr,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
   },
 
   // Reward stays editable until the slot is closed — closing is what pays it out.
-  gmUpdateSlotReward: async (slotId, { rewardMana, rewardDc }) => {
+  gmUpdateSlotReward: async (slotId, { rewardMana, rewardPr }) => {
     const { error } = await supabase
       .from('game_slots')
-      .update({ reward_mana: rewardMana, reward_dc: rewardDc })
+      .update({ reward_mana: rewardMana, reward_pr: rewardPr })
       .eq('id', slotId);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -206,19 +209,25 @@ export const api = {
     return { ok: true };
   },
 
-  // A pilot's own recorded changes, for the owner (and the GM). Narrower than the GM
-  // feed on purpose — it carries no journal-clear signal.
-  pilotChangeLog: async (pilotId) => {
-    const { data, error } = await supabase.rpc('pilot_change_log', { p_pilot_id: pilotId });
+  // One operations log for both roles: the owner reads their own currency operations,
+  // the GM reads anyone's. Same rows, same shape — the server decides who may see what.
+  // Rows carry the author's nick, the kind of change, and whether the action journal
+  // shrank, which is how a cleared journal stays visible.
+  pilotOperationsLog: async (pilotId) => {
+    const { data, error } = await supabase.rpc('pilot_operations_log', { p_pilot_id: pilotId });
     if (error) throw new Error(error.message);
     return data.map((row) => ({
       id: row.id,
       changedAt: row.changed_at,
+      nick: row.changed_by_nick,
+      action: row.action,
       revertible: row.revertible,
       manaOld: row.mana_old === null ? null : Number(row.mana_old),
       manaNew: row.mana_new === null ? null : Number(row.mana_new),
-      dcOld: row.dc_old === null ? null : Number(row.dc_old),
-      dcNew: row.dc_new === null ? null : Number(row.dc_new),
+      prOld: row.pr_old === null ? null : Number(row.pr_old),
+      prNew: row.pr_new === null ? null : Number(row.pr_new),
+      logOldCount: row.log_old_count,
+      logNewCount: row.log_new_count,
       logAdded: row.log_added || [],
     }));
   },
@@ -229,28 +238,6 @@ export const api = {
     const { error } = await supabase.rpc('revert_pilot_state', { p_audit_id: auditId });
     if (error) throw new Error(error.message);
     return { ok: true };
-  },
-
-  // Hidden GM audit: mana/DC operations distilled server-side from pilot_audit_log,
-  // which the player cannot clear (unlike the visible action log). RLS makes this
-  // return an empty list for non-GMs.
-  gmPilotAuditLog: async (pilotId) => {
-    const { data, error } = await supabase.rpc('gm_pilot_resource_log', { p_pilot_id: pilotId });
-    if (error) throw new Error(error.message);
-    return data.map((row) => ({
-      id: row.id,
-      revertible: row.revertible,
-      changedAt: row.changed_at,
-      nick: row.changed_by_nick,
-      action: row.action,
-      manaOld: row.mana_old === null ? null : Number(row.mana_old),
-      manaNew: row.mana_new === null ? null : Number(row.mana_new),
-      dcOld: row.dc_old === null ? null : Number(row.dc_old),
-      dcNew: row.dc_new === null ? null : Number(row.dc_new),
-      logOldCount: row.log_old_count,
-      logNewCount: row.log_new_count,
-      logAdded: row.log_added || [],
-    }));
   },
 
   createPilot: async ({ name, callsign, background }) => {

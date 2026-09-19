@@ -101,10 +101,28 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus 
         <div style={{ flex: 1, minWidth: 100, height: 8, background: 'var(--input-bg)', border: '1px solid var(--input-border)', position: 'relative' }}>
           <div style={{ position: 'absolute', inset: 0, width: `${view.pct}%`, background: 'var(--accent)' }} />
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{view.llNextLabel}</div>
+        <div style={{ fontSize: 12, color: view.canLevelUp ? 'var(--accent)' : 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+          {view.llNextLabel}
+        </div>
         <button className="btn" type="button" onClick={() => dispatch({ type: 'INC_GAME' })} style={{ whiteSpace: 'nowrap' }}>
           + ЗАПИСАТИ ГРУ
         </button>
+        {/* Рівень не піднімається сам при накопиченні мани — це явна покупка. */}
+        {view.levelCost != null && (
+          <button
+            className="btn"
+            type="button"
+            disabled={!view.canLevelUp}
+            onClick={() => dispatch({ type: 'OPEN_LEVEL_UP' })}
+            style={{
+              whiteSpace: 'nowrap',
+              opacity: view.canLevelUp ? 1 : 0.55,
+              cursor: view.canLevelUp ? 'pointer' : 'not-allowed',
+            }}
+          >
+            ПІДВИЩИТИ ЛЛ — {view.levelCost} М
+          </button>
+        )}
         <button className="btn-ghost" type="button" onClick={() => dispatch({ type: 'TOGGLE_LL_EDIT' })} style={{ whiteSpace: 'nowrap' }}>
           {state.llEdit.open ? 'ЗАКРИТИ' : 'ВИПРАВИТИ ЛЛ'}
         </button>
@@ -125,7 +143,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus 
             ЗБЕРЕГТИ
           </button>
           <div style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.5 }}>
-            Кількість зіграних ігор виставиться автоматично на поріг обраного рівня.
+            Ручне виправлення — ману не списує. Для звичайного підвищення є кнопка покупки.
           </div>
         </div>
       )}

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { mapCompconPilot, mergeMechsByName } from '../pilot/compconImport';
-import { pushLog, computeLL, llTier } from '../pilot/logic';
+import { pushLog, llTier } from '../pilot/logic';
 import NavDrawer from '../components/NavDrawer.jsx';
 
 export default function PilotSelectPage() {
@@ -257,7 +257,7 @@ export default function PilotSelectPage() {
                       )}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1, marginTop: 4 }}>
-                      ТІР {llTier(computeLL(p.games))} · ЛЛ {computeLL(p.games)}
+                      ТІР {llTier(p.ll)} · ЛЛ {p.ll}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-dimmer)', marginTop: 6, lineHeight: 1.5, textAlign: 'left' }}>
                       {p.background}

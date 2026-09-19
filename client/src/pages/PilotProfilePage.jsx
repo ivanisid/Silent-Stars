@@ -3,38 +3,39 @@ import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { pilotReducer } from '../pilot/reducer';
+import { normalizePilotState } from '../pilot/pilotDefaults';
 import { MISSION_DOWNTIME_DATA, WEEKLY_DOWNTIME_DATA } from '../pilot/constants';
 
 import Header from '../pilot/components/Header.jsx';
 import SyncTools from '../pilot/components/SyncTools.jsx';
 import ManaPanel from '../pilot/components/ManaPanel.jsx';
-import DcStorePanel from '../pilot/components/DcStorePanel.jsx';
+import PrPanel from '../pilot/components/PrPanel.jsx';
 import ShopDrawer from '../pilot/components/ShopDrawer.jsx';
 import BondMenu from '../pilot/components/BondMenu.jsx';
 import SkillTriggers from '../pilot/components/SkillTriggers.jsx';
 import DowntimePanel from '../pilot/components/DowntimePanel.jsx';
 import ContactsPanel from '../pilot/components/ContactsPanel.jsx';
-// ProjectsPanel and ActionLog are deliberately not rendered — the projects panel is
-// parked for now and the action log was dropped from the sheet. Both components and
-// their reducer state are untouched, so bringing either back is an import and a line.
+// ActionLog is deliberately not rendered — it was dropped from the sheet, but the
+// component and its reducer state are untouched, so bringing it back is an import
+// and a line. The projects panel is gone entirely: its slot is now the Get Creative
+// tracker inside the weekly downtime card.
 import HangarPanel from '../pilot/components/HangarPanel.jsx';
 import MechsPanel from '../pilot/components/MechsPanel.jsx';
-import GmAuditPanel from '../pilot/components/GmAuditPanel.jsx';
-import ChangeLogPanel from '../pilot/components/ChangeLogPanel.jsx';
+import OperationsLogPanel from '../pilot/components/OperationsLogPanel.jsx';
 import NavDrawer from '../components/NavDrawer.jsx';
 import NarrativeEditor from '../pilot/components/NarrativeEditor.jsx';
 
 import ManaTxModal from '../pilot/components/modals/ManaTxModal.jsx';
-import DcRepairModal from '../pilot/components/modals/DcRepairModal.jsx';
 import ShopModal from '../pilot/components/modals/ShopModal.jsx';
-import BufModal from '../pilot/components/modals/BufModal.jsx';
+import PrSpendModal from '../pilot/components/modals/PrSpendModal.jsx';
+import LevelUpModal from '../pilot/components/modals/LevelUpModal.jsx';
 import HangarConfirmModal from '../pilot/components/modals/HangarConfirmModal.jsx';
 
 const SAVE_DEBOUNCE_MS = 800;
 
 export default function PilotProfilePage() {
   const { id } = useParams();
-  const { isGm } = useAuth();
+  const { user } = useAuth();
   const [pilot, setPilot] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [state, dispatch] = useReducer(pilotReducer, null);
@@ -53,7 +54,7 @@ export default function PilotProfilePage() {
         if (cancelled) return;
         setPilot(p);
         isFirstStateSet.current = true;
-        dispatch({ type: '__INIT__', state: p.state });
+        dispatch({ type: '__INIT__', state: normalizePilotState(p.state) });
       })
       .catch((err) => setLoadError(err.message));
     return () => {
@@ -69,7 +70,7 @@ export default function PilotProfilePage() {
     const p = await api.getPilot(id);
     setPilot(p);
     isFirstStateSet.current = true;
-    dispatch({ type: '__INIT__', state: p.state });
+    dispatch({ type: '__INIT__', state: normalizePilotState(p.state) });
     setSaveStatus('saved');
   }
 
@@ -141,7 +142,7 @@ export default function PilotProfilePage() {
             <ManaPanel state={state} dispatch={dispatch} />
           </div>
           <div style={{ flex: 1, minWidth: 320 }}>
-            <DcStorePanel state={state} dispatch={dispatch} />
+            <PrPanel state={state} dispatch={dispatch} />
           </div>
         </div>
 
@@ -169,20 +170,23 @@ export default function PilotProfilePage() {
         />
         <HangarPanel state={state} dispatch={dispatch} />
         <NarrativeEditor state={state} dispatch={dispatch} />
-        {/* Shown to everyone, GMs included: this is the everyday undo, and hiding it
-            behind the collapsed GM panel made the feature invisible to a GM. The GM
-            panel below stays as the forensic view (who changed what, journal clears). */}
-        <ChangeLogPanel pilotId={id} refreshKey={savedTick} onReverted={reloadPilot} />
-        {isGm && <GmAuditPanel pilotId={id} refreshKey={savedTick} onReverted={reloadPilot} />}
+        {/* Один журнал для обох ролей: свої операції гравець відкочує сам, чужі —
+            ГМ. Що видно, вирішує сервер, а не ця сторінка. */}
+        <OperationsLogPanel
+          pilotId={id}
+          refreshKey={savedTick}
+          onReverted={reloadPilot}
+          own={pilot?.user_id === user?.id}
+        />
       </div>
 
       <ShopDrawer state={state} dispatch={dispatch} />
       <NavDrawer />
 
       <ManaTxModal state={state} dispatch={dispatch} />
-      <DcRepairModal state={state} dispatch={dispatch} />
       <ShopModal state={state} dispatch={dispatch} />
-      <BufModal state={state} dispatch={dispatch} />
+      <PrSpendModal state={state} dispatch={dispatch} />
+      <LevelUpModal state={state} dispatch={dispatch} />
       <HangarConfirmModal state={state} dispatch={dispatch} />
     </div>
   );

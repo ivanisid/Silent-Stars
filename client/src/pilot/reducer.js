@@ -1,19 +1,35 @@
-import { GAMES_TABLE, SHOP_DATA, HANGAR_DATA, MISSION_DOWNTIME_DATA, WEEKLY_DOWNTIME_DATA, bufServices } from './constants';
+import {
+  SHOP_DATA,
+  HANGAR_DATA,
+  MISSION_DOWNTIME_DATA,
+  WEEKLY_DOWNTIME_DATA,
+  PR_SERVICES,
+  PR_CAP_BASE,
+  PR_CAP_BUFFER,
+  MAX_LL,
+  REDISTRIBUTE_ALL_COST,
+  BOND_XP_PER_POWER,
+  BOND_POWERS_ON_CHOOSE,
+  BOND_POWERS_FOR_VETERAN,
+  BOND_POWERS_FOR_MASTER,
+  limitedRefillPr,
+} from './constants';
 import {
   clamp,
-  computeLL,
+  manaLevelCost,
+  newId,
+  nextBurdenSize,
   toggleFilled,
-  dcrSpentOf,
   shopPrice,
   rollTier,
   relationshipLabel,
   nextRelationship,
-  nextProjectStatus,
   pushLog,
   skillCapMax,
   skillCapUsed,
 } from './logic';
 import { mergeMechsByName } from './compconImport';
+import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft, reserveIsFreeBuy } from './reserves';
 
 const ALL_DOWNTIME_DATA = [...MISSION_DOWNTIME_DATA, ...WEEKLY_DOWNTIME_DATA];
 
@@ -32,8 +48,19 @@ function findMech(state, id) {
   return state.mechs.find((m) => m.id === id);
 }
 
-function dcStoreCap(state) {
-  return (state.hangar.owned.buffer || 0) >= 2 ? 10 : 5;
+function prCap(state) {
+  return (state.hangar.owned.buffer || 0) >= 1 ? PR_CAP_BUFFER : PR_CAP_BASE;
+}
+
+// Ціна послуги за PR. Для поповнення зарядів однієї системи вона залежить від самої
+// системи, тож рахується з обраної в модалці, а не береться зі списку.
+function prServiceCost(key, mech, alloc) {
+  const svc = PR_SERVICES.find((x) => x.key === key);
+  if (!svc) return null;
+  if (key !== 'refillone') return svc.cost;
+  const idx = Object.keys(alloc || {})[0];
+  const li = idx == null ? null : mech?.limited[idx];
+  return li ? limitedRefillPr(li.max) : null;
 }
 
 function pushManaHistory(mana, label) {
@@ -57,67 +84,270 @@ export function pilotReducer(state, action) {
       const open = !state.llEdit.open;
       return {
         ...state,
-        llEdit: { ...state.llEdit, open, ll: open ? String(computeLL(state.games)) : state.llEdit.ll },
+        llEdit: { ...state.llEdit, open, ll: open ? String(state.ll) : state.llEdit.ll },
       };
     }
     case 'SET_LL_EDIT_LL':
       return { ...state, llEdit: { ...state.llEdit, ll: action.value } };
+    // Ручне виправлення рівня оминає ману: це інструмент звірки, а не підвищення.
     case 'SAVE_LL_EDIT': {
-      const ll = clamp(parseInt(state.llEdit.ll, 10) || 2, 2, 12);
-      const games = GAMES_TABLE[ll - 2];
+      const ll = clamp(parseInt(state.llEdit.ll, 10) || 2, 2, MAX_LL);
+      if (ll === state.ll) return { ...state, llEdit: { ...state.llEdit, open: false } };
       return log(
-        { ...state, games, llEdit: { ...state.llEdit, open: false } },
-        `ЛЛ встановлено вручну: ${ll} (ігор: ${games})`,
+        { ...state, ll, llEdit: { ...state.llEdit, open: false } },
+        `ЛЛ виправлено вручну: ${state.ll} → ${ll}`,
       );
     }
+    // ---------- Підвищення рівня за ману ----------
+    // Рівень не піднімається сам при накопиченні мани: це явна покупка, яка списує ману
+    // з гаманця. Модалка потрібна навіть коли вибирати нема чого, бо підвищення дає
+    // ще й безкоштовний повний ремонт одного меха та платні перерозподіли.
+    case 'OPEN_LEVEL_UP': {
+      if (manaLevelCost(state.ll) == null) return state;
+      const only = state.mechs.length === 1 ? state.mechs[0].id : null;
+      return { ...state, levelUp: { open: true, mechId: only, allTalents: false, allLicenses: false, error: '' } };
+    }
+    case 'CLOSE_LEVEL_UP':
+      return { ...state, levelUp: { open: false, mechId: null, allTalents: false, allLicenses: false, error: '' } };
+    case 'SET_LEVEL_UP_MECH':
+      return { ...state, levelUp: { ...state.levelUp, mechId: action.mechId, error: '' } };
+    case 'TOGGLE_LEVEL_UP_EXTRA':
+      return { ...state, levelUp: { ...state.levelUp, [action.field]: !state.levelUp[action.field], error: '' } };
+    case 'CONFIRM_LEVEL_UP': {
+      const lu = state.levelUp;
+      const base = manaLevelCost(state.ll);
+      if (base == null) return state;
+
+      const extras = (lu.allTalents ? REDISTRIBUTE_ALL_COST : 0) + (lu.allLicenses ? REDISTRIBUTE_ALL_COST : 0);
+      const totalCost = base + extras;
+      if (totalCost > state.mana.balance) {
+        return { ...state, levelUp: { ...lu, error: 'Недостатньо мани.' } };
+      }
+      // Мех обов'язковий лише коли він є: пілот без меха просто не отримує ремонту.
+      if (state.mechs.length > 0 && lu.mechId == null) {
+        return { ...state, levelUp: { ...lu, error: 'Оберіть меха для повного ремонту.' } };
+      }
+
+      const nextLl = state.ll + 1;
+      let next = { ...state, ll: nextLl };
+
+      if (lu.mechId != null) {
+        next = updateMech(next, lu.mechId, (m) => ({
+          ...m,
+          hpCurrent: m.hpMax,
+          repairCurrent: m.repairMax,
+          structureFilled: 0,
+          reactorFilled: 0,
+          overcharge: 0,
+          corePower: true,
+          limited: m.limited.map((li) => ({ ...li, current: li.max, destroyed: false })),
+        }));
+      }
+
+      const mana = pushManaHistory(
+        { ...next.mana, balance: next.mana.balance - totalCost },
+        `−${totalCost} · ЛЛ ${state.ll} → ${nextLl}`,
+      );
+      next = { ...next, mana, levelUp: { open: false, mechId: null, allTalents: false, allLicenses: false, error: '' } };
+
+      const repaired = state.mechs.find((m) => m.id === lu.mechId);
+      const notes = [
+        repaired ? `повний ремонт «${repaired.name}»` : null,
+        lu.allTalents ? `перерозподіл усіх талантів (+${REDISTRIBUTE_ALL_COST})` : null,
+        lu.allLicenses ? `перерозподіл усіх ліцензій (+${REDISTRIBUTE_ALL_COST})` : null,
+      ].filter(Boolean);
+
+      return log(
+        next,
+        `ЛЛ ${state.ll} → ${nextLl} за ${totalCost} мани` + (notes.length ? ` · ${notes.join(', ')}` : ''),
+      );
+    }
+
     case 'SET_RESOURCE_MODE':
       return { ...state, resourceMode: action.mode };
 
-    // ---------- Stress / Burdens / Bond ----------
+    // ---------- Stress / Burdens ----------
     case 'SET_STRESS': {
-      const next = toggleFilled(state.stress, action.idx);
+      const next = Math.min(toggleFilled(state.stress, action.idx), state.stressMax);
+      if (next === state.stress) return state;
       return log({ ...state, stress: next }, `Стрес: ${state.stress} → ${next}`);
+    }
+    case 'SET_STRESS_MAX': {
+      const next = clamp(parseInt(action.value, 10) || 0, 1, 20);
+      if (next === state.stressMax) return state;
+      return log(
+        { ...state, stressMax: next, stress: Math.min(state.stress, next) },
+        `Ліміт стресу: ${state.stressMax} → ${next}`,
+      );
+    }
+    // Стрес не витрачається, а записується: допомога і push коштують саме того, що
+    // пілот бере на себе ще стресу. Перевищення ліміту дає burden.
+    case 'TAKE_STRESS': {
+      const amount = action.amount || 1;
+      const raw = state.stress + amount;
+      const overflow = raw > state.stressMax;
+      let next = { ...state, stress: Math.min(raw, state.stressMax) };
+      const reason = action.reason ? ` (${action.reason})` : '';
+
+      if (!overflow) {
+        return log(next, `Стрес +${amount}${reason}: ${state.stress} → ${next.stress}`);
+      }
+
+      const active = state.burdens.length;
+      const size = nextBurdenSize(active);
+      if (size == null) {
+        // Четвертий burden — це смерть. Додаток її не оформлює сам, лише фіксує.
+        return log(
+          next,
+          `Стрес +${amount}${reason} перевищив ліміт, але burden-ів уже три — ЧЕТВЕРТИЙ BURDEN ОЗНАЧАЄ СМЕРТЬ ПЕРСОНАЖА`,
+        );
+      }
+      next = {
+        ...next,
+        burdens: [...state.burdens, { id: newId(state.burdens), name: '', size, healed: 0 }],
+      };
+      return log(
+        next,
+        `Стрес +${amount}${reason} перевищив ліміт ${state.stressMax} — отримано burden на ${size} сегментів, пілот не діє далі в сцені`,
+      );
+    }
+    case 'ADD_BURDEN': {
+      const size = nextBurdenSize(state.burdens.length);
+      if (size == null) {
+        return log(state, 'ЧЕТВЕРТИЙ BURDEN ОЗНАЧАЄ СМЕРТЬ ПЕРСОНАЖА — не записано автоматично');
+      }
+      return log(
+        { ...state, burdens: [...state.burdens, { id: newId(state.burdens), name: '', size, healed: 0 }] },
+        `Отримано burden на ${size} сегментів`,
+      );
     }
     case 'SET_BURDEN_NAME':
       return {
         ...state,
-        burdens: state.burdens.map((b, i) => (i === action.bi ? { ...b, name: action.value } : b)),
+        burdens: state.burdens.map((b) => (b.id === action.id ? { ...b, name: action.value } : b)),
       };
-    case 'SET_BURDEN_SEG': {
-      const b = state.burdens[action.bi];
-      const next = toggleFilled(b.filled, action.idx);
+    // Сегменти burden-а — це прогрес лікування: коли заповнені всі, він зникає.
+    case 'SET_BURDEN_HEALED': {
+      const b = state.burdens.find((x) => x.id === action.id);
+      if (!b) return state;
+      const next = toggleFilled(b.healed, action.idx);
+      if (next >= b.size) {
+        return log(
+          { ...state, burdens: state.burdens.filter((x) => x.id !== action.id) },
+          `Burden «${b.name || 'без назви'}» вилікувано`,
+        );
+      }
       return log(
-        { ...state, burdens: state.burdens.map((bb, i) => (i === action.bi ? { ...bb, filled: next } : bb)) },
-        `Бьорден «${b.name || burdenNameFallback(action.bi)}»: прогрес ${b.filled} → ${next}`,
+        { ...state, burdens: state.burdens.map((x) => (x.id === action.id ? { ...x, healed: next } : x)) },
+        `Burden «${b.name || 'без назви'}»: лікування ${b.healed} → ${next}/${b.size}`,
       );
     }
-    case 'SET_BURDEN_HEAL': {
-      const b = state.burdens[action.bi];
-      const next = toggleFilled(b.heal, action.idx);
+    case 'REMOVE_BURDEN': {
+      const b = state.burdens.find((x) => x.id === action.id);
+      if (!b) return state;
       return log(
-        { ...state, burdens: state.burdens.map((bb, i) => (i === action.bi ? { ...bb, heal: next } : bb)) },
-        `Бьорден «${b.name || burdenNameFallback(action.bi)}»: лікування ${b.heal} → ${next}`,
+        { ...state, burdens: state.burdens.filter((x) => x.id !== action.id) },
+        `Burden «${b.name || 'без назви'}» прибрано вручну`,
       );
     }
-    case 'SET_BURDEN_TYPE':
-      return {
-        ...state,
-        burdens: state.burdens.map((b, i) => (i === action.bi ? { ...b, type: action.value, filled: 0 } : b)),
-      };
+    case 'TOGGLE_DOWN_AND_OUT': {
+      const next = !state.downAndOut;
+      return log({ ...state, downAndOut: next }, `Down and out: ${next ? 'отримано' : 'знято'}`);
+    }
+
+    // ---------- Bond ----------
     case 'SET_ARCHETYPE':
       return { ...state, bond: { ...state.bond, archetype: action.value } };
+    case 'SET_BOND_FIELD':
+      return { ...state, bond: { ...state.bond, [action.field]: action.value } };
     case 'SET_BOND_NEW_POWER':
       return { ...state, bond: { ...state.bond, newPower: action.value } };
     case 'SET_BOND_XP': {
       const next = toggleFilled(state.bond.xp, action.idx);
+      if (next === state.bond.xp) return state;
       return log({ ...state, bond: { ...state.bond, xp: next } }, `Bond XP: ${state.bond.xp} → ${next}`);
+    }
+    case 'TOGGLE_IDEAL':
+      return {
+        ...state,
+        bond: { ...state.bond, marked: { ...state.bond.marked, [action.key]: !state.bond.marked[action.key] } },
+      };
+    // Наприкінці гри кожен виконаний ідеал дає 1 XP, після чого відмітки знімаються.
+    // Поки бонд не обрано, рахуються лише два спільні major ideals — перший у кожного
+    // бонду свій, а бонду ще немає.
+    case 'SCORE_IDEALS': {
+      const m = state.bond.marked;
+      const keys = state.bond.confirmed
+        ? ['major0', 'major1', 'major2', 'minor']
+        : ['major1', 'major2'];
+      const gained = keys.filter((k) => m[k]).length;
+      if (gained === 0) return state;
+      const next = state.bond.xp + gained;
+      return log(
+        {
+          ...state,
+          bond: {
+            ...state.bond,
+            xp: next,
+            marked: { major0: false, major1: false, major2: false, minor: false },
+          },
+        },
+        `Ідеали за гру: +${gained} XP бонду (${state.bond.xp} → ${next})`,
+      );
+    }
+    // Вибір бонду на Тірі 2 дає 2 сили плюс по одній за кожен скид лічильника XP,
+    // зроблений до вибору. Фіксується один раз — повторно нарахувати не можна.
+    case 'CONFIRM_BOND_CHOICE': {
+      if (state.bond.confirmed) return state;
+      if (!state.bond.archetype.trim()) return state;
+      const earned = state.bond.deferredResets;
+      const owed = state.bond.powersOwed + BOND_POWERS_ON_CHOOSE + earned;
+      return log(
+        { ...state, bond: { ...state.bond, confirmed: true, powersOwed: owed, deferredResets: 0 } },
+        `Бонд обрано: «${state.bond.archetype.trim()}» — ${BOND_POWERS_ON_CHOOSE} сили` +
+          (earned > 0 ? ` + ${earned} за Тір 1 без бонду` : '') +
+          ` (доступно сил: ${owed})`,
+      );
+    }
+
+    // Обмін 8 XP на нову силу. XP не обрізається на 8: надлишок лишається на наступну.
+    case 'CLAIM_BOND_POWER': {
+      const name = state.bond.newPower.trim();
+      if (!name || !state.bond.confirmed) return state;
+
+      // Спершу витрачаються сили, на які вже є право, і тільки потім XP.
+      if (state.bond.powersOwed > 0) {
+        const owed = state.bond.powersOwed - 1;
+        return log(
+          { ...state, bond: { ...state.bond, powersOwed: owed, powers: [...state.bond.powers, name], newPower: '' } },
+          `Сила бонду: «${name}» (лишилось нерозподілених: ${owed})`,
+        );
+      }
+      if (state.bond.xp < BOND_XP_PER_POWER) return state;
+      const xp = state.bond.xp - BOND_XP_PER_POWER;
+      return log(
+        { ...state, bond: { ...state.bond, xp, powers: [...state.bond.powers, name], newPower: '' } },
+        `Сила бонду за ${BOND_XP_PER_POWER} XP: «${name}» (XP ${state.bond.xp} → ${xp})`,
+      );
+    }
+    // Без обраного бонду 8 XP не дають силу — лічильник скидається, і кожен скид
+    // потім конвертується в силу при виборі бонду.
+    case 'RESET_DEFERRED_XP': {
+      if (state.bond.confirmed) return state;
+      if (state.bond.xp < BOND_XP_PER_POWER) return state;
+      const xp = state.bond.xp - BOND_XP_PER_POWER;
+      const resets = state.bond.deferredResets + 1;
+      return log(
+        { ...state, bond: { ...state.bond, xp, deferredResets: resets } },
+        `Лічильник XP скинуто без бонду (всього скидів: ${resets})`,
+      );
     }
     case 'ADD_POWER': {
       const name = state.bond.newPower.trim();
       if (!name) return state;
       return log(
         { ...state, bond: { ...state.bond, powers: [...state.bond.powers, name], newPower: '' } },
-        `Сила бонду отримана: «${name}»`,
+        `Сила бонду додана вручну: «${name}»`,
       );
     }
     case 'REMOVE_POWER': {
@@ -149,9 +379,12 @@ export function pilotReducer(state, action) {
         downtime: { ...state.downtime, modifiers: { ...state.downtime.modifiers, [action.key]: action.mod } },
       };
     case 'RESET_CHARGES': {
-      const field = action.pool === 'weekly' ? 'weeklyCharges' : 'downtimeCharges';
-      const msg = action.pool === 'weekly' ? 'Тижневі заряди скинуто (новий тиждень)' : 'Даунтайм-заряди скинуто (нова місія)';
-      return log({ ...state, [field]: { ...state[field], used: 0 } }, msg);
+      const weekly = action.pool === 'weekly';
+      const field = weekly ? 'weeklyCharges' : 'downtimeCharges';
+      const msg = weekly ? 'Тижневі заряди скинуто (новий тиждень)' : 'Даунтайм-заряди скинуто (нова місія)';
+      // Нова місія повертає і безкоштовну покупку мех-резерву.
+      const extra = weekly ? {} : { reserveFreeBuy: { ...state.reserveFreeBuy, used: 0 } };
+      return log({ ...state, [field]: { ...state[field], used: 0 }, ...extra }, msg);
     }
     case 'ROLL_DOWNTIME': {
       const field = action.pool === 'weekly' ? 'weeklyCharges' : 'downtimeCharges';
@@ -170,6 +403,58 @@ export function pilotReducer(state, action) {
       if (def?.clearsStress) next = { ...next, stress: 0 };
       return log(next, `Даунтайм «${def?.title || action.key}»: Д20(${die})+${mod}=${total} → ${tier}`);
     }
+    // ---------- Get rest ----------
+    // Три опції, кожна витрачає щотижневий заряд. Кубики задані правилами точно,
+    // тож кидає додаток, а не гравець.
+    case 'REST_DRINK': {
+      const { used, max } = state.weeklyCharges;
+      if (used >= max) return state;
+      const die = 1 + Math.floor(Math.random() * 4);
+      const removed = Math.min(state.stress, Math.floor(state.stress / 2) + die);
+      const next = state.stress - removed;
+      return log(
+        { ...state, stress: next, weeklyCharges: { ...state.weeklyCharges, used: used + 1 } },
+        `Get a Damn Drink: знято половину (${Math.floor(state.stress / 2)}) + 1Д4(${die}) — стрес ${state.stress} → ${next}`,
+      );
+    }
+    case 'REST_AID': {
+      const { used, max } = state.weeklyCharges;
+      if (used >= max) return state;
+      const b = state.burdens.find((x) => x.id === action.id);
+      if (!b) return state;
+      const die = 1 + Math.floor(Math.random() * 4);
+      const healed = b.healed + die;
+      const spent = { ...state.weeklyCharges, used: used + 1 };
+      if (healed >= b.size) {
+        return log(
+          { ...state, burdens: state.burdens.filter((x) => x.id !== b.id), weeklyCharges: spent },
+          `Get aid: 1Д4(${die}) — burden «${b.name || 'без назви'}» вилікувано`,
+        );
+      }
+      return log(
+        {
+          ...state,
+          burdens: state.burdens.map((x) => (x.id === b.id ? { ...x, healed } : x)),
+          weeklyCharges: spent,
+        },
+        `Get aid: 1Д4(${die}) — burden «${b.name || 'без назви'}» ${b.healed} → ${healed}/${b.size}`,
+      );
+    }
+    case 'REST_MEDICAL': {
+      const { used, max } = state.weeklyCharges;
+      if (used >= max) return state;
+      return log(
+        {
+          ...state,
+          hp: { ...state.hp, current: state.hp.max },
+          downAndOut: false,
+          weeklyCharges: { ...state.weeklyCharges, used: used + 1 },
+        },
+        `Get medical help: ХП відновлено до ${state.hp.max}` +
+          (state.downAndOut ? ', стан down and out знято' : ''),
+      );
+    }
+
     case 'USE_FOCUS': {
       const { used, max } = state.weeklyCharges;
       if (used >= max) return state;
@@ -191,9 +476,9 @@ export function pilotReducer(state, action) {
     case 'ADD_SKILL_TRIGGER': {
       const { name, desc, level } = state.skillDraft;
       if (!name.trim()) return state;
-      const ll = computeLL(state.games);
+      const ll = state.ll;
       if (skillCapUsed(state.skillTriggers) + level > skillCapMax(ll, state.skillCapBonus)) return state;
-      const trigger = { id: Date.now(), name: name.trim(), desc: desc.trim(), level };
+      const trigger = { id: newId(state.skillTriggers), name: name.trim(), desc: desc.trim(), level };
       return log(
         {
           ...state,
@@ -215,7 +500,7 @@ export function pilotReducer(state, action) {
       if (!t) return state;
       const next = t.level + action.delta;
       if (next < 1 || next > 3) return state;
-      const ll = computeLL(state.games);
+      const ll = state.ll;
       const used = skillCapUsed(state.skillTriggers) - t.level + next;
       if (used > skillCapMax(ll, state.skillCapBonus)) return state;
       return log(
@@ -268,293 +553,140 @@ export function pilotReducer(state, action) {
       );
     }
 
-    // ---------- Projects ----------
-    case 'SET_PROJECT_DRAFT_FIELD':
-      return { ...state, projectDraft: { ...state.projectDraft, [action.field]: action.value } };
-    case 'ADD_PROJECT': {
-      const { name, note } = state.projectDraft;
-      if (!name.trim()) return state;
-      const project = { name: name.trim(), note: note.trim(), status: 'активний', stage: 1 };
-      return log(
-        { ...state, projects: [...state.projects, project], projectDraft: { name: '', note: '' } },
-        `Проєкт додано: «${project.name}»`,
-      );
-    }
-    case 'REMOVE_PROJECT': {
-      const p = state.projects[action.idx];
-      return log(
-        { ...state, projects: state.projects.filter((_, i) => i !== action.idx) },
-        `Проєкт видалено: «${p?.name}»`,
-      );
-    }
-    case 'CYCLE_PROJECT_STATUS': {
-      const p = state.projects[action.idx];
-      const next = nextProjectStatus(p.status);
-      return log(
-        { ...state, projects: state.projects.map((pp, i) => (i === action.idx ? { ...pp, status: next } : pp)) },
-        `Проєкт «${p.name}»: статус → ${next}`,
-      );
-    }
-
-    case 'ADVANCE_PROJECT': {
+    // ---------- Get Creative ----------
+    // Один проєкт за раз. Щотижнева дія витрачається на початок: далі перед кожною
+    // місією кидається Д20, який заповнює секції за результатом (1–9 → 1, 10–19 → 2,
+    // 20+ → 3). Заповнений лічильник віддає резерв, і той не згорає після місії.
+    case 'START_CREATIVE': {
       const { used, max } = state.weeklyCharges;
       if (used >= max) return state;
-      const p = state.projects[action.idx];
-      if (!p || (p.stage || 1) >= 3) return state;
-      const nextStage = (p.stage || 1) + 1;
+      if (state.creative.key) return state;
+      const def = reserveByKey(action.key);
+      if (!def) return state;
       return log(
         {
           ...state,
-          projects: state.projects.map((pp, i) => (i === action.idx ? { ...pp, stage: nextStage } : pp)),
+          creative: { key: def.key, filled: 0, lastRoll: null },
           weeklyCharges: { ...state.weeklyCharges, used: used + 1 },
         },
-        `Проєкт «${p.name}»: стадія ${p.stage || 1} → ${nextStage}`,
+        `Get Creative: почато «${def.name}» — лічильник на ${def.rank} ${def.rank === 1 ? 'секцію' : 'секції'}`,
       );
     }
-
-    // ---------- Mana ----------
-    case 'OPEN_TX':
-      return { ...state, mana: { ...state.mana, txOpen: true, amount: '', comment: '', target: '', error: '' } };
-    case 'CLOSE_TX':
-      return { ...state, mana: { ...state.mana, txOpen: false } };
-    case 'SET_TX_TYPE':
-      return { ...state, mana: { ...state.mana, txType: action.value } };
-    case 'SET_TX_AMOUNT':
-      return { ...state, mana: { ...state.mana, amount: action.value } };
-    case 'SET_TX_COMMENT':
-      return { ...state, mana: { ...state.mana, comment: action.value } };
-    case 'SET_TX_TARGET':
-      return { ...state, mana: { ...state.mana, target: action.value } };
-    case 'SUBMIT_TX': {
-      const { txType, amount, comment, target, balance } = state.mana;
-      const amt = parseFloat(amount);
-      if (!amt || amt <= 0) {
-        return { ...state, mana: { ...state.mana, error: 'Вкажи додатну кількість.' } };
-      }
-      let nextBalance = balance;
-      let label = '';
-      if (txType === 'deposit') {
-        nextBalance = balance + amt;
-        label = `+${amt}${comment ? ' · ' + comment : ''}`;
-      } else if (txType === 'withdraw') {
-        if (amt > balance) return { ...state, mana: { ...state.mana, error: 'Недостатньо мани — баланс не може бути менше 0.' } };
-        nextBalance = balance - amt;
-        label = `−${amt}${comment ? ' · ' + comment : ''}`;
-      } else {
-        if (amt > balance) return { ...state, mana: { ...state.mana, error: 'Недостатньо мани для переказу.' } };
-        nextBalance = balance - amt;
-        label = `→ ${target || 'пілот'}: ${amt}${comment ? ' · ' + comment : ''}`;
-      }
-      const mana = pushManaHistory(
-        { ...state.mana, balance: nextBalance, txOpen: false, amount: '', comment: '', target: '', error: '' },
-        label,
-      );
-      return log({ ...state, mana }, `Мана: ${label}`);
-    }
-
-    // ---------- Hangar ----------
-    case 'TOGGLE_HANGAR_OPEN':
-      return { ...state, hangar: { ...state.hangar, open: !state.hangar.open } };
-    case 'OPEN_HANGAR_CONFIRM':
-      return { ...state, hangar: { ...state.hangar, confirm: action.key, error: '' } };
-    case 'CLOSE_HANGAR_CONFIRM':
-      return { ...state, hangar: { ...state.hangar, confirm: null, error: '' } };
-    case 'CONFIRM_HANGAR_BUY': {
-      const key = state.hangar.confirm;
-      const item = HANGAR_DATA.find((h) => h.key === key);
-      const owned = state.hangar.owned[key] || 0;
-      if (!item || owned >= item.prices.length) {
-        return { ...state, hangar: { ...state.hangar, confirm: null } };
-      }
-      const price = item.prices[owned];
-      if (price > state.mana.balance) {
-        return { ...state, hangar: { ...state.hangar, error: 'Недостатньо мани.' } };
-      }
-      const mana = pushManaHistory(
-        { ...state.mana, balance: state.mana.balance - price },
-        `−${price} · ${item.title}${item.prices.length > 1 ? ' рів.' + (owned + 1) : ''}`,
-      );
+    case 'ROLL_CREATIVE': {
+      const cur = state.creative;
+      const def = reserveByKey(cur.key);
+      if (!def) return state;
+      const die = 1 + Math.floor(Math.random() * 20);
+      const tier = rollTier(die);
+      const gain = tier === '20+' ? 3 : tier === '10–19' ? 2 : 1;
+      const filled = Math.min(def.rank, cur.filled + gain);
       return log(
-        {
+        { ...state, creative: { ...cur, filled, lastRoll: { die, tier, gain } } },
+        `Get Creative «${def.name}»: Д20(${die}) → ${tier}, +${gain} — ${cur.filled} → ${filled}/${def.rank}`,
+      );
+    }
+    case 'SHIFT_CREATIVE_SEG': {
+      const cur = state.creative;
+      const def = reserveByKey(cur.key);
+      if (!def) return state;
+      const filled = clamp(cur.filled + action.dir, 0, def.rank);
+      if (filled === cur.filled) return state;
+      return log({ ...state, creative: { ...cur, filled } }, `Get Creative «${def.name}»: ${cur.filled} → ${filled}/${def.rank}`);
+    }
+    // Заповнений лічильник: резерв іде в список з gamesLeft null — він не згорає.
+    case 'CLAIM_CREATIVE': {
+      const cur = state.creative;
+      const def = reserveByKey(cur.key);
+      if (!def || cur.filled < def.rank) return state;
+      const entry = { id: newId(state.reserves), key: def.key, source: 'creative', gamesLeft: null };
+      return log(
+        { ...state, reserves: [...state.reserves, entry], creative: { key: null, filled: 0, lastRoll: null } },
+        `Get Creative завершено: резерв «${def.name}» отримано, не згорає після місії`,
+      );
+    }
+    case 'CANCEL_CREATIVE': {
+      const def = reserveByKey(state.creative.key);
+      if (!def) return state;
+      return log(
+        { ...state, creative: { key: null, filled: 0, lastRoll: null } },
+        `Get Creative: проєкт «${def.name}» скасовано`,
+      );
+    }
+
+    // ---------- Резерви ----------    // ---------- Резерви ----------
+    case 'SET_SHOP_TAB':
+      return { ...state, shop: { ...state.shop, tab: action.tab, item: null, error: '' } };
+    // Купівля резерву. Без downtime-дії дозволено рівно один мех-резерв; інші категорії
+    // та кожна наступна покупка йдуть «з дією» — саму дію додаток не списує, бо правила
+    // не кажуть, яка це дія.
+    case 'BUY_RESERVE': {
+      const def = reserveByKey(action.key);
+      if (!def) return state;
+      const cost = RESERVE_RANK_PR[def.rank];
+      if (cost > state.pr) return { ...state, shop: { ...state.shop, error: 'Недостатньо PR.' } };
+
+      const free = reserveIsFreeBuy(def, state.reserveFreeBuy.used);
+      if (!free && !action.withAction) {
+        return {
           ...state,
-          mana,
-          hangar: { ...state.hangar, owned: { ...state.hangar.owned, [key]: owned + 1 }, confirm: null, error: '' },
-        },
-        `Ангар: придбано «${item.title}»${item.prices.length > 1 ? ' рів.' + (owned + 1) : ''} за ${price} мани`,
+          shop: {
+            ...state.shop,
+            error:
+              def.category === 'mech'
+                ? 'Безкоштовну покупку вже використано — потрібна downtime-дія.'
+                : 'Без downtime-дії можна взяти лише мех-резерв.',
+          },
+        };
+      }
+
+      const gamesLeft = reserveGamesLeft(def.key, state.hangar.owned);
+      const entry = { id: newId(state.reserves), key: def.key, source: 'pr', gamesLeft };
+      const before = state.pr;
+      const next = {
+        ...state,
+        pr: before - cost,
+        reserves: [...state.reserves, entry],
+        reserveFreeBuy: free
+          ? { ...state.reserveFreeBuy, used: state.reserveFreeBuy.used + 1 }
+          : state.reserveFreeBuy,
+        shop: { ...state.shop, error: '' },
+      };
+      return log(
+        next,
+        `Резерв «${def.name}» (ранг ${def.rank}) за ${cost} PR` +
+          (free ? ' — без дії' : ' — з downtime-дією') +
+          (gamesLeft > 1 ? `, діє ${gamesLeft} ігор` : '') +
+          ` (PR ${before} → ${before - cost})`,
       );
     }
-
-    // ---------- DC store (Особистий склад) ----------
-    case 'DC_STORE_INC': {
-      const cap = dcStoreCap(state);
-      if (state.dcStore >= cap) return state;
-      return log({ ...state, dcStore: state.dcStore + 1 }, `Склад DC: ${state.dcStore} → ${state.dcStore + 1}`);
-    }
-    case 'DC_STORE_DEC': {
-      if (state.dcStore <= 0) return state;
-      return log({ ...state, dcStore: state.dcStore - 1 }, `Склад DC: ${state.dcStore} → ${state.dcStore - 1}`);
-    }
-
-    // ---------- Buffer exchange (buf) ----------
-    case 'OPEN_BUF':
-      return { ...state, buf: { item: action.key, mechId: null, alloc: {}, error: '' } };
-    case 'CLOSE_BUF':
-      return { ...state, buf: { item: null, mechId: null, alloc: {}, error: '' } };
-    case 'SET_BUF_MECH':
-      return { ...state, buf: { ...state.buf, mechId: action.mechId, alloc: {} } };
-    case 'BUF_ALLOC_SHIFT': {
-      const { alloc, mechId } = state.buf;
-      const mech = findMech(state, mechId);
-      const cur = alloc[action.idx] || 0;
-      const total = Object.values(alloc).reduce((a, b) => a + b, 0);
-      if (action.dir > 0) {
-        if (total >= 3) return state;
-        const li = mech?.limited[action.idx];
-        if (li && li.current + cur >= li.max) return state;
-      }
-      const next = Math.max(0, cur + action.dir);
-      return { ...state, buf: { ...state.buf, alloc: { ...alloc, [action.idx]: next } } };
-    }
-    case 'BUF_CONFIRM': {
-      const { item: key, mechId, alloc } = state.buf;
-      const mech = findMech(state, mechId);
-      if (!mech) return { ...state, buf: { ...state.buf, error: 'Оберіть меха.' } };
-      const svc = bufServices(state.hangar.owned).find((s) => s.key === key);
-      if (!svc) return state;
-      if (svc.cost > state.dcStore) return { ...state, buf: { ...state.buf, error: 'Недостатньо DC на складі.' } };
-      if (key === 'charges' && Object.values(alloc).reduce((a, b) => a + b, 0) === 0) {
-        return { ...state, buf: { ...state.buf, error: 'Розподіліть хоча б один заряд.' } };
-      }
-
-      let nextState = updateMech(state, mechId, (m) => {
-        if (key === 'kit') return { ...m, repairCurrent: Math.min(m.repairMax, m.repairCurrent + 1) };
-        if (key === 'charges') {
-          return {
-            ...m,
-            limited: m.limited.map((li, i) => ({ ...li, current: Math.min(li.max, li.current + (alloc[i] || 0)) })),
-          };
-        }
-        if (key === 'ocreset') return { ...m, overcharge: 0 };
-        if (key === 'fullrepair') {
-          return {
-            ...m,
-            hpCurrent: m.hpMax,
-            repairCurrent: m.repairMax,
-            structureFilled: 0,
-            reactorFilled: 0,
-            overcharge: 0,
-            corePower: true,
-            limited: m.limited.map((li) => ({ ...li, current: li.max, destroyed: false })),
-          };
-        }
-        return m;
-      });
-
-      const before = state.dcStore;
-      nextState = { ...nextState, dcStore: before - svc.cost, buf: { item: null, mechId: null, alloc: {}, error: '' } };
-      return log(nextState, `Склад: обмін «${svc.title}» (DC ${before} → ${before - svc.cost})`);
-    }
-
-    // ---------- DC repair modal (dcr) ----------
-    case 'OPEN_DCR':
-      return { ...state, dcr: { open: true, mechId: null, total: '', kits: 0, packs: 0, alloc: {}, allRefill: false, error: '' } };
-    case 'CLOSE_DCR':
-      return { ...state, dcr: { ...state.dcr, open: false } };
-    // The budget is whatever the chosen mech carries, so overspending is impossible by
-    // construction rather than by validation: every DCR guard already measures against
-    // `total`. Switching mechs re-reads it and clears a selection priced for the old budget.
-    case 'SET_DCR_MECH': {
-      const mech = findMech(state, action.mechId);
-      return {
-        ...state,
-        dcr: {
-          ...state.dcr,
-          mechId: action.mechId,
-          total: String(mech?.dc || 0),
-          kits: 0,
-          packs: 0,
-          alloc: {},
-          allRefill: false,
-          error: '',
-        },
-      };
-    }
-    case 'DCR_SHIFT': {
-      const d = state.dcr;
-      const total = parseFloat(d.total) || 0;
-      const cur = d[action.field] || 0;
-      const unitCost = action.field === 'kits' ? 1 : 2;
-      if (action.dir > 0) {
-        if (dcrSpentOf(d) + unitCost > total) return state;
-        if (action.field === 'kits') {
-          const mech = findMech(state, d.mechId);
-          if (mech && mech.repairCurrent + (cur + 1) > mech.repairMax) return state;
-        }
-      }
-      const next = Math.max(0, cur + action.dir);
-      const patch = { [action.field]: next };
-      if (action.field === 'packs' && action.dir < 0) patch.alloc = {};
-      return { ...state, dcr: { ...d, ...patch } };
-    }
-    case 'DCR_ALLOC_SHIFT': {
-      const d = state.dcr;
-      const mech = findMech(state, d.mechId);
-      const cur = d.alloc[action.idx] || 0;
-      const total = Object.values(d.alloc).reduce((a, b) => a + b, 0);
-      if (action.dir > 0) {
-        if (total >= 3 * (d.packs || 0)) return state;
-        const li = mech?.limited[action.idx];
-        if (li && li.current + cur >= li.max) return state;
-      }
-      const next = Math.max(0, cur + action.dir);
-      return { ...state, dcr: { ...d, alloc: { ...d.alloc, [action.idx]: next } } };
-    }
-    case 'DCR_TOGGLE_ALL_REFILL': {
-      const d = state.dcr;
-      if (!d.allRefill) {
-        const total = parseFloat(d.total) || 0;
-        if (dcrSpentOf(d) + 2 > total) return { ...state, dcr: { ...d, error: 'Недостатньо DC.' } };
-      }
-      return { ...state, dcr: { ...d, allRefill: !d.allRefill, error: '' } };
-    }
-    case 'DCR_CONFIRM': {
-      const d = state.dcr;
-      const total = parseFloat(d.total) || 0;
-      const spent = dcrSpentOf(d);
-      if (total <= 0) return { ...state, dcr: { ...d, error: 'Вкажіть кількість DC.' } };
-      if (spent <= 0) return { ...state, dcr: { ...d, error: 'Оберіть хоча б один обмін.' } };
-      const mech = findMech(state, d.mechId);
-      if (!mech) return { ...state, dcr: { ...d, error: 'Оберіть меха.' } };
-      if (spent > total) return { ...state, dcr: { ...d, error: 'Витрачено більше, ніж є DC.' } };
-
-      // Spending draws the mech's own counter down; what is left stays on the mech until
-      // the pilot banks it or the next closed game overwrites it.
-      const leftover = total - spent;
-      let nextState = updateMech(state, d.mechId, (m) => ({
-        ...m,
-        dc: Math.max(0, (m.dc || 0) - spent),
-        repairCurrent: Math.min(m.repairMax, m.repairCurrent + d.kits),
-        limited: m.limited.map((li, i) => ({
-          ...li,
-          current: Math.min(li.max, li.current + (d.alloc[i] || 0) + (d.allRefill ? 1 : 0)),
-        })),
-      }));
-
-      const hasBuffer = (state.hangar.owned.buffer || 0) >= 1;
-
-      nextState = {
-        ...nextState,
-        dcr: { open: false, mechId: null, total: '', kits: 0, packs: 0, alloc: {}, allRefill: false, error: '' },
-      };
-      const leftoverNote =
-        leftover <= 0
-          ? ''
-          : hasBuffer
-            ? `· лишилось ${leftover} DC — можна перекинути в буфер`
-            : `· лишилось ${leftover} DC (згорять — немає буфера)`;
+    case 'REMOVE_RESERVE': {
+      const entry = state.reserves.find((r) => r.id === action.id);
+      if (!entry) return state;
+      const def = reserveByKey(entry.key);
       return log(
-        nextState,
-        `Ремонт за DC (${mech.name}): ремкомплекти +${d.kits}, пакети зарядів ×${d.packs}${d.allRefill ? ', поповнено всі системи' : ''}. Витрачено ${spent}/${total} DC ${leftoverNote}`,
+        { ...state, reserves: state.reserves.filter((r) => r.id !== action.id) },
+        `Резерв «${def?.name || entry.key}» використано або прибрано`,
+      );
+    }
+    // Кінець місії: куплені резерви згорають, крім тих, що живуть кілька ігор,
+    // і тих, що отримані за Get Creative (gamesLeft === null).
+    case 'BURN_MISSION_RESERVES': {
+      if (state.reserves.length === 0) return state;
+      const kept = [];
+      const burned = [];
+      state.reserves.forEach((r) => {
+        if (r.gamesLeft == null) return kept.push(r);
+        const left = r.gamesLeft - 1;
+        if (left > 0) kept.push({ ...r, gamesLeft: left });
+        else burned.push(r);
+      });
+      if (burned.length === 0 && kept.length === state.reserves.length) {
+        return log({ ...state, reserves: kept }, 'Кінець місії: термін дії резервів оновлено');
+      }
+      const names = burned.map((r) => reserveByKey(r.key)?.name || r.key).join(', ');
+      return log(
+        { ...state, reserves: kept },
+        `Кінець місії: згоріло резервів — ${burned.length}${names ? ` (${names})` : ''}`,
       );
     }
 
@@ -596,28 +728,15 @@ export function pilotReducer(state, action) {
       if (!item) return state;
       if (!mech) return { ...state, shop: { ...s, error: 'Оберіть меха.' } };
 
-      if (item.key === 'repair1') {
-        const free = mech.repairMax - mech.repairCurrent;
-        if (free <= 0) return { ...state, shop: { ...s, error: 'Рем. комплекти вже на капі.' } };
-        if (s.qty > free) return { ...state, shop: { ...s, error: `Більше капу: вільно лише ${free}.` } };
-      }
-      const totalPrice = shopPrice(item, s);
+      const totalPrice = shopPrice(item);
       if (totalPrice > state.mana.balance) return { ...state, shop: { ...s, error: 'Недостатньо мани.' } };
       if (item.key === 'charges3' && Object.values(s.alloc).reduce((a, b) => a + b, 0) === 0) {
         return { ...state, shop: { ...s, error: 'Розподіліть хоча б один заряд.' } };
       }
-      if (item.key === 'refillone' && s.picked === null) {
-        return { ...state, shop: { ...s, error: 'Оберіть зброю або систему.' } };
-      }
 
       let nextState = updateMech(state, s.mechId, (m) => {
-        if (item.key === 'repair1') return { ...m, repairCurrent: Math.min(m.repairMax, m.repairCurrent + s.qty) };
         if (item.key === 'charges3') {
           return { ...m, limited: m.limited.map((li, i) => ({ ...li, current: Math.min(li.max, li.current + (s.alloc[i] || 0)) })) };
-        }
-        if (item.key === 'repairfull') return { ...m, repairCurrent: m.repairMax };
-        if (item.key === 'refillone') {
-          return { ...m, limited: m.limited.map((li, i) => (i === s.picked ? { ...li, current: li.max } : li)) };
         }
         if (item.key === 'core') return { ...m, corePower: true };
         if (item.key === 'fullrepair') {
@@ -649,7 +768,7 @@ export function pilotReducer(state, action) {
       const hp = parseInt(hpMax, 10) || 10;
       const rep = parseInt(repairMax, 10) || 5;
       const mech = {
-        id: Date.now(),
+        id: newId(state.mechs),
         name: name.trim(),
         // COMP/CON imports fill this from frameData; typed in by hand there is no source
         // to pair it with, so the badge shows the chassis alone.
@@ -663,9 +782,6 @@ export function pilotReducer(state, action) {
         reactorFilled: 0,
         corePower: true,
         overcharge: 0,
-        // Mission DC the GM credits to this mech when a game closes. Burns on the next
-        // credit — only what the pilot moves to the buffer survives.
-        dc: 0,
         limited: [],
       };
       return log(
@@ -695,26 +811,6 @@ export function pilotReducer(state, action) {
     }
     // Mission DC sits on the mech that flew the game. Mechs saved before this field
     // existed read as 0, so the counter works without migrating anyone's state.
-    case 'SHIFT_MECH_DC': {
-      const m = findMech(state, action.id);
-      const cur = m.dc || 0;
-      const next = Math.max(0, cur + action.dir);
-      if (next === cur) return state;
-      return log(updateMech(state, action.id, (mm) => ({ ...mm, dc: next })), `${m.name}: DC ${cur} → ${next}`);
-    }
-    // Banking what a mission left over. Capped by the buffer's own room, so the button can
-    // never move more DC than there is or more than will fit.
-    case 'MECH_DC_TO_BUFFER': {
-      const m = findMech(state, action.id);
-      const have = m.dc || 0;
-      if (have <= 0 || (state.hangar.owned.buffer || 0) < 1) return state;
-      const moved = Math.min(have, Math.max(0, dcStoreCap(state) - state.dcStore));
-      if (moved <= 0) return state;
-      return log(
-        updateMech({ ...state, dcStore: state.dcStore + moved }, action.id, (mm) => ({ ...mm, dc: (mm.dc || 0) - moved })),
-        `${m.name}: ${moved} DC → буфер (склад ${state.dcStore} → ${state.dcStore + moved})`,
-      );
-    }
     case 'TOGGLE_MECH_CORE': {
       const m = findMech(state, action.id);
       const next = !m.corePower;
@@ -890,7 +986,7 @@ export function pilotReducer(state, action) {
       };
       let msg = `Синхронізовано з Adventure League CSV (${entryCount} записів): мана → ${manaTotal}`;
       if (levelFound) {
-        next = { ...next, games: GAMES_TABLE[clamp(levelFound, 2, 12) - 2] };
+        next = { ...next, ll: clamp(levelFound, 2, MAX_LL) };
         msg += `, рівень → ${levelFound}`;
       }
       return log(next, msg);
@@ -907,8 +1003,4 @@ export function pilotReducer(state, action) {
     default:
       return state;
   }
-}
-
-function burdenNameFallback(idx) {
-  return ['мінорний', 'мідл', 'мейджор'][idx] || 'бьорден';
 }

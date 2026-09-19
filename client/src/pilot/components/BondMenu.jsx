@@ -1,11 +1,12 @@
 import { Card, SegRow } from './ui';
-import { burdenLabel } from '../logic';
-
-const TYPE_OPTIONS = [
-  { value: 'minor4', label: 'МІНОРНИЙ · 4' },
-  { value: 'middle6', label: 'МІДЛ · 6' },
-  { value: 'major8', label: 'МЕЙДЖОР · 8' },
-];
+import { nextBurdenSize } from '../logic';
+import {
+  SHARED_MAJOR_IDEALS,
+  BOND_XP_PER_POWER,
+  BOND_POWERS_ON_CHOOSE,
+  BOND_POWERS_FOR_VETERAN,
+  BOND_POWERS_FOR_MASTER,
+} from '../constants';
 
 export default function BondMenu({ state, dispatch }) {
   const isHp = state.resourceMode === 'hp';
@@ -49,95 +50,285 @@ export default function BondMenu({ state, dispatch }) {
       ) : (
         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 26 }}>
           <div>
-            <div className="field-label">СТРЕС ({state.stress}/8)</div>
-            <SegRow filled={state.stress} count={8} size={26} onToggle={(idx) => dispatch({ type: 'SET_STRESS', idx })} />
-          </div>
-
-          <div>
-            <div className="field-label">БЬОРДЕНИ</div>
-            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-              {state.burdens.map((b, bi) => {
-                const size = b.type === 'minor4' ? 4 : b.type === 'middle6' ? 6 : 8;
-                return (
-                  <div key={bi} style={{ flex: 1, minWidth: 220, background: 'var(--input-bg)', border: '1px solid var(--panel-border)', padding: 14 }}>
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-                      {TYPE_OPTIONS.map((t) => (
-                        <button
-                          key={t.value}
-                          type="button"
-                          onClick={() => dispatch({ type: 'SET_BURDEN_TYPE', bi, value: t.value })}
-                          style={{
-                            fontSize: 10,
-                            letterSpacing: 0.5,
-                            padding: '4px 6px',
-                            background: b.type === t.value ? 'var(--header)' : 'transparent',
-                            color: b.type === t.value ? 'var(--text)' : 'var(--text-dimmer)',
-                            border: '1px solid var(--input-border)',
-                          }}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-                    <input
-                      type="text"
-                      value={b.name}
-                      onChange={(e) => dispatch({ type: 'SET_BURDEN_NAME', bi, value: e.target.value })}
-                      placeholder="Назва бьордена"
-                      style={{ marginBottom: 12, padding: '7px 10px', fontSize: 13, width: '100%' }}
-                    />
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>Прогрес лікування ({burdenLabel(b.type)})</div>
-                    <div style={{ marginBottom: 12 }}>
-                      <SegRow filled={b.filled} count={size} size={20} gap={6} onToggle={(idx) => dispatch({ type: 'SET_BURDEN_SEG', bi, idx })} />
-                    </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginBottom: 4 }}>ЛІКУВАННЯ</div>
-                    <SegRow filled={b.heal} count={4} size={16} gap={6} onToggle={(idx) => dispatch({ type: 'SET_BURDEN_HEAL', bi, idx })} />
-                  </div>
-                );
-              })}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div className="field-label" style={{ marginBottom: 0 }}>СТРЕС ({state.stress}/{state.stressMax})</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-dimmer)' }}>ЛІМІТ</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={state.stressMax}
+                  onChange={(e) => dispatch({ type: 'SET_STRESS_MAX', value: e.target.value })}
+                  style={{ width: 56, padding: '4px 6px', fontSize: 12 }}
+                />
+              </div>
+              {state.downAndOut && (
+                <div style={{ background: 'var(--bad-bg)', color: 'var(--danger)', border: '1px solid var(--bad-border)', fontSize: 10, padding: '3px 8px', letterSpacing: 1 }}>
+                  DOWN AND OUT
+                </div>
+              )}
+              <button
+                className="btn-ghost"
+                type="button"
+                style={{ fontSize: 10, padding: '3px 8px', marginLeft: 'auto' }}
+                onClick={() => dispatch({ type: 'TOGGLE_DOWN_AND_OUT' })}
+              >
+                {state.downAndOut ? 'ЗНЯТИ DOWN AND OUT' : 'ПОЗНАЧИТИ DOWN AND OUT'}
+              </button>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <SegRow filled={state.stress} count={state.stressMax} size={26} onToggle={(idx) => dispatch({ type: 'SET_STRESS', idx })} />
+            </div>
+            {/* Стрес не витрачається, а записується — обидві дії його додають. */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+              <button
+                className="btn"
+                type="button"
+                style={{ fontSize: 11 }}
+                onClick={() => dispatch({ type: 'TAKE_STRESS', amount: 1, reason: 'допомога, +1 ACCURACY' })}
+              >
+                +1 СТРЕС · ДОПОМОГА (+1 ACCURACY)
+              </button>
+              <button
+                className="btn"
+                type="button"
+                style={{ fontSize: 11 }}
+                onClick={() => dispatch({ type: 'TAKE_STRESS', amount: 2, reason: 'push' })}
+              >
+                +2 СТРЕСУ · PUSH (перекид)
+              </button>
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginTop: 8, lineHeight: 1.6 }}>
+              Допомагаючи, ви розділяєте наслідки з тим, хто кидає. Push робить кидок ризиковим;
+              ризикований стає героїчним, героїчний перекинути не можна.
             </div>
           </div>
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-              <div className="field-label" style={{ marginBottom: 0 }}>БОНД</div>
-              {state.bond.xp >= 8 && (
-                <div style={{ background: 'var(--warn-bg)', color: 'var(--warn)', border: '1px solid var(--warn-border)', fontSize: 11, padding: '4px 10px', letterSpacing: 1 }}>
-                  СИЛА В ОЧІКУВАННІ (8 XP)
+              <div className="field-label" style={{ marginBottom: 0 }}>
+                BURDEN-И ({state.burdens.length}/3)
+              </div>
+              {nextBurdenSize(state.burdens.length) == null ? (
+                <div style={{ background: 'var(--bad-bg)', color: 'var(--danger)', border: '1px solid var(--bad-border)', fontSize: 11, padding: '4px 10px', letterSpacing: 1 }}>
+                  ЧЕТВЕРТИЙ BURDEN — СМЕРТЬ ПЕРСОНАЖА
                 </div>
+              ) : (
+                <button className="btn-ghost" type="button" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => dispatch({ type: 'ADD_BURDEN' })}>
+                  + BURDEN ({nextBurdenSize(state.burdens.length)} СЕГМ.)
+                </button>
               )}
             </div>
-            <input
-              type="text"
-              value={state.bond.archetype}
-              onChange={(e) => dispatch({ type: 'SET_ARCHETYPE', value: e.target.value })}
-              placeholder="Архетип бонду"
-              style={{ marginTop: 10, padding: '8px 10px', fontSize: 14, width: 260, maxWidth: '100%' }}
-            />
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '12px 0 6px 0' }}>XP ({state.bond.xp}/8)</div>
-            <SegRow filled={state.bond.xp} count={8} size={22} onToggle={(idx) => dispatch({ type: 'SET_BOND_XP', idx })} />
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '16px 0 8px 0' }}>ЗДОБУТІ СИЛИ</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {state.bond.powers.map((p, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--input-bg)', border: '1px solid var(--panel-border)', padding: '7px 12px', fontSize: 13 }}>
-                  <span>{p}</span>
-                  <button type="button" onClick={() => dispatch({ type: 'REMOVE_POWER', idx })} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+
+            {state.burdens.length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--text-dimmer)', marginTop: 10 }}>
+                Burden-ів немає. Перший матиме 4 сегменти, другий 6, третій 8.
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 10 }}>
+              {state.burdens.map((b) => (
+                <div key={b.id} style={{ flex: 1, minWidth: 220, background: 'var(--input-bg)', border: '1px solid var(--panel-border)', padding: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <input
+                      type="text"
+                      value={b.name}
+                      onChange={(e) => dispatch({ type: 'SET_BURDEN_NAME', id: b.id, value: e.target.value })}
+                      placeholder="Опишіть травму"
+                      style={{ flex: 1, padding: '7px 10px', fontSize: 13 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => dispatch({ type: 'REMOVE_BURDEN', id: b.id })}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+                    ЛІКУВАННЯ {b.healed}/{b.size} — заповниться повністю, burden зникне
+                  </div>
+                  <SegRow filled={b.healed} count={b.size} size={20} gap={6} onToggle={(idx) => dispatch({ type: 'SET_BURDEN_HEALED', id: b.id, idx })} />
                 </div>
               ))}
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <input
-                type="text"
-                value={state.bond.newPower}
-                onChange={(e) => dispatch({ type: 'SET_BOND_NEW_POWER', value: e.target.value })}
-                placeholder="Назва нової сили"
-                style={{ flex: 1, padding: '8px 10px', fontSize: 13 }}
-              />
-              <button className="btn" type="button" onClick={() => dispatch({ type: 'ADD_POWER' })}>+</button>
+            <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginTop: 10, lineHeight: 1.6 }}>
+              Burden сам по собі не заважає в наративних сценах — хіба що ви самі візьмете
+              на кидок 1 DIFFICULTY і отримаєте за це XP.
             </div>
           </div>
+
+          <BondSection state={state} dispatch={dispatch} />
         </div>
       )}
     </Card>
+  );
+}
+
+function Ideal({ label, text, checked, onToggle, muted }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        width: '100%',
+        boxSizing: 'border-box',
+        textAlign: 'left',
+        padding: '8px 10px',
+        fontSize: 12,
+        lineHeight: 1.5,
+        background: checked ? 'var(--header)' : 'var(--input-bg)',
+        border: `1px solid ${checked ? 'var(--accent)' : 'var(--input-border)'}`,
+        color: muted ? 'var(--text-dimmer)' : 'var(--text)',
+      }}
+    >
+      <span style={{ color: checked ? 'var(--accent)' : 'var(--text-dimmer)' }}>{checked ? '▪' : '▫'}</span>
+      <span style={{ flex: 1 }}>
+        <span style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>{label}</span>
+        <br />
+        {text || <span style={{ color: 'var(--text-dimmer)' }}>— не заповнено —</span>}
+      </span>
+    </button>
+  );
+}
+
+function BondSection({ state, dispatch }) {
+  const b = state.bond;
+  const hasBond = b.confirmed;
+  const own = b.powers.length;
+  const canConfirm = !b.confirmed && b.archetype.trim() !== '';
+  const canClaim = hasBond && (b.powersOwed > 0 || b.xp >= BOND_XP_PER_POWER);
+  const canReset = !hasBond && b.xp >= BOND_XP_PER_POWER;
+  const veteranUnlocked = own >= BOND_POWERS_FOR_VETERAN;
+  const masterUnlocked = own >= BOND_POWERS_FOR_MASTER;
+  const set = (field) => (e) => dispatch({ type: 'SET_BOND_FIELD', field, value: e.target.value });
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <div className="field-label" style={{ marginBottom: 0 }}>БОНД</div>
+        {b.powersOwed > 0 ? (
+          <div style={{ background: 'var(--warn-bg)', color: 'var(--warn)', border: '1px solid var(--warn-border)', fontSize: 11, padding: '4px 10px', letterSpacing: 1 }}>
+            НЕРОЗПОДІЛЕНИХ СИЛ: {b.powersOwed}
+          </div>
+        ) : canClaim ? (
+          <div style={{ background: 'var(--warn-bg)', color: 'var(--warn)', border: '1px solid var(--warn-border)', fontSize: 11, padding: '4px 10px', letterSpacing: 1 }}>
+            СИЛА В ОЧІКУВАННІ ({BOND_XP_PER_POWER} XP)
+          </div>
+        ) : null}
+      </div>
+
+      <input
+        type="text"
+        value={b.archetype}
+        onChange={(e) => dispatch({ type: 'SET_ARCHETYPE', value: e.target.value })}
+        placeholder="Архетип бонду (обирається на Тірі 2)"
+        style={{ marginTop: 10, padding: '8px 10px', fontSize: 14, width: 320, maxWidth: '100%' }}
+      />
+
+      {canConfirm && (
+        <button className="btn" type="button" style={{ marginTop: 10, marginLeft: 8, fontSize: 11 }} onClick={() => dispatch({ type: 'CONFIRM_BOND_CHOICE' })}>
+          ЗАФІКСУВАТИ ВИБІР — {BOND_POWERS_ON_CHOOSE + b.deferredResets} СИЛ
+        </button>
+      )}
+
+      {!hasBond && (
+        <div style={{ fontSize: 11, color: 'var(--text-dimmer)', marginTop: 8, lineHeight: 1.6 }}>
+          Поки бонд не обрано, XP дають лише два спільні major ideals. Досягнувши{' '}
+          {BOND_XP_PER_POWER} XP, лічильник можна скинути — скидів зараз: <b>{b.deferredResets}</b>.
+          <br />
+          Вибір бонду дасть {BOND_POWERS_ON_CHOOSE} сили
+          {b.deferredResets > 0 ? ` + ${b.deferredResets} за скиди` : ''}. Самі бонди, ідеали
+          та назви сил — у COMP/CON; тут лише облік.
+        </div>
+      )}
+
+      <div style={{ marginTop: 16 }}>
+        <div className="field-label">ІДЕАЛИ ЗА ЦЮ ГРУ</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <Ideal
+            label="MAJOR · власний для бонду"
+            text={b.majorIdealFirst}
+            checked={b.marked.major0}
+            muted={!hasBond}
+            onToggle={() => dispatch({ type: 'TOGGLE_IDEAL', key: 'major0' })}
+          />
+          <Ideal label="MAJOR · спільний" text={SHARED_MAJOR_IDEALS[0]} checked={b.marked.major1} onToggle={() => dispatch({ type: 'TOGGLE_IDEAL', key: 'major1' })} />
+          <Ideal label="MAJOR · спільний" text={SHARED_MAJOR_IDEALS[1]} checked={b.marked.major2} onToggle={() => dispatch({ type: 'TOGGLE_IDEAL', key: 'major2' })} />
+          <Ideal
+            label="MINOR · ціль на гру"
+            text={b.minorIdeal}
+            checked={b.marked.minor}
+            muted={!hasBond}
+            onToggle={() => dispatch({ type: 'TOGGLE_IDEAL', key: 'minor' })}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          <input type="text" value={b.majorIdealFirst} onChange={set('majorIdealFirst')} placeholder="Перший major ideal вашого бонду" style={{ flex: 1, minWidth: 220, padding: '7px 10px', fontSize: 12 }} />
+          <input type="text" value={b.minorIdeal} onChange={set('minorIdeal')} placeholder="Minor ideal на цю гру" style={{ flex: 1, minWidth: 220, padding: '7px 10px', fontSize: 12 }} />
+        </div>
+
+        <button className="btn" type="button" style={{ marginTop: 10, fontSize: 11 }} onClick={() => dispatch({ type: 'SCORE_IDEALS' })}>
+          ЗАРАХУВАТИ ІДЕАЛИ В КІНЦІ ГРИ
+        </button>
+      </div>
+
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '18px 0 6px 0' }}>
+        XP ({b.xp}/{BOND_XP_PER_POWER})
+      </div>
+      <SegRow filled={Math.min(b.xp, BOND_XP_PER_POWER)} count={BOND_XP_PER_POWER} size={22} onToggle={(idx) => dispatch({ type: 'SET_BOND_XP', idx })} />
+
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '16px 0 8px 0' }}>
+        ВЛАСНІ СИЛИ ({own})
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {b.powers.map((p, idx) => (
+          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--input-bg)', border: '1px solid var(--panel-border)', padding: '7px 12px', fontSize: 13 }}>
+            <span>{p}</span>
+            <button type="button" onClick={() => dispatch({ type: 'REMOVE_POWER', idx })} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        <input type="text" value={b.newPower} onChange={(e) => dispatch({ type: 'SET_BOND_NEW_POWER', value: e.target.value })} placeholder="Назва нової сили" style={{ flex: 1, minWidth: 180, padding: '8px 10px', fontSize: 13 }} />
+        {canClaim && (
+          <button className="btn" type="button" onClick={() => dispatch({ type: 'CLAIM_BOND_POWER' })}>
+            {b.powersOwed > 0 ? 'ЗАПИСАТИ СИЛУ' : `ВЗЯТИ ЗА ${BOND_XP_PER_POWER} XP`}
+          </button>
+        )}
+        {canReset && (
+          <button className="btn" type="button" onClick={() => dispatch({ type: 'RESET_DEFERRED_XP' })}>
+            СКИНУТИ ЛІЧИЛЬНИК
+          </button>
+        )}
+        <button className="btn-ghost" type="button" onClick={() => dispatch({ type: 'ADD_POWER' })}>+ ВРУЧНУ</button>
+      </div>
+
+      {/* Сила з чужого бонду доступна від двох власних і сама дає veteran power;
+          п'ять власних дають master power. */}
+      <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div>
+          <div className="field-label">
+            СИЛА З ЧУЖОГО БОНДУ {veteranUnlocked ? '' : `· від ${BOND_POWERS_FOR_VETERAN} власних сил`}
+          </div>
+          <input type="text" value={b.foreignPower} onChange={set('foreignPower')} disabled={!veteranUnlocked} placeholder={veteranUnlocked ? 'Назва сили' : 'Ще недоступно'} style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', fontSize: 12, opacity: veteranUnlocked ? 1 : 0.5 }} />
+        </div>
+        <div>
+          <div className="field-label">VETERAN POWER {veteranUnlocked ? '' : '· ще недоступно'}</div>
+          <input type="text" value={b.veteranPower} onChange={set('veteranPower')} disabled={!veteranUnlocked} placeholder={veteranUnlocked ? 'Назва сили' : 'Ще недоступно'} style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', fontSize: 12, opacity: veteranUnlocked ? 1 : 0.5 }} />
+        </div>
+        <div>
+          <div className="field-label">
+            MASTER POWER {masterUnlocked ? '' : `· від ${BOND_POWERS_FOR_MASTER} власних сил`}
+          </div>
+          <input type="text" value={b.masterPower} onChange={set('masterPower')} disabled={!masterUnlocked} placeholder={masterUnlocked ? 'Назва сили' : 'Ще недоступно'} style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', fontSize: 12, opacity: masterUnlocked ? 1 : 0.5 }} />
+        </div>
+      </div>
+    </div>
   );
 }

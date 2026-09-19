@@ -1,10 +1,78 @@
 // Hardcoded game content, ported verbatim from docs/pilot-mechanics-spec.md section 4.
 
-export const GAMES_TABLE = [0, 3, 6, 9, 12, 16, 20, 24, 29, 34, 39, 44];
-
 export const OC_STEPS = ['+1', '+1D3', '+1D6', '+1D6+4'];
 
 export const CHARGES_MAX = 1;
+
+// ---------- Економіка ----------
+// Новий пілот стартує на Тірі 1 (LL2) з готовим запасом PR.
+export const PR_START = 30;
+// Базовий кап PR. «Ресурсний буфер» (покращення ангару, Тір 2) піднімає його до PR_CAP_BUFFER.
+export const PR_CAP_BASE = 100;
+export const PR_CAP_BUFFER = 200;
+
+// Пороги мани не задані списком, а виводяться: перший коштує MANA_BASE_COST, і кожен
+// наступний дорожчий за попередній на крок свого тіру. Крок береться за тіром рівня,
+// НА який іде підвищення — тому перехід між тірами вже коштує за новим тіром
+// (LL5→LL6 крокує як Тір 2, LL10→LL11 — як Тір 3). Див. manaLevelCost() у logic.js.
+//
+// Кроки тірів: 100 / 200 / 500.
+export const MANA_BASE_COST = 1000;
+export const TIER_MANA_STEP = { 1: 100, 2: 200, 3: 500 };
+
+// Останній рівень ліцензії: після нього підвищення немає.
+export const MAX_LL = 12;
+
+// Підвищення рівня безкоштовно дає перерозподіл мех-скілів повністю, одного таланту
+// й однієї ліцензії. Повний перерозподіл усіх талантів або всіх ліцензій коштує
+// додатково по стільки мани кожен.
+export const REDISTRIBUTE_ALL_COST = 100;
+
+// ---------- Бонди ----------
+// Перший major ideal у кожного бонду свій (у The Harlequin — «I addressed challenges with
+// cunning, subterfuge, or deceit.»), а два інші однакові для всіх. Саме ці два рахуються,
+// коли гравець ще не обрав бонд.
+export const SHARED_MAJOR_IDEALS = [
+  'I expressed my heritage, background, or beliefs through my actions.',
+  'I struggled with issues from my burdens or background.',
+];
+
+// Кожні 8 XP — нова bond power.
+export const BOND_XP_PER_POWER = 8;
+// Вибір бонду на Тірі 2 одразу дає стільки сил, плюс по одній за кожен скид лічильника
+// XP, зроблений поки бонд ще не було обрано.
+export const BOND_POWERS_ON_CHOOSE = 2;
+// Маючи стільки власних сил, можна взяти одну силу з чужого бонду й отримати veteran power.
+export const BOND_POWERS_FOR_VETERAN = 2;
+// Стільки власних сил дають master power.
+export const BOND_POWERS_FOR_MASTER = 5;
+
+// Що дає підвищення рівня — показується в модалці підвищення.
+export const LEVEL_UP_GRANTS = [
+  'Повний ремонт обраного меха',
+  'Мех-скіли — повний перерозподіл',
+  'Таланти — перерозподіл одного в інші',
+  'Ліцензії — перерозподіл рівнів однієї в інші, поки це не забирає доступ до поточного меха',
+  'Core bonuses — перевибір, поки вистачає ліцензій виробника',
+];
+
+// Обмеження, яке додаток не може перевірити за даними — показується як попередження.
+export const LEVEL_UP_WARNING =
+  'Перші два рівні ліцензії поточного фрейма перерозподілити не можна — лише через передрук.';
+
+// Додатковий ремонт за PR (витрачається downtime-дією Printer use, окрім купівлі
+// резервів рангу 1–2, яка дії не потребує).
+// refillone коштує залежно від базового запасу зарядів самої системи — див. limitedRefillPr().
+export const PR_SERVICES = [
+  { key: 'kit', title: '1 Ремонтний комплект', cost: 10 },
+  { key: 'kitsfull', title: 'Поповнення всіх ремонтних комплектів', cost: 50 },
+  { key: 'refillone', title: 'Відновлення лімітних зарядів однієї системи', cost: null },
+  { key: 'fullrepair', title: 'Повний ремонт / передрук меха', cost: 100, manaCost: 500 },
+];
+
+// Чим більший базовий запас зарядів у системи, тим дешевше її поповнити:
+// 1 заряд — 30 PR, 2 — 20 PR, 3 і більше — 10 PR.
+export const LIMITED_REFILL_PR = { 1: 30, 2: 20, 3: 10 };
 
 export const HANGAR_DATA = [
   {
@@ -33,13 +101,13 @@ export const HANGAR_DATA = [
   },
   {
     key: 'buffer',
+    // Тір 2. Правила задають ефект (кап PR 100 → 200), але не ціну — на відміну від
+    // решти покращень ангару, у яких вона вказана в мані + PR. prices лишається як було,
+    // поки ціну не задано; див. docs/pilot-mechanics-spec.md.
     title: 'Ресурсний буфер',
-    prices: [1000, 1000],
-    desc: '',
-    levelTexts: [
-      'Перед місією гравець може попросити гільдію покласти частину DC на особистий склад.\nDC можуть накопичуватись на складі до 5 одиниць.\nІнші гравці можуть передавати DC після виконання місій гравцям групи до їх буферу — за наявності цього апгрейду та місця в ньому.\nОбмін накопичених DC:\n2 DC — 1 ремкомплект чи 3 лімітні заряди\n5 DC — скид OVERCHARGE до першого рівня',
-      'Збільшує ліміт накопичення DC до 10 шт.\nДодає послугу:\n10 DC — повний ремонт',
-    ],
+    prices: [1000],
+    desc: 'Розширює максимальний запас PR до 200 одиниць.',
+    levelTexts: [],
   },
   {
     key: 'storage',
@@ -60,33 +128,31 @@ export const HANGAR_DATA = [
   },
 ];
 
-export function bufServices(hangarOwned) {
-  const list = [
-    { key: 'kit', title: '1 Ремкомплект', cost: 2 },
-    { key: 'charges', title: '3 Лімітні заряди', cost: 2 },
-    { key: 'ocreset', title: 'Скид OVERCHARGE до першого рівня', cost: 5 },
-  ];
-  if ((hangarOwned?.buffer || 0) >= 2) {
-    list.push({ key: 'fullrepair', title: 'Повний ремонт (РІВЕНЬ 2)', cost: 10 });
-  }
-  return list;
+// Ціна поповнення лімітних зарядів однієї системи, за її базовим запасом.
+// Правила задають 1/2/3 заряди; 4+ трактуємо як 3 (найдешевший щабель).
+export function limitedRefillPr(baseMax) {
+  const n = Math.max(1, Math.min(3, Number(baseMax) || 1));
+  return LIMITED_REFILL_PR[n];
 }
 
+// Магазин за ману. Ремонт переїхав на PR (PR_SERVICES), тож тут лишається тільки те,
+// що за новими правилами купується саме маною.
+// «3 Лімітні заряди» і «Заряд Core Power» у нових правилах не згадані взагалі — ні ціни
+// в мані, ні в PR. Лишені зі старими цінами, доки їх доля не визначена.
 export const SHOP_DATA = [
-  { key: 'repair1', title: '1 Ремонтний набір', price: 200 },
-  { key: 'charges3', title: '3 Лімітні заряди', price: 300 },
-  { key: 'repairfull', title: 'Повний кап рем. комплектів', price: 700 },
-  { key: 'refillone', title: 'Поповнення всіх лімітних зарядів однієї зброї/системи', price: 300 },
-  { key: 'core', title: 'Заряд Core Power', price: 1000 },
-  { key: 'fullrepair', title: 'Повний ремонт', price: 2000 },
+  { key: 'fullrepair', title: 'Повний ремонт / передрук меха', price: 500 },
+  { key: 'charges3', title: '3 Лімітні заряди', price: 300, unspecified: true },
+  { key: 'core', title: 'Заряд Core Power', price: 1000, unspecified: true },
 ];
 
-// "Даунтайм" tab — 1 charge per mission.
+// Передмісійні дії — 1 заряд на місію. Назви й тригери взяті з правил; таблиці
+// наслідків за результатом кидка — гомбрю, правилами не задані (там сказано, що ціну
+// дії конкретизує ГМ).
 export const MISSION_DOWNTIME_DATA = [
   {
     key: 'info',
-    title: 'Збір інформації',
-    trigger: 'Д20 + Investigate / Hack or Fix / Get Hold of Something / Act Unseen or Unheard',
+    title: 'Gather information · Збір інформації',
+    trigger: 'Д20 + Investigate / Pull Rank / Spot / Word on the Street / Act Unseen or Unheard',
     note: 'Розкрий пункт з дошки завдань (сили ворога · поле бою · контекст місії · резерв з таблиці) та отримай всю інформацію з його підпунктів.',
     showRoll: true,
     tiers: {
@@ -97,8 +163,8 @@ export const MISSION_DOWNTIME_DATA = [
   },
   {
     key: 'contact',
-    title: 'Знайти контакт',
-    trigger: 'Д20 + Charm / Word on the Streets / Pull Rank / Get a Hold of Something',
+    title: 'Get connected · Знайти контакт',
+    trigger: 'Д20 + Stay Cool / Show Off / Lead or Inspire / Get a Hold of Something / Charm',
     note: "Дія завжди знаходить контакт — кидок визначає умови. Контакт заноситься у записник і спільний список ГМ (ім'я · коло · профіль допомоги · стан боргу). Повторно шукати вже знайомого контакта не можна — звернення до нього йде через купівлю резерву за ману.\n\nТаблиця послуг/боргів (1Д4 або на вибір ГМа): прикрити контакта чи його людину на місії · дістати й передати річ · наративна допомога (витратити свою наступну даунтайм-дію на контакта) або бойова допомога (затримка появи NPC на 1-2 ранди) · виконати завдання в інтересах контакта як додаткову ціль місії · свій варіант за столом.",
     showRoll: true,
     tiers: {
@@ -109,8 +175,8 @@ export const MISSION_DOWNTIME_DATA = [
   },
   {
     key: 'barter',
-    title: 'Бартер',
-    trigger: 'Д20 + Get a Hold of Something / Word on the Streets / Charm / Threaten',
+    title: 'Scrounge and Barter · Бартер',
+    trigger: 'Д20 + Read a Situation / Get a Hold of Something / Charm / Word on the Street',
     note: 'Пошук мех- чи тактичних резервів (сумарний ранг ≤3, знайдені резерви можуть повторюватись) з таблиці Даунтайм-резервів чи магазину.\n\nПримітка: резерви, що дають рем-комплекти чи лімітні заряди, отримуються в кількості 2 штуки за 1 резерв.',
     showRoll: true,
     tiers: {
@@ -122,51 +188,71 @@ export const MISSION_DOWNTIME_DATA = [
 ];
 
 // "Час простою" tab — 1 charge per week.
+// Щотижневі дії — 1 заряд на тиждень, відновлюється щопонеділка.
+// minTier — з якого тіру дія доступна: чотири дії відкриваються лише на Тірі 2 і
+// потребують заявки в Discord.
 export const WEEKLY_DOWNTIME_DATA = [
   {
-    key: 'steam',
-    title: 'Випустити пару',
-    trigger: 'Д20 + Survive / Charm / Word on the Streets / Read a Situation / Stay Cool / Apply Fists to Faces',
-    note: 'Стрес очищується повністю незалежно від результату кидка — кидок лише визначає, чим обернулась ніч.',
-    showRoll: true,
-    clearsStress: true,
-    tiers: {
-      low: 'Ніч вийшла з-під контролю. Кинь 1Д4:\n· Заплати 100 мани за гарний відпочинок.\n· На наступній місії візьми лише 1 пілотський гір.\n· Наступний кидок «Знайти контакт»: 20+ рахується як 10-19, а 10-19 як 1-9.\n· Втрать 15 жетонів фракції, де немає негативної репутації, на вибір.',
-      mid: 'Пригода з ціною. Оберіть один пункт з таблиці 1–9.',
-      high: 'Ніч вдалась. Кинь 1Д4:\n· Наступний кидок «Знайти контакт»: 1-9 рахується як 10-19, а 10-19 як 20+.\n· Розкрий 2 підпункти з дії «Збір інформації».\n· +2 XP бонду.',
-    },
+    key: 'printer',
+    title: 'Printer use',
+    trigger: 'Витрата PR',
+    note: 'Скористайтесь потужностями принтера гільдії, витративши зароблені PR: додатковий ремонт, поповнення зарядів, повний ремонт чи передрук меха.\n\nСписок і ціни — на панелі PRINTER REQUISITION.',
+    showRoll: false,
+    minTier: 1,
   },
   {
-    key: 'focus',
-    title: 'Сфокусуватись',
-    trigger: '',
-    note: '',
+    key: 'creative',
+    title: 'Get Creative',
+    trigger: 'Д20 + відповідний тригер, перед початком наступної місії',
+    note: 'Оберіть бажаний мех-резерв і створіть лічильник на стільки секцій, скільки в резерву рангів.\n\nПеред кожною наступною місією кидайте Д20: 1–9 заповнює 1 секцію, 10–19 — дві, 20+ — три. Коли всі секції заповнені, резерв ваш і не згорає після місії.\n\nОдин проєкт за раз — черги немає.',
+    showRoll: false,
+    isCreativePanel: true,
+    minTier: 1,
+  },
+  {
+    key: 'rest',
+    title: 'Get rest',
+    trigger: 'Без кидка — оберіть одну опцію',
+    note: 'Відпочинок або лікування: час, коли можна відволіктись від роботи в гільдії чи отримати допомогу.',
+    showRoll: false,
+    isRestPanel: true,
+    minTier: 1,
+  },
+  {
+    key: 'buytime',
+    title: 'Buy some time',
+    trigger: 'Заявка в Discord',
+    note: 'Дає додаткові секції на глобальні лічильники: відстрочує настання подій у світі, даючи більше вікно для повʼязаних з подією місій.',
+    showRoll: false,
+    minTier: 2,
+  },
+  {
+    key: 'diving',
+    title: 'Go diving',
+    trigger: '2Д20 — таблиці gain та loss',
+    note: 'Назвіть те, що шукаєте: гарно проведений час, увагу чи допомогу конкретної людини, корисну інформацію, контакт чи звʼязок. Готуйтесь знайти щось нове і щось втратити.\n\nНа відміну від інших щотижневих дій потребує кидка 2Д20 за зовнішніми таблицями gain/loss — у додатку вони не відтворені.',
+    showRoll: false,
+    minTier: 2,
+  },
+  {
+    key: 'focused',
+    title: 'Get focused',
+    trigger: 'Заявка в Discord, затвердження ГМ',
+    note: 'Вивчіть новий skill trigger з доступних або придумайте свій, вужчий за впливом. Або вивчіть унікальну навичку — керування транспортом, рідкісні мови, знання у вузькій сфері; такі навички можуть давати ACCURACY в наративних сценах.',
     showRoll: false,
     isFocusPanel: true,
-  },
-  {
-    key: 'price',
-    title: 'Ціна за силу',
-    trigger: 'Керування скіл-тригерами пілота',
-    note: '',
-    showRoll: false,
     isSkillPanel: true,
+    minTier: 2,
   },
   {
-    key: 'projprogress',
-    title: 'Прогрес проекту',
-    trigger: '',
-    note: 'Просуває обраний проєкт на одну стадію (макс. 3).',
+    key: 'poweratcost',
+    title: 'Power at a cost',
+    trigger: 'Заявка в Discord з відміткою ГМ',
+    note: 'Здобути екстраординарну перевагу на час наступної гри: унікальний резерв, екзотичне спорядження, допомога від корпорацій. Будьте готові заплатити високу ціну, яка може перманентно вплинути на персонажа.',
     showRoll: false,
-    isProjectPanel: true,
+    minTier: 2,
   },
 ];
-
-export const PROJECT_STAGE_LABELS = {
-  1: 'Одноразовий резерв',
-  2: 'Резерв раз на гру',
-  3: 'Повноцінний предмет',
-};
 
 export const FOOTER_INVARIANTS =
   'НАСКРІЗНІ ІНВАРІАНТИ: Мана ≥ 0 · Бьорденів ≤ 3 · Стрес ≤ 8 · Bond XP ≤ 8 з переливом · один персонаж на одну місію';
