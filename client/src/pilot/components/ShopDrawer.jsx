@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { SHOP_DATA } from '../constants';
+import { SHOP_DATA, PR_SERVICES, LIMITED_REFILL_PR } from '../constants';
 import {
   RESERVES,
   RESERVE_CATEGORIES,
@@ -9,8 +9,9 @@ import {
 } from '../reserves';
 
 const TABS = [
+  { key: 'repair', label: 'РЕМОНТ', hint: 'за PR' },
   { key: 'reserves', label: 'РЕЗЕРВИ', hint: 'за PR' },
-  { key: 'mana', label: 'ЗА МАНУ', hint: 'екзотика й ремонт' },
+  { key: 'mana', label: 'ЗА МАНУ', hint: 'екзотика' },
 ];
 
 const RANKS = [1, 2, 3];
@@ -68,6 +69,53 @@ function OwnedReserves({ state, dispatch }) {
       <button className="btn-ghost" type="button" style={{ fontSize: 10, padding: '4px 10px', marginTop: 10 }} onClick={() => dispatch({ type: 'BURN_MISSION_RESERVES' })}>
         КІНЕЦЬ МІСІЇ — СПАЛИТИ РЕЗЕРВИ
       </button>
+    </div>
+  );
+}
+
+// Ціна послуги для списку. refillone залежить від конкретної системи, тож тут показуємо
+// діапазон, а точну ціну — вже в модалці після вибору системи.
+function servicePrice(svc) {
+  if (svc.cost != null) {
+    return svc.manaCost ? `${svc.cost} PR / ${svc.manaCost} М` : `${svc.cost} PR`;
+  }
+  const vals = Object.values(LIMITED_REFILL_PR);
+  return `${Math.min(...vals)}–${Math.max(...vals)} PR`;
+}
+
+// Найдешевший можливий варіант — ним вирішуємо, чи позиція взагалі по кишені.
+function serviceMinCost(svc) {
+  return svc.cost != null ? svc.cost : Math.min(...Object.values(LIMITED_REFILL_PR));
+}
+
+// Додатковий ремонт за PR. Раніше жив окремо на панелі PRINTER REQUISITION — переїхав
+// сюди, щоб усі покупки були в одному місці.
+function RepairTab({ state, dispatch }) {
+  return (
+    <div style={{ padding: '8px 0 20px 0' }}>
+      <div style={{ padding: '10px 20px 4px 20px', fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>
+        ДОДАТКОВИЙ РЕМОНТ · DOWNTIME «PRINTER USE»
+      </div>
+      {PR_SERVICES.map((svc) => {
+        const affordable = state.pr >= serviceMinCost(svc);
+        return (
+          <div key={svc.key} style={{ padding: '12px 20px', borderTop: '1px solid var(--rule)' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.5 }}>{svc.title}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{servicePrice(svc)}</div>
+              <button
+                className="btn"
+                type="button"
+                disabled={!affordable}
+                style={{ marginLeft: 'auto', fontSize: 11, opacity: affordable ? 1 : 0.55, cursor: affordable ? 'pointer' : 'not-allowed' }}
+                onClick={() => dispatch({ type: 'OPEN_PR_SPEND', key: svc.key })}
+              >
+                КУПИТИ
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -259,7 +307,9 @@ export default function ShopDrawer({ state, dispatch }) {
             ))}
           </div>
 
-          {tab === 'reserves' ? <ReservesTab state={state} dispatch={dispatch} /> : <ManaTab state={state} dispatch={dispatch} />}
+          {tab === 'repair' && <RepairTab state={state} dispatch={dispatch} />}
+          {tab === 'reserves' && <ReservesTab state={state} dispatch={dispatch} />}
+          {tab === 'mana' && <ManaTab state={state} dispatch={dispatch} />}
         </div>
       )}
     </div>

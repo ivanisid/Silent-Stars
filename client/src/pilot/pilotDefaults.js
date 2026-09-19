@@ -26,7 +26,7 @@ export function createDefaultPilotState() {
     // Тір 1 стартує з готовим запасом PR (правила: «На старті кожен гравець вже має 30PR»).
     pr: PR_START,
     shop: { open: false, tab: 'reserves', item: null, mechId: null, alloc: {}, picked: null, qty: 1, error: '' },
-    prSpend: { item: null, mechId: null, alloc: {}, error: '' },
+    prSpend: { item: null, mechId: null, pick: null, error: '' },
     mana: {
       balance: 0,
       txOpen: false,
