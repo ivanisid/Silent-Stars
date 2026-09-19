@@ -1,4 +1,5 @@
 import { PR_START, PR_CAP_BASE } from './constants';
+import { manaLevelCost } from './logic';
 
 // Factory for a brand-new pilot's mechanics state.
 // Deliberately empty/zeroed (not the demo seed data from the original design mockup) —
@@ -122,12 +123,30 @@ export function normalizePilotState(raw) {
 
   const next = { ...base, ...raw };
 
-  // DC → PR: перенос 1:1, обрізаний новим капом.
-  if (raw.pr == null && raw.dcStore != null) {
-    next.pr = Math.min(Number(raw.dcStore) || 0, PR_CAP_BASE);
-  }
   // Рівень: раніше виводився з кількості ігор.
-  if (raw.ll == null) next.ll = legacyLl(raw.games);
+  const ll = raw.ll == null ? legacyLl(raw.games) : raw.ll;
+  next.ll = ll;
+
+  // Стара форма стану: мана й прогрес міняються ролями. Мана була валютою магазину,
+  // тож стає PR за курсом 200 мани = 10 PR — саме стільки коштував ремонтний комплект
+  // тоді й коштує тепер. Зіграні ігри були прогресом до рівня, тож стають маною-XP:
+  // частка пройденого шляху, помножена на ціну наступного рівня.
+  if (raw.pr == null) {
+    const fromMana = Math.floor((Number(raw.mana?.balance) || 0) / 20);
+    next.pr = Math.min(fromMana + (Number(raw.dcStore) || 0), PR_CAP_BASE);
+
+    const cost = manaLevelCost(ll);
+    let carried = 0;
+    if (cost != null) {
+      const prev = LEGACY_GAMES_TABLE[ll - 2] ?? 0;
+      const nextTh = LEGACY_GAMES_TABLE[ll - 1];
+      if (nextTh != null && nextTh > prev) {
+        const frac = Math.min(1, Math.max(0, ((raw.games || 0) - prev) / (nextTh - prev)));
+        carried = Math.round(frac * cost);
+      }
+    }
+    next.mana = { ...base.mana, ...(raw.mana || {}), balance: carried };
+  }
 
   // Burden-и: було три наперед створені слоти з вибором типу.
   if (Array.isArray(raw.burdens) && raw.burdens.some((b) => b && b.size === undefined)) {
@@ -147,7 +166,7 @@ export function normalizePilotState(raw) {
     confirmed: raw.bond?.confirmed ?? ((raw.bond?.archetype || '').trim() !== ''),
   };
 
-  next.mana = { ...base.mana, ...(raw.mana || {}) };
+  if (raw.pr != null) next.mana = { ...base.mana, ...(raw.mana || {}) };
   next.shop = { ...base.shop, ...(raw.shop || {}) };
   next.hangar = { ...base.hangar, ...(raw.hangar || {}) };
   next.mechs = (raw.mechs || []).map(({ dc, ...m }) => m);
