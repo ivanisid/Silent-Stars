@@ -135,14 +135,16 @@ export function limitedRefillPr(baseMax) {
   return LIMITED_REFILL_PR[n];
 }
 
-// Магазин за ману. Ремонт переїхав на PR (PR_SERVICES), тож тут лишається тільки те,
-// що за новими правилами купується саме маною.
-// «3 Лімітні заряди» і «Заряд Core Power» у нових правилах не згадані взагалі — ні ціни
-// в мані, ні в PR. Лишені зі старими цінами, доки їх доля не визначена.
+// Скільки PR дає пачка, куплена за ману. Ціна пачки збігається з курсом, за яким
+// стара мана переводилась у PR (200 мани = 10 PR).
+export const PR_PACK_SIZE = 10;
+
+// Luxury shop — те, що купується маною. Ремонт за PR живе окремо, у PR_SERVICES.
+// needsMech: покупка застосовується до конкретного меха; пачка PR іде пілоту.
 export const SHOP_DATA = [
-  { key: 'fullrepair', title: 'Повний ремонт / передрук меха', price: 500 },
-  { key: 'charges3', title: '3 Лімітні заряди', price: 300, unspecified: true },
-  { key: 'core', title: 'Заряд Core Power', price: 1000, unspecified: true },
+  { key: 'fullrepair', title: 'Повний ремонт / передрук меха', price: 500, needsMech: true },
+  { key: 'core', title: 'Заряд Core Power', price: 250, needsMech: true },
+  { key: 'prpack', title: `Printer Requisition · ${PR_PACK_SIZE} шт`, price: 200, needsMech: false },
 ];
 
 // Передмісійні дії — 1 заряд на місію. Назви й тригери взяті з правил; таблиці
