@@ -104,9 +104,6 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus 
         <div style={{ fontSize: 12, color: view.canLevelUp ? 'var(--accent)' : 'var(--text-dim)', whiteSpace: 'nowrap' }}>
           {view.llNextLabel}
         </div>
-        <button className="btn" type="button" onClick={() => dispatch({ type: 'INC_GAME' })} style={{ whiteSpace: 'nowrap' }}>
-          + ЗАПИСАТИ ГРУ
-        </button>
         {/* Рівень не піднімається сам при накопиченні мани — це явна покупка. */}
         {view.levelCost != null && (
           <button
