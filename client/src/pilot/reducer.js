@@ -77,10 +77,8 @@ export function pilotReducer(state, action) {
       const next = state.status === 'active' ? 'archive' : 'active';
       return log({ ...state, status: next }, `Статус: ${state.status} → ${next}`);
     }
-    case 'INC_GAME': {
-      const next = state.games + 1;
-      return log({ ...state, games: next }, `Гра записана: ${state.games} → ${next}`);
-    }
+    // Ручного додавання гри більше немає: лічильник веде сервер, коли ГМ закриває
+    // слот (gm_resolve_slot). Кнопка лишалася з часів, коли з ігор виводився рівень.
     case 'TOGGLE_LL_EDIT': {
       const open = !state.llEdit.open;
       return {
