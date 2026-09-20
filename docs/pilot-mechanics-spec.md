@@ -118,16 +118,14 @@
 
 ### Downtime за новими правилами
 
-**Передмісійні дії** (1 заряд на місію) перейменовані за правилами, з їхніми тригерами:
+**Передмісійний даунтайм прибраний із чарника** разом із `MISSION_DOWNTIME_DATA`: ці
+кидки відбуваються за столом, і панель лише дублювала їх. Сам перелік дій (Scrounge and
+Barter, Gather information, Get connected) з тригерами й таблицями наслідків лишився в
+історії git — комміт перед видаленням.
 
-| Ключ | Дія | Тригери |
-|---|---|---|
-| `barter` | Scrounge and Barter | Read a Situation / Get a Hold of Something / Charm / Word on the Street |
-| `info` | Gather information | Investigate / Pull Rank / Spot / Word on the Street / Act Unseen or Unheard |
-| `contact` | Get connected | Stay Cool / Show Off / Lead or Inspire / Get a Hold of Something / Charm |
-
-Таблиці наслідків за результатом кидка лишені як були — це гомбрю, правила їх не задають
-(там сказано лише, що ціну дії конкретизує ГМ).
+Кнопка «НОВА МІСІЯ» жила в шапці тієї панелі й скидала не лише місійний заряд, а й
+безкоштовну покупку мех-резерву. Тому вона переїхала у вкладку RESERVES магазину, поруч
+із лічильником цієї покупки.
 
 **Щотижневі дії** (1 заряд на тиждень) перебудовані з тір-гейтом через поле `minTier`:
 

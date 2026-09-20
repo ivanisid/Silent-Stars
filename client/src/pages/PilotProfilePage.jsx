@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { pilotReducer } from '../pilot/reducer';
 import { normalizePilotState } from '../pilot/pilotDefaults';
-import { MISSION_DOWNTIME_DATA, WEEKLY_DOWNTIME_DATA } from '../pilot/constants';
+import { WEEKLY_DOWNTIME_DATA } from '../pilot/constants';
 
 import Header from '../pilot/components/Header.jsx';
 import SyncTools from '../pilot/components/SyncTools.jsx';
@@ -150,15 +150,8 @@ export default function PilotProfilePage() {
         <MechsPanel state={state} dispatch={dispatch} />
         <SkillTriggers state={state} dispatch={dispatch} />
         <ContactsPanel state={state} dispatch={dispatch} />
-        <DowntimePanel
-          state={state}
-          dispatch={dispatch}
-          data={MISSION_DOWNTIME_DATA}
-          pool="mission"
-          title="ДАУНТАЙМ"
-          capLabel="1 / НА МІСІЮ"
-          resetLabel="НОВА МІСІЯ"
-        />
+        {/* Передмісійний даунтайм із чарника прибраний: ці кидки відбуваються за
+            столом. Лишився тільки щотижневий. */}
         <DowntimePanel
           state={state}
           dispatch={dispatch}

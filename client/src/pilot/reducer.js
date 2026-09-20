@@ -2,7 +2,6 @@ import {
   SHOP_DATA,
   PR_PACK_SIZE,
   HANGAR_DATA,
-  MISSION_DOWNTIME_DATA,
   WEEKLY_DOWNTIME_DATA,
   PR_SERVICES,
   PR_CAP_BASE,
@@ -32,7 +31,7 @@ import {
 import { mergeMechsByName } from './compconImport';
 import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft, reserveIsFreeBuy } from './reserves';
 
-const ALL_DOWNTIME_DATA = [...MISSION_DOWNTIME_DATA, ...WEEKLY_DOWNTIME_DATA];
+const ALL_DOWNTIME_DATA = WEEKLY_DOWNTIME_DATA;
 
 function log(state, msg) {
   return { ...state, actionLog: pushLog(state.actionLog, msg) };

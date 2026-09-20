@@ -159,12 +159,24 @@ function ReservesTab({ state, dispatch }) {
           ))}
         </div>
 
-        <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginTop: 8, lineHeight: 1.5 }}>
-          Без downtime-дії — один мех-резерв на місію. Залишок:{' '}
-          <b style={{ color: freeLeft > 0 ? 'var(--accent)' : 'var(--text-dimmer)' }}>
-            {freeLeft}/{state.reserveFreeBuy.max}
-          </b>
-          . Інші категорії та кожна наступна покупка — з дією.
+        {/* Скидання нової місії жило в шапці передмісійного даунтайму; та панель
+            прибрана, а безкоштовна покупка резерву все одно поновлюється щомісії. */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 8 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-dimmer)', lineHeight: 1.5, flex: 1 }}>
+            Без downtime-дії — один мех-резерв на місію. Залишок:{' '}
+            <b style={{ color: freeLeft > 0 ? 'var(--accent)' : 'var(--text-dimmer)' }}>
+              {freeLeft}/{state.reserveFreeBuy.max}
+            </b>
+            . Інші категорії та кожна наступна покупка — з дією.
+          </div>
+          <button
+            className="btn-ghost"
+            type="button"
+            style={{ fontSize: 10, padding: '4px 8px', whiteSpace: 'nowrap' }}
+            onClick={() => dispatch({ type: 'RESET_CHARGES' })}
+          >
+            НОВА МІСІЯ
+          </button>
         </div>
 
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 10 }}>
