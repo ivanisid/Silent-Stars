@@ -5,7 +5,6 @@ import {
   RESERVE_CATEGORIES,
   RESERVE_RANK_PR,
   reserveByKey,
-  reserveIsFreeBuy,
 } from '../reserves';
 
 const TABS = [
@@ -89,12 +88,13 @@ function serviceMinCost(svc) {
 }
 
 // Додатковий ремонт за PR. Раніше жив окремо на панелі PRINTER REQUISITION — переїхав
-// сюди, щоб усі покупки були в одному місці.
+// сюди, щоб усі покупки були в одному місці. Чи потрібна downtime-дія — питання правил
+// за столом, додаток його не стежить.
 function RepairTab({ state, dispatch }) {
   return (
     <div style={{ padding: '8px 0 20px 0' }}>
       <div style={{ padding: '10px 20px 4px 20px', fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>
-        ДОДАТКОВИЙ РЕМОНТ · DOWNTIME «PRINTER USE»
+        ДОДАТКОВИЙ РЕМОНТ
       </div>
       {PR_SERVICES.map((svc) => {
         const affordable = state.pr >= serviceMinCost(svc);
@@ -128,8 +128,6 @@ function ReservesTab({ state, dispatch }) {
     (r) => r.rank === rank && (category === 'all' || r.category === category),
   );
   const cost = RESERVE_RANK_PR[rank];
-  const freeUsed = state.reserveFreeBuy.used;
-  const freeLeft = Math.max(0, state.reserveFreeBuy.max - freeUsed);
   const cats = RESERVE_CATEGORIES.filter((c) => RESERVES.some((r) => r.rank === rank && r.category === c.key));
 
   return (
@@ -159,25 +157,6 @@ function ReservesTab({ state, dispatch }) {
           ))}
         </div>
 
-        {/* Скидання нової місії жило в шапці передмісійного даунтайму; та панель
-            прибрана, а безкоштовна покупка резерву все одно поновлюється щомісії. */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 8 }}>
-          <div style={{ fontSize: 10, color: 'var(--text-dimmer)', lineHeight: 1.5, flex: 1 }}>
-            Без downtime-дії — один мех-резерв на місію. Залишок:{' '}
-            <b style={{ color: freeLeft > 0 ? 'var(--accent)' : 'var(--text-dimmer)' }}>
-              {freeLeft}/{state.reserveFreeBuy.max}
-            </b>
-            . Інші категорії та кожна наступна покупка — з дією.
-          </div>
-          <button
-            className="btn-ghost"
-            type="button"
-            style={{ fontSize: 10, padding: '4px 8px', whiteSpace: 'nowrap' }}
-            onClick={() => dispatch({ type: 'RESET_CHARGES' })}
-          >
-            НОВА МІСІЯ
-          </button>
-        </div>
 
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 10 }}>
           {[{ key: 'all', label: 'УСІ' }, ...cats].map((c) => (
@@ -209,34 +188,21 @@ function ReservesTab({ state, dispatch }) {
       <div style={{ padding: '10px 0 20px 0' }}>
         {list.map((r) => {
           const affordable = state.pr >= cost;
-          const free = reserveIsFreeBuy(r, freeUsed);
           return (
             <div key={r.key} style={{ padding: '12px 20px', borderTop: '1px solid var(--rule)' }}>
               <div style={{ fontSize: 12, color: 'var(--text-bright)' }}>{r.name}</div>
               <div style={{ fontSize: 11, color: 'var(--text-soft-dim)', lineHeight: 1.55, marginTop: 5 }}>{r.desc}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{cost} PR</div>
-                {free ? (
-                  <button
-                    className="btn"
-                    type="button"
-                    disabled={!affordable}
-                    style={{ marginLeft: 'auto', fontSize: 11, opacity: affordable ? 1 : 0.55, cursor: affordable ? 'pointer' : 'not-allowed' }}
-                    onClick={() => dispatch({ type: 'BUY_RESERVE', key: r.key })}
-                  >
-                    ПРИДБАТИ БЕЗ ДІЇ
-                  </button>
-                ) : (
-                  <button
-                    className="btn-ghost"
-                    type="button"
-                    disabled={!affordable}
-                    style={{ marginLeft: 'auto', fontSize: 11, padding: '6px 12px', opacity: affordable ? 1 : 0.55, cursor: affordable ? 'pointer' : 'not-allowed' }}
-                    onClick={() => dispatch({ type: 'BUY_RESERVE', key: r.key, withAction: true })}
-                  >
-                    ПРИДБАТИ З ДІЄЮ
-                  </button>
-                )}
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={!affordable}
+                  style={{ marginLeft: 'auto', fontSize: 11, opacity: affordable ? 1 : 0.55, cursor: affordable ? 'pointer' : 'not-allowed' }}
+                  onClick={() => dispatch({ type: 'BUY_RESERVE', key: r.key })}
+                >
+                  ПРИДБАТИ
+                </button>
               </div>
             </div>
           );
