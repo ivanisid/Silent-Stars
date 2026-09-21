@@ -15,17 +15,6 @@ export const RESERVE_CATEGORIES = [
 // Ціна за рангом.
 export const RESERVE_RANK_PR = { 1: 10, 2: 20, 3: 40 };
 
-// Без downtime-дії можна купити лише мех-резерв і лише один. Усе інше — інші категорії
-// або друга покупка — потребує дії.
-export const RESERVE_FREE_BUY_CATEGORY = 'mech';
-export const RESERVE_FREE_BUY_MAX = 1;
-
-// Чи можна взяти цей резерв без дії, за наявного залишку безкоштовних покупок.
-export function reserveIsFreeBuy(def, freeUsed) {
-  if (!def) return false;
-  return def.category === RESERVE_FREE_BUY_CATEGORY && freeUsed < RESERVE_FREE_BUY_MAX;
-}
-
 // Резерви з переліку «Адаптовані запчастини»: з цим покращенням ангару вони живуть
 // не одну гру, а дві (рівень 1) чи три (рівень 2).
 export const ADAPTED_PARTS_KEYS = [

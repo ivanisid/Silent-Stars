@@ -29,7 +29,7 @@ import {
   skillCapUsed,
 } from './logic';
 import { mergeMechsByName } from './compconImport';
-import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft, reserveIsFreeBuy } from './reserves';
+import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft } from './reserves';
 
 const ALL_DOWNTIME_DATA = WEEKLY_DOWNTIME_DATA;
 
@@ -377,15 +377,14 @@ export function pilotReducer(state, action) {
         downtime: { ...state.downtime, modifiers: { ...state.downtime.modifiers, [action.key]: action.mod } },
       };
     case 'RESET_CHARGES': {
-      const weekly = action.pool === 'weekly';
-      const field = weekly ? 'weeklyCharges' : 'downtimeCharges';
-      const msg = weekly ? 'Тижневі заряди скинуто (новий тиждень)' : 'Даунтайм-заряди скинуто (нова місія)';
-      // Нова місія повертає і безкоштовну покупку мех-резерву.
-      const extra = weekly ? {} : { reserveFreeBuy: { ...state.reserveFreeBuy, used: 0 } };
-      return log({ ...state, [field]: { ...state[field], used: 0 }, ...extra }, msg);
+      return log(
+        { ...state, weeklyCharges: { ...state.weeklyCharges, used: 0 } },
+        'Тижневі заряди скинуто (новий тиждень)',
+      );
     }
+    // Лишився тільки щотижневий пул: передмісійний даунтайм прибраний із чарника.
     case 'ROLL_DOWNTIME': {
-      const field = action.pool === 'weekly' ? 'weeklyCharges' : 'downtimeCharges';
+      const field = 'weeklyCharges';
       const { used, max } = state[field];
       if (used >= max) return state;
       const def = ALL_DOWNTIME_DATA.find((d) => d.key === action.key);
@@ -682,83 +681,6 @@ export function pilotReducer(state, action) {
       return log(nextState, `${mech.name}: «${svc.title}» за ${cost} PR (PR ${before} → ${before - cost})`);
     }
 
-    // ---------- Резерви ----------
-    case 'SET_SHOP_TAB':
-      return { ...state, shop: { ...state.shop, tab: action.tab, item: null, error: '' } };
-    // Купівля резерву. Без downtime-дії дозволено рівно один мех-резерв; інші категорії
-    // та кожна наступна покупка йдуть «з дією» — саму дію додаток не списує, бо правила
-    // не кажуть, яка це дія.
-    case 'BUY_RESERVE': {
-      const def = reserveByKey(action.key);
-      if (!def) return state;
-      const cost = RESERVE_RANK_PR[def.rank];
-      if (cost > state.pr) return { ...state, shop: { ...state.shop, error: 'Недостатньо PR.' } };
-
-      const free = reserveIsFreeBuy(def, state.reserveFreeBuy.used);
-      if (!free && !action.withAction) {
-        return {
-          ...state,
-          shop: {
-            ...state.shop,
-            error:
-              def.category === 'mech'
-                ? 'Безкоштовну покупку вже використано — потрібна downtime-дія.'
-                : 'Без downtime-дії можна взяти лише мех-резерв.',
-          },
-        };
-      }
-
-      const gamesLeft = reserveGamesLeft(def.key, state.hangar.owned);
-      const entry = { id: newId(state.reserves), key: def.key, source: 'pr', gamesLeft };
-      const before = state.pr;
-      const next = {
-        ...state,
-        pr: before - cost,
-        reserves: [...state.reserves, entry],
-        reserveFreeBuy: free
-          ? { ...state.reserveFreeBuy, used: state.reserveFreeBuy.used + 1 }
-          : state.reserveFreeBuy,
-        shop: { ...state.shop, error: '' },
-      };
-      return log(
-        next,
-        `Резерв «${def.name}» (ранг ${def.rank}) за ${cost} PR` +
-          (free ? ' — без дії' : ' — з downtime-дією') +
-          (gamesLeft > 1 ? `, діє ${gamesLeft} ігор` : '') +
-          ` (PR ${before} → ${before - cost})`,
-      );
-    }
-    case 'REMOVE_RESERVE': {
-      const entry = state.reserves.find((r) => r.id === action.id);
-      if (!entry) return state;
-      const def = reserveByKey(entry.key);
-      return log(
-        { ...state, reserves: state.reserves.filter((r) => r.id !== action.id) },
-        `Резерв «${def?.name || entry.key}» використано або прибрано`,
-      );
-    }
-    // Кінець місії: куплені резерви згорають, крім тих, що живуть кілька ігор,
-    // і тих, що отримані за Get Creative (gamesLeft === null).
-    case 'BURN_MISSION_RESERVES': {
-      if (state.reserves.length === 0) return state;
-      const kept = [];
-      const burned = [];
-      state.reserves.forEach((r) => {
-        if (r.gamesLeft == null) return kept.push(r);
-        const left = r.gamesLeft - 1;
-        if (left > 0) kept.push({ ...r, gamesLeft: left });
-        else burned.push(r);
-      });
-      if (burned.length === 0 && kept.length === state.reserves.length) {
-        return log({ ...state, reserves: kept }, 'Кінець місії: термін дії резервів оновлено');
-      }
-      const names = burned.map((r) => reserveByKey(r.key)?.name || r.key).join(', ');
-      return log(
-        { ...state, reserves: kept },
-        `Кінець місії: згоріло резервів — ${burned.length}${names ? ` (${names})` : ''}`,
-      );
-    }
-
     // ---------- Get Creative ----------
     // Один проєкт за раз. Щотижнева дія витрачається на початок: далі перед кожною
     // місією кидається Д20, який заповнює секції за результатом (1–9 → 1, 10–19 → 2,
@@ -825,28 +747,13 @@ export function pilotReducer(state, action) {
     // Відкрити шухляду одразу на потрібній вкладці — з панелі PR, щоб не шукати її вручну.
     case 'OPEN_SHOP_TAB':
       return { ...state, shop: { ...state.shop, open: true, tab: action.tab, item: null, error: '' } };
-    // Купівля резерву. Без downtime-дії дозволено рівно один мех-резерв; інші категорії
-    // та кожна наступна покупка йдуть «з дією» — саму дію додаток не списує, бо правила
-    // не кажуть, яка це дія.
+    // Купівля резерву за PR без обмежень: чи потрібна downtime-дія — питання правил
+    // за столом, додаток його не стежить.
     case 'BUY_RESERVE': {
       const def = reserveByKey(action.key);
       if (!def) return state;
       const cost = RESERVE_RANK_PR[def.rank];
       if (cost > state.pr) return { ...state, shop: { ...state.shop, error: 'Недостатньо PR.' } };
-
-      const free = reserveIsFreeBuy(def, state.reserveFreeBuy.used);
-      if (!free && !action.withAction) {
-        return {
-          ...state,
-          shop: {
-            ...state.shop,
-            error:
-              def.category === 'mech'
-                ? 'Безкоштовну покупку вже використано — потрібна downtime-дія.'
-                : 'Без downtime-дії можна взяти лише мех-резерв.',
-          },
-        };
-      }
 
       const gamesLeft = reserveGamesLeft(def.key, state.hangar.owned);
       const entry = { id: newId(state.reserves), key: def.key, source: 'pr', gamesLeft };
@@ -855,15 +762,11 @@ export function pilotReducer(state, action) {
         ...state,
         pr: before - cost,
         reserves: [...state.reserves, entry],
-        reserveFreeBuy: free
-          ? { ...state.reserveFreeBuy, used: state.reserveFreeBuy.used + 1 }
-          : state.reserveFreeBuy,
         shop: { ...state.shop, error: '' },
       };
       return log(
         next,
         `Резерв «${def.name}» (ранг ${def.rank}) за ${cost} PR` +
-          (free ? ' — без дії' : ' — з downtime-дією') +
           (gamesLeft > 1 ? `, діє ${gamesLeft} ігор` : '') +
           ` (PR ${before} → ${before - cost})`,
       );
