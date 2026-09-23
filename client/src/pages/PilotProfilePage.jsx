@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { pilotReducer } from '../pilot/reducer';
 import { normalizePilotState } from '../pilot/pilotDefaults';
-import { WEEKLY_DOWNTIME_DATA } from '../pilot/constants';
+// import { WEEKLY_DOWNTIME_DATA } from '../pilot/constants'; — разом із панелі простою
 
 import Header from '../pilot/components/Header.jsx';
 import SyncTools from '../pilot/components/SyncTools.jsx';
@@ -13,7 +13,10 @@ import PrPanel from '../pilot/components/PrPanel.jsx';
 import ShopDrawer from '../pilot/components/ShopDrawer.jsx';
 import BondMenu from '../pilot/components/BondMenu.jsx';
 import SkillTriggers from '../pilot/components/SkillTriggers.jsx';
-import DowntimePanel from '../pilot/components/DowntimePanel.jsx';
+// Панель «ЧАС ПРОСТОЮ» схована цілком — так само, як ангар. Разом з нею з чарника
+// пішов і трекер Get Creative, який жив усередині картки, та опції Get rest.
+// Компонент, WEEKLY_DOWNTIME_DATA і всі екшени редюсера лишились на місці.
+// import DowntimePanel from '../pilot/components/DowntimePanel.jsx';
 import ContactsPanel from '../pilot/components/ContactsPanel.jsx';
 // ActionLog is deliberately not rendered — it was dropped from the sheet, but the
 // component and its reducer state are untouched, so bringing it back is an import
@@ -153,17 +156,8 @@ export default function PilotProfilePage() {
         <MechsPanel state={state} dispatch={dispatch} />
         <SkillTriggers state={state} dispatch={dispatch} />
         <ContactsPanel state={state} dispatch={dispatch} />
-        {/* Передмісійний даунтайм із чарника прибраний: ці кидки відбуваються за
-            столом. Лишився тільки щотижневий. */}
-        <DowntimePanel
-          state={state}
-          dispatch={dispatch}
-          data={WEEKLY_DOWNTIME_DATA}
-          pool="weekly"
-          title="ЧАС ПРОСТОЮ"
-          capLabel="1 / НА ТИЖДЕНЬ"
-          resetLabel="НОВИЙ ТИЖДЕНЬ"
-        />
+        {/* Даунтайм прибраний з чарника цілком: передмісійний — раніше, щотижневий
+            «ЧАС ПРОСТОЮ» — тепер. Ці дії живуть у правилах і заявках, не тут. */}
         {/* <HangarPanel state={state} dispatch={dispatch} /> — схована, див. імпорт вище */}
         <NarrativeEditor state={state} dispatch={dispatch} />
         {/* Один журнал для обох ролей: свої операції гравець відкочує сам, чужі —
