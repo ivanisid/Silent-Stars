@@ -25,8 +25,9 @@ export const MAX_LL = 12;
 
 // Підвищення рівня безкоштовно дає перерозподіл мех-скілів повністю, одного таланту
 // й однієї ліцензії. Повний перерозподіл усіх талантів або всіх ліцензій коштує
-// додатково по стільки мани кожен.
-export const REDISTRIBUTE_ALL_COST = 100;
+// додатково — таланти дешевші за ліцензії.
+export const REDISTRIBUTE_TALENTS_COST = 50;
+export const REDISTRIBUTE_LICENSES_COST = 100;
 
 // ---------- Бонди ----------
 // Перший major ideal у кожного бонду свій (у The Harlequin — «I addressed challenges with

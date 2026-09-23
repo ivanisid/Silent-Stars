@@ -1,4 +1,9 @@
-import { LEVEL_UP_GRANTS, LEVEL_UP_WARNING, REDISTRIBUTE_ALL_COST } from '../../constants';
+import {
+  LEVEL_UP_GRANTS,
+  LEVEL_UP_WARNING,
+  REDISTRIBUTE_TALENTS_COST,
+  REDISTRIBUTE_LICENSES_COST,
+} from '../../constants';
 import { manaLevelCost } from '../../logic';
 import { MechSelect } from './shared';
 
@@ -34,7 +39,8 @@ export default function LevelUpModal({ state, dispatch }) {
 
   const base = manaLevelCost(state.ll);
   const extras =
-    (lu.allTalents ? REDISTRIBUTE_ALL_COST : 0) + (lu.allLicenses ? REDISTRIBUTE_ALL_COST : 0);
+    (lu.allTalents ? REDISTRIBUTE_TALENTS_COST : 0) +
+    (lu.allLicenses ? REDISTRIBUTE_LICENSES_COST : 0);
   const total = base + extras;
   const after = state.mana.balance - total;
   const affordable = after >= 0;
@@ -79,13 +85,13 @@ export default function LevelUpModal({ state, dispatch }) {
               <Extra
                 label="Перерозподілити всі таланти"
                 checked={lu.allTalents}
-                cost={REDISTRIBUTE_ALL_COST}
+                cost={REDISTRIBUTE_TALENTS_COST}
                 onToggle={() => dispatch({ type: 'TOGGLE_LEVEL_UP_EXTRA', field: 'allTalents' })}
               />
               <Extra
                 label="Перерозподілити всі ліцензії"
                 checked={lu.allLicenses}
-                cost={REDISTRIBUTE_ALL_COST}
+                cost={REDISTRIBUTE_LICENSES_COST}
                 onToggle={() => dispatch({ type: 'TOGGLE_LEVEL_UP_EXTRA', field: 'allLicenses' })}
               />
             </div>
