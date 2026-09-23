@@ -17,7 +17,9 @@ import SkillTriggers from '../pilot/components/SkillTriggers.jsx';
 // пішов і трекер Get Creative, який жив усередині картки, та опції Get rest.
 // Компонент, WEEKLY_DOWNTIME_DATA і всі екшени редюсера лишились на місці.
 // import DowntimePanel from '../pilot/components/DowntimePanel.jsx';
-import ContactsPanel from '../pilot/components/ContactsPanel.jsx';
+// Панель контактів схована — як ангар і час простою. Компонент, поле state.contacts
+// і три екшени редюсера лишились на місці; записані контакти в базі не чіпані.
+// import ContactsPanel from '../pilot/components/ContactsPanel.jsx';
 // ActionLog is deliberately not rendered — it was dropped from the sheet, but the
 // component and its reducer state are untouched, so bringing it back is an import
 // and a line. The projects panel is gone entirely: its slot is now the Get Creative
@@ -155,7 +157,7 @@ export default function PilotProfilePage() {
         <BondMenu state={state} dispatch={dispatch} />
         <MechsPanel state={state} dispatch={dispatch} />
         <SkillTriggers state={state} dispatch={dispatch} />
-        <ContactsPanel state={state} dispatch={dispatch} />
+        {/* <ContactsPanel state={state} dispatch={dispatch} /> — схована, див. імпорт вище */}
         {/* Даунтайм прибраний з чарника цілком: передмісійний — раніше, щотижневий
             «ЧАС ПРОСТОЮ» — тепер. Ці дії живуть у правилах і заявках, не тут. */}
         {/* <HangarPanel state={state} dispatch={dispatch} /> — схована, див. імпорт вище */}
