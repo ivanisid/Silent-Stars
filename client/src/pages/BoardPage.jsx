@@ -11,11 +11,23 @@ import DateTimeField from '../components/DateTimeField.jsx';
 const GOLD = 'var(--gm-ink)';
 const GOLD_DIM = 'var(--gm-dim)';
 
+// Дати слоту необов'язкові, тож null сюди приходить штатно. Перевірка на null окрема
+// від перевірки на Invalid Date: new Date(null) — це не помилка, а 1970 рік, і без
+// цього рядка слот без дати показував би «01.01.1970».
 function formatDT(iso) {
+  if (iso == null || iso === '') return 'не вказано';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   const pad = (n) => String(n).padStart(2, '0');
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Дедлайн, якого немає, не може минути. Та сама пастка з new Date(null) = 1970:
+// без цієї перевірки кожен слот без дедлайну вважався б протермінованим.
+function deadlineIsPast(iso) {
+  if (iso == null || iso === '') return false;
+  const d = new Date(iso);
+  return !Number.isNaN(d.getTime()) && d < new Date();
 }
 
 // The badge sits on the card header, whose background is the theme's saturated primary
@@ -28,7 +40,7 @@ function statusBadge(slot) {
   if (slot.status === 'closed') return { text: 'ГРА ЗАВЕРШЕНА', strong: true };
   if (slot.status === 'approved') return { text: 'СКЛАД ЗАТВЕРДЖЕНО · ЗАПИС ЗАКРИТО', strong: true };
   // The deadline is a hint for players, not a lock — only the GM closing the slot ends signup.
-  if (new Date(slot.signupDeadline) < new Date()) return { text: 'ДЕДЛАЙН МИНУВ · НАБІР ЩЕ ВІДКРИТО', strong: true };
+  if (deadlineIsPast(slot.signupDeadline)) return { text: 'ДЕДЛАЙН МИНУВ · НАБІР ЩЕ ВІДКРИТО', strong: true };
   return { text: 'НАБІР ВІДКРИТО', strong: false };
 }
 
@@ -114,8 +126,7 @@ function CreateSlotForm({ onCreated }) {
 
   async function submit(e) {
     e.preventDefault();
-    if (!gameAt) return setError('Вкажіть дату проведення гри.');
-    if (!deadline) return setError('Вкажіть дату закінчення набору.');
+    // Дати необов'язкові: слот може існувати як «колись зіграємо», без розкладу.
     const seatsNum = Number(seats);
     if (!Number.isInteger(seatsNum) || seatsNum < 1) return setError('Кількість місць — ціле число від 1.');
     const manaNum = Number(rewardMana);
@@ -128,8 +139,8 @@ function CreateSlotForm({ onCreated }) {
       await api.gmCreateSlot({
         title,
         description,
-        gameAt: gameAt.toISOString(),
-        signupDeadline: deadline.toISOString(),
+        gameAt: gameAt ? gameAt.toISOString() : null,
+        signupDeadline: deadline ? deadline.toISOString() : null,
         seats: seatsNum,
         rewardMana: manaNum,
         rewardPr: prNum,
@@ -173,8 +184,8 @@ function CreateSlotForm({ onCreated }) {
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Короткий опис гри…" style={{ width: '100%', padding: '9px 12px', fontSize: 13, lineHeight: 1.6, resize: 'vertical' }} />
         </div>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-          <DateTimeField label="ДАТА ПРОВЕДЕННЯ" value={gameAt} onChange={setGameAt} />
-          <DateTimeField label="КІНЕЦЬ НАБОРУ" value={deadline} onChange={setDeadline} />
+          <DateTimeField label="ДАТА ПРОВЕДЕННЯ (ОПЦІОНАЛЬНО)" value={gameAt} onChange={setGameAt} />
+          <DateTimeField label="КІНЕЦЬ НАБОРУ (ОПЦІОНАЛЬНО)" value={deadline} onChange={setDeadline} />
           <div>
             <div className="field-label">МІСЦЬ</div>
             <input type="number" min={1} max={20} value={seats} onChange={(e) => setSeats(e.target.value)} style={{ width: 70, padding: '8px 10px', fontSize: 13 }} />
@@ -226,7 +237,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
   const awarded = slot.signups.filter((g) => g.approved === true).length;
   const mySignup = slot.signups.find((g) => g.userId === user.id);
   const contest = slot.signups.length > slot.seats;
-  const deadlinePassed = new Date(slot.signupDeadline) < new Date();
+  const deadlinePassed = deadlineIsPast(slot.signupDeadline);
   // Running the game is what grants the controls, not being a GM: another GM is an
   // ordinary player here, and the person running it does not play in it.
   const ownsSlot = slot.createdBy === user.id;
@@ -320,7 +331,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
             <span style={{ fontSize: 11, color: 'var(--text-soft-dim)', lineHeight: 1.6 }}>
               {awarded > 0
                 ? `Нагороди нараховано · ${awarded} ${pluralPilots(awarded)} · ${slot.rewardMana} М кожному` +
-                  `${slot.rewardPr > 0 ? ` · ${slot.rewardPr} PR` : ''} · +1 зіграна гра`
+                  `${slot.rewardPr > 0 ? ` · ${slot.rewardPr} PR` : ''}`
                 : 'Нікого не затверджено — нагород не нараховано'}
             </span>
           </div>
@@ -573,8 +584,9 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
                 onClick={() => {
                   const msg =
                     `Завершити гру і видати нагороду ${awarded} ${pluralPilots(awarded)}?\n\n` +
-                    `Кожен отримає ${slot.rewardMana} М і +1 зіграну гру, ` +
+                    `Кожен отримає ${slot.rewardMana} М, ` +
                     `а ${slot.rewardPr} PR — у його пул PR (надлишок понад кап згорить). ` +
+                    'Лічильник зіграних ігор оновиться сам — це не нагорода. ' +
                     'Це діє одразу й не скасовується.';
                   if (!window.confirm(msg)) return;
                   run(() => api.gmCloseGame(slot.id));
@@ -653,7 +665,26 @@ export default function BoardPage() {
     // Live games first, then the ones already played, then the abandoned ones.
     const order = { open: 0, approved: 1, closed: 2, cancelled: 3 };
     const rank = (s) => order[s.status] ?? 9;
-    return [...slots].sort((a, b) => rank(a) - rank(b) || new Date(b.gameAt) - new Date(a.gameAt));
+    // Слот без дати проведення йде вгору своєї групи: він ще не запланований, а не
+    // давно минулий. Без цього new Date(null) = 1970 і він провалювався б у кінець.
+    // Всередині «без дати» порядок задає created_at, інакше вони плавають довільно.
+    // Віднімання тут не годиться: два слоти без дати дали б Infinity − Infinity = NaN,
+    // а NaN у компараторі ламає порядок усього списку. Тому явне порівняння.
+    const when = (s) => (s.gameAt ? new Date(s.gameAt).getTime() : null);
+    const byDate = (a, b) => {
+      const x = when(a);
+      const y = when(b);
+      if (x === y) return 0;
+      if (x === null) return -1;
+      if (y === null) return 1;
+      return y - x;
+    };
+    return [...slots].sort(
+      (a, b) =>
+        rank(a) - rank(b) ||
+        byDate(a, b) ||
+        new Date(b.createdAt || 0) - new Date(a.createdAt || 0),
+    );
   }, [slots]);
 
   return (
