@@ -174,24 +174,39 @@ export const api = {
   },
 
   // Reward stays editable until the slot is closed — closing is what pays it out.
+  //
+  // .select() тут не косметика. Без нього PostgREST відповідає «успішно» навіть коли
+  // UPDATE не зачепив жодного рядка — RLS відфільтрувала, слот видалено, id чужий —
+  // і правка нагороди зникає мовчки, а UI показує, що все збережено. Повертаємо рядок
+  // і падаємо, якщо його немає: краще видима помилка, ніж тиха втрата суми.
   gmUpdateSlotReward: async (slotId, { rewardMana, rewardPr }) => {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('game_slots')
       .update({ reward_mana: rewardMana, reward_pr: rewardPr })
-      .eq('id', slotId);
+      .eq('id', slotId)
+      .select('id, reward_mana, reward_pr');
     if (error) throw new Error(error.message);
-    return { ok: true };
+    if (!data || data.length === 0) {
+      throw new Error('Нагороду НЕ збережено — слот не оновився. Оновіть сторінку й спробуйте ще раз.');
+    }
+    return { rewardMana: data[0].reward_mana, rewardPr: data[0].reward_pr };
   },
 
+  // Та сама причина, що й у gmUpdateSlotReward: без .select() нульове оновлення
+  // не відрізнити від успішного.
   gmCancelSlot: async (slotId) => {
-    const { error } = await supabase.from('game_slots').update({ status: 'cancelled' }).eq('id', slotId);
+    const { data, error } = await supabase
+      .from('game_slots').update({ status: 'cancelled' }).eq('id', slotId).select('id');
     if (error) throw new Error(error.message);
+    if (!data || data.length === 0) throw new Error('Слот не скасовано — він не оновився. Оновіть сторінку.');
     return { ok: true };
   },
 
   gmDeleteSlot: async (slotId) => {
-    const { error } = await supabase.from('game_slots').delete().eq('id', slotId);
+    const { data, error } = await supabase
+      .from('game_slots').delete().eq('id', slotId).select('id');
     if (error) throw new Error(error.message);
+    if (!data || data.length === 0) throw new Error('Слот не видалено — рядок не зачепило. Оновіть сторінку.');
     return { ok: true };
   },
 
