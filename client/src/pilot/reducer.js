@@ -625,11 +625,30 @@ export function pilotReducer(state, action) {
       );
     }
 
-    // ---------- DC store (Особистий склад) ----------
+    // ---------- Пул PR ----------
+    // dir — на скільки зсунути; кнопки панелі шлють ±1 і ±10, кап і нуль ріже clamp.
     case 'PR_SHIFT': {
       const next = clamp(state.pr + action.dir, 0, prCap(state));
       if (next === state.pr) return state;
       return log({ ...state, pr: next }, `PR: ${state.pr} → ${next}`);
+    }
+
+    // Транзакція на довільну суму. Форма живе в локальному стані панелі й сама не пускає
+    // сюди те, що не проходить (нуль, від'ємний баланс, перебір капа), тому сюди приходить
+    // уже перевірене число, а перевірки нижче — запобіжник: на відміну від PR_SHIFT ця дія
+    // нічого не ріже мовчки, бо суму назвав гравець і врізана сума була б брехнею.
+    case 'PR_TX': {
+      const amount = Math.floor(Number(action.amount));
+      if (!Number.isFinite(amount) || amount <= 0) return state;
+      const delta = action.mode === 'withdraw' ? -amount : amount;
+      const next = state.pr + delta;
+      if (next < 0 || next > prCap(state)) return state;
+      const note = (action.comment || '').trim();
+      return log(
+        { ...state, pr: next },
+        `PR ${action.mode === 'withdraw' ? '−' : '+'}${amount}: ${state.pr} → ${next}` +
+          (note ? ` · ${note}` : ''),
+      );
     }
 
     // ---------- Витрата PR на додатковий ремонт (prSpend) ----------
