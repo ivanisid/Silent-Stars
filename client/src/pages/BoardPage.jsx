@@ -213,6 +213,9 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
   const [editReward, setEditReward] = useState(false);
   const [rMana, setRMana] = useState(0);
   const [rPr, setRPr] = useState(0);
+  // Збереження нагороди мовчазне: без підтвердження ГМ не відрізняє «зберіг»
+  // від «передумав і закрив редактор».
+  const [savedNote, setSavedNote] = useState('');
 
   const badge = statusBadge(slot);
   const isOpen = slot.status === 'open';
@@ -243,6 +246,41 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
       setError(err.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Редактор закривається лише після підтвердженого збереження. Раніше він закривався
+  // одразу перед запитом, тож невдала правка виглядала як успішна: панель зникала, а на
+  // картці лишалась стара сума — і саме ця сума потім ішла в нагороду.
+  async function saveReward() {
+    const m = Number(rMana);
+    const d = Number(rPr);
+    if (!Number.isInteger(m) || m < 0 || !Number.isInteger(d) || d < 0) {
+      return setError('Нагорода — цілі числа від 0.');
+    }
+    setBusy(true);
+    setError('');
+    setSavedNote('');
+    try {
+      const saved = await api.gmUpdateSlotReward(slot.id, { rewardMana: m, rewardPr: d });
+      await onChanged();
+      setEditReward(false);
+      setSavedNote(`Збережено: ${saved.rewardMana} М · ${saved.rewardPr} PR`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Поля нагороди не в <form>, тож Enter сам по собі нічого не робив: ГМ міг набрати
+  // суму, натиснути Enter і піти далі, вважаючи що зберіг.
+  function onRewardKey(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveReward();
+    } else if (e.key === 'Escape') {
+      setEditReward(false);
     }
   }
 
@@ -475,45 +513,38 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', width: '100%' }}>
                 <div>
                   <div className="field-label">МАНА</div>
-                  <input type="number" min={0} value={rMana} onChange={(e) => setRMana(e.target.value)} style={{ width: 90, padding: '7px 10px', fontSize: 13 }} />
+                  <input type="number" min={0} autoFocus value={rMana} onChange={(e) => setRMana(e.target.value)} onKeyDown={onRewardKey} style={{ width: 90, padding: '7px 10px', fontSize: 13 }} />
                 </div>
                 <div>
                   <div className="field-label">PR</div>
-                  <input type="number" min={0} value={rPr} onChange={(e) => setRPr(e.target.value)} style={{ width: 70, padding: '7px 10px', fontSize: 13 }} />
+                  <input type="number" min={0} value={rPr} onChange={(e) => setRPr(e.target.value)} onKeyDown={onRewardKey} style={{ width: 70, padding: '7px 10px', fontSize: 13 }} />
                 </div>
-                <button
-                  className="btn"
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    const m = Number(rMana);
-                    const d = Number(rPr);
-                    if (!Number.isInteger(m) || m < 0 || !Number.isInteger(d) || d < 0) {
-                      return setError('Нагорода — цілі числа від 0.');
-                    }
-                    setEditReward(false);
-                    run(() => api.gmUpdateSlotReward(slot.id, { rewardMana: m, rewardPr: d }));
-                  }}
-                >
-                  ЗБЕРЕГТИ НАГОРОДУ
+                <button className="btn" type="button" disabled={busy} onClick={saveReward}>
+                  {busy ? 'ЗБЕРІГАЮ…' : 'ЗБЕРЕГТИ НАГОРОДУ'}
                 </button>
                 <button className="btn-ghost" type="button" onClick={() => setEditReward(false)}>
                   СКАСУВАТИ
                 </button>
               </div>
             ) : (
-              <button
-                className="btn-ghost"
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  setRMana(slot.rewardMana);
-                  setRPr(slot.rewardPr);
-                  setEditReward(true);
-                }}
-              >
-                ЗМІНИТИ НАГОРОДУ
-              </button>
+              <>
+                <button
+                  className="btn-ghost"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setRMana(slot.rewardMana);
+                    setRPr(slot.rewardPr);
+                    setSavedNote('');
+                    setEditReward(true);
+                  }}
+                >
+                  ЗМІНИТИ НАГОРОДУ
+                </button>
+                {savedNote && (
+                  <span style={{ fontSize: 11, color: GOLD }}>✓ {savedNote}</span>
+                )}
+              </>
             )}
             {isOpen && (
               <button
@@ -537,7 +568,8 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
               <button
                 className="btn"
                 type="button"
-                disabled={busy}
+                disabled={busy || editReward}
+                title={editReward ? 'Спершу збережіть або скасуйте зміну нагороди' : undefined}
                 onClick={() => {
                   const msg =
                     `Завершити гру і видати нагороду ${awarded} ${pluralPilots(awarded)}?\n\n` +
