@@ -5,7 +5,7 @@ import PilotSelectPage from './pages/PilotSelectPage.jsx';
 import PilotProfilePage from './pages/PilotProfilePage.jsx';
 import GmPanelPage from './pages/GmPanelPage.jsx';
 import BoardPage from './pages/BoardPage.jsx';
-import RareReservesPage from './pages/RareReservesPage.jsx';
+import ReservesPage from './pages/ReservesPage.jsx';
 
 function RequireAuth({ children }) {
   const { isAuthed, ready } = useAuth();
@@ -43,10 +43,10 @@ export default function App() {
         }
       />
       <Route
-        path="/rare"
+        path="/reserves"
         element={
           <RequireAuth>
-            <RareReservesPage />
+            <ReservesPage />
           </RequireAuth>
         }
       />
