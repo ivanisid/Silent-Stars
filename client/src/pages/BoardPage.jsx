@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { llTier } from '../pilot/logic';
 import NavDrawer from '../components/NavDrawer.jsx';
+import { DIFFICULTY_GROUPS, difficultyLabel } from '../difficulty';
 import DateTimeField from '../components/DateTimeField.jsx';
 
 // Gold as *text on a card*, so it stays legible on the light themes; --gm itself is
@@ -42,6 +43,46 @@ function statusBadge(slot) {
   // The deadline is a hint for players, not a lock — only the GM closing the slot ends signup.
   if (deadlineIsPast(slot.signupDeadline)) return { text: 'ДЕДЛАЙН МИНУВ · НАБІР ЩЕ ВІДКРИТО', strong: true };
   return { text: 'НАБІР ВІДКРИТО', strong: false };
+}
+
+// Швидкий вибір складності: три рядки по три, у кожній кнопці видно нагороду,
+// яку вона проставить, і рекомендований ЛЛ. Обрана кнопка підсвічена; повторний клік
+// знімає вибір, бо складність необов'язкова.
+function DifficultyPicker({ value, onPick, compact }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {DIFFICULTY_GROUPS.map((group, i) => (
+        <div key={i} style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+          {group.map((d) => {
+            const active = value === d.key;
+            return (
+              <button
+                key={d.key}
+                type="button"
+                onClick={() => onPick(d)}
+                style={{
+                  flex: '1 1 140px',
+                  textAlign: 'left',
+                  padding: compact ? '5px 8px' : '7px 10px',
+                  fontSize: compact ? 10 : 11,
+                  lineHeight: 1.4,
+                  background: active ? 'var(--header)' : 'var(--input-bg)',
+                  color: active ? 'var(--text-bright)' : 'var(--text-dim)',
+                  border: `1px solid ${active ? GOLD_DIM : 'var(--input-border)'}`,
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ color: active ? GOLD : 'var(--text-soft)' }}>{d.label}</div>
+                <div style={{ fontSize: compact ? 9 : 10, color: 'var(--text-dimmer)' }}>
+                  {d.mana} М · {d.pr} PR · {d.ll}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // 1 пілот · 2 пілоти · 5 пілотів — the ordinary rule, with the 11–14 exception.
@@ -121,6 +162,8 @@ function CreateSlotForm({ onCreated }) {
   const [seats, setSeats] = useState(4);
   const [rewardMana, setRewardMana] = useState(0);
   const [rewardPr, setRewardPr] = useState(0);
+  // Складність — необов'язкова: ГМ може задати нагороду вручну й не обирати її.
+  const [difficulty, setDifficulty] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -144,11 +187,13 @@ function CreateSlotForm({ onCreated }) {
         seats: seatsNum,
         rewardMana: manaNum,
         rewardPr: prNum,
+        difficulty,
       });
       setTitle('');
       setDescription('');
       setGameAt(null);
       setDeadline(null);
+      setDifficulty('');
       setSeats(4);
       setRewardMana(0);
       setRewardPr(0);
@@ -183,6 +228,21 @@ function CreateSlotForm({ onCreated }) {
           <div className="field-label">ОПИС (ОПЦІОНАЛЬНО)</div>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Короткий опис гри…" style={{ width: '100%', padding: '9px 12px', fontSize: 13, lineHeight: 1.6, resize: 'vertical' }} />
         </div>
+        <div>
+          <div className="field-label">СКЛАДНІСТЬ (ОПЦІОНАЛЬНО) — ЗАПОВНЮЄ НАГОРОДУ</div>
+          <DifficultyPicker
+            value={difficulty}
+            onPick={(d) => {
+              // Пресет заповнює обидва поля нагороди; повторний клік знімає вибір,
+              // але вже проставлені числа лишає — їх правлять руками нижче.
+              if (d.key === difficulty) return setDifficulty('');
+              setDifficulty(d.key);
+              setRewardMana(d.mana);
+              setRewardPr(d.pr);
+            }}
+          />
+        </div>
+
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
           <DateTimeField label="ДАТА ПРОВЕДЕННЯ (ОПЦІОНАЛЬНО)" value={gameAt} onChange={setGameAt} />
           <DateTimeField label="КІНЕЦЬ НАБОРУ (ОПЦІОНАЛЬНО)" value={deadline} onChange={setDeadline} />
@@ -224,6 +284,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
   const [editReward, setEditReward] = useState(false);
   const [rMana, setRMana] = useState(0);
   const [rPr, setRPr] = useState(0);
+  const [rDiff, setRDiff] = useState('');
   // Збереження нагороди мовчазне: без підтвердження ГМ не відрізняє «зберіг»
   // від «передумав і закрив редактор».
   const [savedNote, setSavedNote] = useState('');
@@ -273,10 +334,11 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
     setError('');
     setSavedNote('');
     try {
-      const saved = await api.gmUpdateSlotReward(slot.id, { rewardMana: m, rewardPr: d });
+      const saved = await api.gmUpdateSlotReward(slot.id, { rewardMana: m, rewardPr: d, difficulty: rDiff });
       await onChanged();
       setEditReward(false);
-      setSavedNote(`Збережено: ${saved.rewardMana} М · ${saved.rewardPr} PR`);
+      const lbl = difficultyLabel(saved.difficulty);
+      setSavedNote(`Збережено: ${saved.rewardMana} М · ${saved.rewardPr} PR${lbl ? ` · ${lbl}` : ''}`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -371,6 +433,12 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
           <span>НАБІР ДО: <span style={{ color: deadlinePassed && isOpen ? 'var(--warn)' : 'var(--text-bright)' }}>{formatDT(slot.signupDeadline)}</span></span>
           <span>МІСЦЬ: <span style={{ color: 'var(--text-bright)' }}>{slot.seats}</span></span>
           <span>ЗАПИСАЛОСЬ: <span style={{ color: contest ? 'var(--warn)' : 'var(--text-bright)' }}>{slot.signups.length}</span></span>
+          {difficultyLabel(slot.difficulty) && (
+            <span>
+              СКЛАДНІСТЬ:{' '}
+              <span style={{ color: 'var(--text-bright)' }}>{difficultyLabel(slot.difficulty)}</span>
+            </span>
+          )}
           <span>
             НАГОРОДА:{' '}
             <span style={{ color: slot.rewardMana || slot.rewardPr ? GOLD : 'var(--text-dimmer)' }}>
@@ -522,6 +590,19 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', borderTop: `1px solid var(--gm-rule)`, paddingTop: 12 }}>
             {editReward ? (
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', width: '100%' }}>
+                <div style={{ width: '100%' }}>
+                  <div className="field-label">СКЛАДНІСТЬ</div>
+                  <DifficultyPicker
+                    compact
+                    value={rDiff}
+                    onPick={(d) => {
+                      if (d.key === rDiff) return setRDiff('');
+                      setRDiff(d.key);
+                      setRMana(d.mana);
+                      setRPr(d.pr);
+                    }}
+                  />
+                </div>
                 <div>
                   <div className="field-label">МАНА</div>
                   <input type="number" min={0} autoFocus value={rMana} onChange={(e) => setRMana(e.target.value)} onKeyDown={onRewardKey} style={{ width: 90, padding: '7px 10px', fontSize: 13 }} />
@@ -546,6 +627,7 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
                   onClick={() => {
                     setRMana(slot.rewardMana);
                     setRPr(slot.rewardPr);
+                    setRDiff(slot.difficulty || '');
                     setSavedNote('');
                     setEditReward(true);
                   }}
