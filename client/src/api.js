@@ -159,6 +159,38 @@ export const api = {
     return data;
   },
 
+  // ----- Discord -----
+  // Запис через Discord іде в ті ж game_signups; тут лише прив'язка акаунта.
+
+  getDiscordLink: async (userId) => {
+    const { data, error } = await supabase
+      .from('discord_links').select('discord_username, linked_at').eq('user_id', userId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  createDiscordLinkCode: async () => {
+    const { data, error } = await supabase.rpc('discord_create_link_code');
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  unlinkDiscord: async (userId) => {
+    const { error } = await supabase.from('discord_links').delete().eq('user_id', userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
+  // Будь-яка зміна слотів чи записів (зокрема з Discord) → onChange. Повертає відписку.
+  subscribeBoard: (onChange) => {
+    const channel = supabase
+      .channel('board')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_slots' }, onChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_signups' }, onChange)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  },
+
   gmCreateSlot: async ({ title, description, gameAt, signupDeadline, seats, rewardMana, rewardPr, difficulty }) => {
     const { error } = await supabase.from('game_slots').insert({
       title: title.trim(),

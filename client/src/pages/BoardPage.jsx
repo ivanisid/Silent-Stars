@@ -711,6 +711,77 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
   );
 }
 
+// Прив'язка Discord: після неї кнопки під оголошеннями в Discord записують у ту саму
+// дошку від імені цього акаунта. Код одноразовий, живе 15 хвилин.
+function DiscordLink({ user }) {
+  const [link, setLink] = useState(undefined); // undefined — ще вантажиться
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function load() {
+    try {
+      setLink(await api.getDiscordLink(user.id));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id]);
+
+  async function run(fn) {
+    setBusy(true);
+    setError('');
+    try {
+      await fn();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (link === undefined && !error) return null;
+
+  return (
+    <div style={{ border: '1px solid var(--input-border)', background: 'var(--panel-inset)', padding: '10px 14px', marginBottom: 18, fontSize: 12, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+      <span style={{ letterSpacing: 1, color: 'var(--text-dim)' }}>DISCORD:</span>
+      {link ? (
+        <>
+          <span style={{ color: 'var(--text-bright)' }}>прив'язано{link.discord_username ? ` · ${link.discord_username}` : ''}</span>
+          <span style={{ color: 'var(--text-dimmer)' }}>— записуйтесь кнопками під оголошеннями в Discord</span>
+          <button className="btn-ghost" type="button" disabled={busy} style={{ marginLeft: 'auto' }}
+            onClick={() => run(async () => { await api.unlinkDiscord(user.id); setLink(null); setCode(''); })}>
+            ВІДВ'ЯЗАТИ
+          </button>
+        </>
+      ) : code ? (
+        <>
+          <span>Введіть у Discord:</span>
+          <code style={{ color: 'var(--accent)', fontSize: 14, userSelect: 'all' }}>/link {code}</code>
+          <span style={{ color: 'var(--text-dimmer)' }}>(код діє 15 хв)</span>
+          <button className="btn-ghost" type="button" disabled={busy} style={{ marginLeft: 'auto' }}
+            onClick={() => run(load)}>
+            ПЕРЕВІРИТИ
+          </button>
+        </>
+      ) : (
+        <>
+          <span style={{ color: 'var(--text-dimmer)' }}>не прив'язано — прив'яжіть, щоб записуватись на ігри прямо з Discord</span>
+          <button className="btn" type="button" disabled={busy} style={{ marginLeft: 'auto' }}
+            onClick={() => run(async () => setCode(await api.createDiscordLinkCode()))}>
+            ПРИВ'ЯЗАТИ DISCORD
+          </button>
+        </>
+      )}
+      {error && <div className="error-box" style={{ width: '100%' }}>{error}</div>}
+    </div>
+  );
+}
+
 export default function BoardPage() {
   const { user, isGm } = useAuth();
 
@@ -740,6 +811,17 @@ export default function BoardPage() {
 
   useEffect(() => {
     reload();
+    // Записи з Discord (і з інших вкладок) мають з'являтися без F5. Події приходять
+    // пачками — затвердження складу міняє кожен запис — тож перечитуємо раз на пачку.
+    let timer;
+    const unsubscribe = api.subscribeBoard(() => {
+      clearTimeout(timer);
+      timer = setTimeout(reload, 400);
+    });
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -794,6 +876,8 @@ export default function BoardPage() {
             ? <>ВАШ БОНУС ДО КИДКА УЧАСТІ: <span style={{ color: GOLD }}>+{myBonus}</span> (накопичується, поки не виграєте контест)</>
             : 'БОНУСУ ДО КИДКА НЕМАЄ — ВІН НАКОПИЧУЄТЬСЯ ЗА ПРОГРАНІ КОНТЕСТИ'}
         </div>
+
+        {user && <DiscordLink user={user} />}
 
         {loadError && <div className="error-box" style={{ marginBottom: 16 }}>{loadError}</div>}
         {loading && <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>Завантаження…</div>}

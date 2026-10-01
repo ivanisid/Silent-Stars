@@ -1,0 +1,265 @@
+// Interactions Endpoint Discord-бота: слеш-команди (/link, /game, /board) і кнопки під
+// оголошенням гри. Пише в ті ж game_signups / game_slots, що й апка, через discord_*
+// функції в базі — оголошення потім оновлює тригер → discord-sync.
+// Розгортається з verify_jwt = false: Discord підписує запити Ed25519, це і є автентифікація.
+
+import { adminClient, DISCORD_API, syncSlot } from '../_shared/discord.ts';
+
+const db = adminClient();
+
+// ----- Перевірка підпису Discord -----
+
+function hexToBytes(hex: string) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return out;
+}
+
+let publicKey: CryptoKey | null = null;
+async function verify(req: Request, body: string) {
+  const sig = req.headers.get('X-Signature-Ed25519');
+  const stamp = req.headers.get('X-Signature-Timestamp');
+  if (!sig || !stamp) return false;
+  publicKey ??= await crypto.subtle.importKey(
+    'raw', hexToBytes(Deno.env.get('DISCORD_PUBLIC_KEY')!), { name: 'Ed25519' }, false, ['verify'],
+  );
+  return crypto.subtle.verify('Ed25519', publicKey, hexToBytes(sig), new TextEncoder().encode(stamp + body));
+}
+
+// ----- Відповіді -----
+
+const EPHEMERAL = 64;
+const reply = (content: string, extra: Record<string, unknown> = {}) =>
+  Response.json({ type: 4, data: { content, flags: EPHEMERAL, allowed_mentions: { parse: [] }, ...extra } });
+// Оновити ефемерне повідомлення з меню вибору (крок «пілот → мех»).
+const update = (content: string, components: unknown[] = []) =>
+  Response.json({ type: 7, data: { content, components } });
+
+function errText(err: unknown) {
+  const msg = (err as { message?: string })?.message || String(err);
+  return `⚠️ ${msg}`;
+}
+
+async function rpc(fn: string, args: Record<string, unknown>) {
+  const { data, error } = await db.rpc(fn, args);
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// ----- Дати з /game: «ДД.ММ.РРРР ГГ:ХХ» або «ДД.ММ ГГ:ХХ», час київський -----
+
+function kyivOffsetMs(utcMs: number) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Europe/Kyiv', hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(new Date(utcMs)).map((p) => [p.type, p.value]),
+  );
+  const asUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+  return asUtc - utcMs;
+}
+
+function parseKyivDate(input: string | undefined): string | null {
+  if (!input) return null;
+  const m = input.trim().match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?\s+(\d{1,2}):(\d{2})$/);
+  if (!m) throw new Error(`Не розібрав дату «${input}». Формат: ДД.ММ.РРРР ГГ:ХХ, напр. 12.10.2026 19:00`);
+  const [, d, mo, y, h, mi] = m;
+  const now = new Date();
+  let year = y ? (y.length === 2 ? 2000 + +y : +y) : now.getUTCFullYear();
+  const build = (yr: number) => {
+    const naive = Date.UTC(yr, +mo - 1, +d, +h, +mi);
+    return naive - kyivOffsetMs(naive);
+  };
+  let ms = build(year);
+  // Без року — найближча така дата в майбутньому.
+  if (!y && ms < now.getTime() - 86400000) ms = build(++year);
+  return new Date(ms).toISOString();
+}
+
+// ----- Запис на гру -----
+
+async function linkedUserId(discordId: string) {
+  const { data } = await db.from('discord_links').select('user_id').eq('discord_user_id', discordId).maybeSingle();
+  return data?.user_id as string | undefined;
+}
+
+const NOT_LINKED =
+  'Ваш Discord ще не прив\'язаний до апки.\n' +
+  '1. Відкрийте в апці сторінку **«Запис на гру»** і натисніть **«Прив\'язати Discord»**.\n' +
+  '2. Введіть тут `/link <код>`.';
+
+async function activePilots(userId: string) {
+  const { data, error } = await db.from('pilots').select('id, name, callsign, state').eq('user_id', userId)
+    .order('updated_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data || []).filter((p) => p.state?.status !== 'archive');
+}
+
+async function signup(discordId: string, slotId: string, pilot: any, mechId: string | null) {
+  await rpc('discord_signup', { p_discord_id: discordId, p_slot_id: slotId, p_pilot_id: pilot.id, p_mech_id: mechId });
+  const mech = (pilot.state?.mechs || []).find((m: any) => m.id === mechId);
+  return `✅ Записано: **${pilot.callsign}**${mech ? ` на ▮ ${mech.name}` : ''}. Список в оголошенні оновиться за мить.`;
+}
+
+function mechMenu(slotId: string, pilot: any) {
+  const mechs = pilot.state?.mechs || [];
+  return [{
+    type: 1,
+    components: [{
+      type: 3,
+      custom_id: `sm:${slotId}:${pilot.id}`,
+      placeholder: 'Оберіть меха',
+      options: mechs.slice(0, 25).map((m: any) => ({ label: (m.name || 'Мех').slice(0, 100), value: m.id })),
+    }],
+  }];
+}
+
+async function onComponent(i: any, discordId: string) {
+  const [kind, slotId, pilotId] = (i.data.custom_id as string).split(':');
+
+  if (kind === 'wd') {
+    await rpc('discord_withdraw', { p_discord_id: discordId, p_slot_id: slotId });
+    return reply('Ви відписалися від гри.');
+  }
+
+  if (kind === 'rl') {
+    const r = await rpc('discord_roll', { p_discord_id: discordId, p_slot_id: slotId });
+    const total = r.roll + (r.roll_bonus || 0);
+    return reply(`🎲 d20 = **${r.roll}**${r.roll_bonus ? ` + бонус ${r.roll_bonus} = **${total}**` : ''}`);
+  }
+
+  if (kind === 'su') {
+    const uid = await linkedUserId(discordId);
+    if (!uid) return reply(NOT_LINKED);
+    const pilots = await activePilots(uid);
+    if (pilots.length === 0) return reply('У вас немає активних пілотів. Створіть пілота в апці.');
+    if (pilots.length === 1) {
+      const mechs = pilots[0].state?.mechs || [];
+      if (mechs.length <= 1) return reply(await signup(discordId, slotId, pilots[0], mechs[0]?.id ?? null));
+      return reply(`Пілот **${pilots[0].callsign}**. Яким мехом?`, { components: mechMenu(slotId, pilots[0]) });
+    }
+    return reply('Яким пілотом записатися?', {
+      components: [{
+        type: 1,
+        components: [{
+          type: 3,
+          custom_id: `sp:${slotId}`,
+          placeholder: 'Оберіть пілота',
+          options: pilots.slice(0, 25).map((p) => ({
+            label: `${p.callsign} — ${p.name}`.slice(0, 100),
+            value: p.id,
+            description: `LL${p.state?.ll ?? '?'} · мехів: ${(p.state?.mechs || []).length}`,
+          })),
+        }],
+      }],
+    });
+  }
+
+  // Кроки меню: обрали пілота → (за потреби) меха → запис.
+  if (kind === 'sp' || kind === 'sm') {
+    const uid = await linkedUserId(discordId);
+    if (!uid) return update(NOT_LINKED);
+    const pid = kind === 'sp' ? i.data.values[0] : pilotId;
+    const pilot = (await activePilots(uid)).find((p) => p.id === pid);
+    if (!pilot) return update('Пілота не знайдено.');
+    const mechs = pilot.state?.mechs || [];
+    if (kind === 'sp' && mechs.length > 1) {
+      return update(`Пілот **${pilot.callsign}**. Яким мехом?`, mechMenu(slotId, pilot));
+    }
+    const mechId = kind === 'sm' ? i.data.values[0] : mechs[0]?.id ?? null;
+    try {
+      return update(await signup(discordId, slotId, pilot, mechId));
+    } catch (err) {
+      return update(errText(err));
+    }
+  }
+
+  return reply('Невідома дія.');
+}
+
+// ----- Слеш-команди -----
+
+function opt(i: any, name: string) {
+  return i.data.options?.find((o: any) => o.name === name)?.value;
+}
+
+// Відповідь «бот думає…», а роботу доробляємо у фоні й редагуємо її.
+function deferred(i: any, work: () => Promise<string>) {
+  const finish = async () => {
+    let content: string;
+    try {
+      content = await work();
+    } catch (err) {
+      content = errText(err);
+    }
+    await fetch(`${DISCORD_API}/webhooks/${i.application_id}/${i.token}/messages/@original`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+  };
+  // @ts-ignore EdgeRuntime is provided by Supabase
+  EdgeRuntime.waitUntil(finish());
+  return Response.json({ type: 5, data: { flags: EPHEMERAL } });
+}
+
+async function onCommand(i: any, discordId: string, username: string) {
+  switch (i.data.name) {
+    case 'link': {
+      const nick = await rpc('discord_link', { p_code: opt(i, 'code'), p_discord_id: discordId, p_username: username });
+      return reply(`🔗 Discord прив'язано до акаунта **${nick}**. Тепер можна записуватися кнопками під оголошеннями.`);
+    }
+
+    case 'game': {
+      const gameAt = parseKyivDate(opt(i, 'date'));
+      const deadline = parseKyivDate(opt(i, 'deadline'));
+      await rpc('discord_create_slot', {
+        p_discord_id: discordId,
+        p_title: opt(i, 'title'),
+        p_description: opt(i, 'description') ?? '',
+        p_game_at: gameAt,
+        p_signup_deadline: deadline,
+        p_seats: opt(i, 'seats') ?? 4,
+      });
+      return reply('✅ Гру створено — оголошення з\'явиться в каналі, і вона вже є на дошці в апці. Нагороду й складність можна задати в апці.');
+    }
+
+    case 'board': {
+      if (!(await rpc('discord_is_gm', { p_discord_id: discordId }))) return reply('Ця команда лише для ГМа.');
+      return deferred(i, async () => {
+        const { data: slots, error } = await db.from('game_slots').select('id').in('status', ['open', 'approved'])
+          .order('game_at', { ascending: true, nullsFirst: false });
+        if (error) throw new Error(error.message);
+        let posted = 0;
+        for (const s of slots || []) {
+          if ((await syncSlot(db, s.id, true)) === 'posted') posted++;
+        }
+        return posted ? `Опубліковано оголошень: ${posted}.` : 'Усі активні ігри вже є в каналі.';
+      });
+    }
+  }
+  return reply('Невідома команда.');
+}
+
+// ----- Вхід -----
+
+Deno.serve(async (req) => {
+  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+  const body = await req.text();
+  if (!(await verify(req, body))) return new Response('Bad signature', { status: 401 });
+
+  const i = JSON.parse(body);
+  if (i.type === 1) return Response.json({ type: 1 }); // PING
+
+  const user = i.member?.user ?? i.user;
+  const discordId = user?.id as string;
+  const username = (user?.global_name || user?.username || '') as string;
+
+  try {
+    if (i.type === 2) return await onCommand(i, discordId, username);
+    if (i.type === 3) return await onComponent(i, discordId);
+  } catch (err) {
+    return reply(errText(err));
+  }
+  return reply('Невідомий тип взаємодії.');
+});
