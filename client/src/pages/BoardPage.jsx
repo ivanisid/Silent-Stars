@@ -299,8 +299,11 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   const mySignup = slot.signups.find((g) => g.userId === user.id);
   const contest = slot.signups.length > slot.seats;
   // Пріоритет (d20 + бонус) кидається під час запису; вищий іде вгору списку, рівні — у порядку запису.
-  const priority = (g) => (g.roll === null ? -1 : g.roll + (g.rollBonus || 0));
+  // Гарантоване місце (бонус +9) — над усіма: воно входить у склад, хоч би що відмітив ГМ.
+  const priority = (g) => (g.guaranteed ? 1000 : g.roll === null ? -1 : g.roll + (g.rollBonus || 0));
   const ranked = [...slot.signups].sort((a, b) => priority(b) - priority(a));
+  // Скільки реально піде в склад: відмічені ГМом плюс гарантовані.
+  const rosterSize = new Set([...picked, ...slot.signups.filter((g) => g.guaranteed).map((g) => g.id)]).size;
   const deadlinePassed = deadlineIsPast(slot.signupDeadline);
   // Running the game is what grants the controls, not being a GM: another GM is an
   // ordinary player here, and the person running it does not play in it.
@@ -479,7 +482,9 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                   {ownsSlot && isOpen && (
                     <input
                       type="checkbox"
-                      checked={picked.has(g.id)}
+                      checked={g.guaranteed || picked.has(g.id)}
+                      disabled={g.guaranteed}
+                      title={g.guaranteed ? 'Гарантоване місце — входить у склад автоматично' : undefined}
                       onChange={() => togglePick(g.id)}
                       style={{ accentColor: GOLD }}
                     />
@@ -506,7 +511,12 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                     </button>
                   )}
                   <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
-                    {g.roll !== null && (
+                    {g.guaranteed && (
+                      <span style={{ color: GOLD, whiteSpace: 'nowrap', letterSpacing: 1 }} title={`Бонус +${g.rollBonus}`}>
+                        🛡 ГАРАНТОВАНЕ МІСЦЕ
+                      </span>
+                    )}
+                    {!g.guaranteed && g.roll !== null && (
                       <span
                         style={{ color: 'var(--text-bright)', whiteSpace: 'nowrap' }}
                         title={`d20: ${g.roll}${g.rollBonus > 0 ? ` + бонус ${g.rollBonus}` : ''}`}
@@ -642,15 +652,16 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                 disabled={busy || slot.signups.length === 0}
                 onClick={() => {
                   const msg =
-                    `Затвердити склад: ${picked.size} з ${slot.signups.length}?\n\n` +
-                    'Запис на гру закриється, а ті, хто не потрапив, отримають +3 до кидка участі. ' +
+                    `Затвердити склад: ${rosterSize} з ${slot.signups.length}?\n\n` +
+                    'Запис на гру закриється. Хто потрапив у склад, витрачає бонус; якщо був контест, ' +
+                    'ті, хто не потрапив, зберігають бонус і отримують ще +3. ' +
                     'Нагорода поки НЕ нараховується — це станеться, коли ви завершите гру.';
                   if (!window.confirm(msg)) return;
                   run(() => api.gmApproveRoster(slot.id, Array.from(picked)));
                 }}
                 style={{ borderColor: GOLD_DIM, color: GOLD }}
               >
-                ЗАТВЕРДИТИ СКЛАД ({picked.size})
+                ЗАТВЕРДИТИ СКЛАД ({rosterSize})
               </button>
             )}
             {isApproved && (
@@ -868,8 +879,10 @@ export default function BoardPage() {
         </div>
 
         <div style={{ fontSize: 11, color: 'var(--text-dimmer)', letterSpacing: 1, marginBottom: 24 }}>
-          {myBonus > 0
-            ? <>ВАШ БОНУС ДО ПРІОРИТЕТУ: <span style={{ color: GOLD }}>+{myBonus}</span> (додається до d20 при записі; накопичується, поки не виграєте контест)</>
+          {myBonus >= 9
+            ? <>ВАШ БОНУС: <span style={{ color: GOLD }}>+{myBonus}</span> — 🛡 НА НАСТУПНУ ГРУ МІСЦЕ ГАРАНТОВАНЕ, КИДАТИ НЕ ТРЕБА</>
+            : myBonus > 0
+            ? <>ВАШ БОНУС ДО ПРІОРИТЕТУ: <span style={{ color: GOLD }}>+{myBonus}</span> (додається до d20 при записі; +3 за кожен програний контест, +9 — гарантоване місце; згорає, коли потрапите в склад)</>
             : 'ПРИ ЗАПИСІ КИДАЄТЬСЯ D20 — ЦЕ ВАШ ПРІОРИТЕТ. БОНУС ДО НЬОГО НАКОПИЧУЄТЬСЯ ЗА ПРОГРАНІ КОНТЕСТИ'}
         </div>
 

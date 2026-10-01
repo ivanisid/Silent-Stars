@@ -98,9 +98,10 @@ async function activePilots(userId: string) {
 async function signup(discordId: string, slotId: string, pilot: any, mechId: string | null) {
   const s = await rpc('discord_signup', { p_discord_id: discordId, p_slot_id: slotId, p_pilot_id: pilot.id, p_mech_id: mechId });
   const mech = (pilot.state?.mechs || []).find((m: any) => m.id === mechId);
+  const head = `✅ Записано: **${pilot.callsign}**${mech ? ` на ▮ ${mech.name}` : ''}. `;
+  if (s.guaranteed) return head + `🛡 **Гарантоване місце** — бонус +${s.roll_bonus}, кидати не треба.`;
   const bonus = s.roll_bonus ? ` + бонус ${s.roll_bonus}` : '';
-  return `✅ Записано: **${pilot.callsign}**${mech ? ` на ▮ ${mech.name}` : ''}. ` +
-    `Пріоритет **${s.roll + (s.roll_bonus || 0)}** (d20: ${s.roll}${bonus}).`;
+  return head + `Пріоритет **${s.roll + (s.roll_bonus || 0)}** (d20: ${s.roll}${bonus}).`;
 }
 
 function mechMenu(slotId: string, pilot: any) {

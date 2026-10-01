@@ -76,7 +76,7 @@ export async function loadSlotView(db: SupabaseClient, slotId: string): Promise<
 
   const { data: rows, error: e2 } = await db
     .from('game_signups')
-    .select('id, user_id, pilot_id, mech_id, mech_name, roll, roll_bonus, approved, created_at, pilots(callsign, name, state)')
+    .select('id, user_id, pilot_id, mech_id, mech_name, roll, roll_bonus, guaranteed, approved, created_at, pilots(callsign, name, state)')
     .eq('slot_id', slotId)
     .order('created_at');
   if (e2) throw new Error(e2.message);
@@ -101,12 +101,15 @@ export async function loadSlotView(db: SupabaseClient, slotId: string): Promise<
       discordId: discord.get(r.user_id),
       roll: r.roll,
       rollBonus: r.roll_bonus,
+      guaranteed: r.guaranteed === true,
       priority: r.roll == null ? null : r.roll + (r.roll_bonus || 0),
       approved: r.approved,
     };
   });
-  // Ранжований список: вищий пріоритет — вище; рівні лишаються в порядку запису.
-  signups.sort((a, b) => (b.priority ?? -1) - (a.priority ?? -1));
+  // Ранжований список: гарантовані місця, далі вищий пріоритет; рівні — у порядку запису.
+  // Не Infinity: Infinity − Infinity = NaN, а NaN у компараторі ламає порядок.
+  const rank = (g: any) => (g.guaranteed ? 1000 : g.priority ?? -1);
+  signups.sort((a, b) => rank(b) - rank(a));
 
   return { slot: { ...slot, gmNick: nick.get(slot.created_by) || '', gmDiscordId: discord.get(slot.created_by) }, signups };
 }
@@ -150,7 +153,8 @@ export function renderSlotMessage({ slot, signups }: SlotView) {
     if (g.ll) line += ` · LL${g.ll}`;
     if (g.mech) line += ` · ▮ ${g.mech}`;
     line += ` — ${who}`;
-    if (g.priority != null) line += ` · пріоритет **${g.priority}**`;
+    if (g.guaranteed) line += ' · 🛡 **гарантоване місце**';
+    else if (g.priority != null) line += ` · пріоритет **${g.priority}**`;
     return line;
   });
   fields.push({ name: 'Пілоти', value: clip(lines.join('\n') || '_Поки ніхто не записався._', 1024) });
