@@ -1,20 +1,10 @@
 import { useState } from 'react';
 import { SHOP_DATA, PR_SERVICES, LIMITED_REFILL_PR } from '../constants';
-import {
-  RESERVES,
-  RESERVE_CATEGORIES,
-  RESERVE_RANK_PR,
-  reserveByKey,
-} from '../reserves';
-import { anyReserveByKey } from '../rareReserves';
 
 const TABS = [
   { key: 'repair', label: 'PRINTER', hint: 'ремонт за PR' },
-  { key: 'reserves', label: 'RESERVES', hint: 'резерви за PR' },
   { key: 'mana', label: 'LUXURY', hint: 'за ману' },
 ];
-
-const RANKS = [1, 2, 3];
 
 function Tab({ active, label, hint, onClick }) {
   return (
@@ -40,41 +30,7 @@ function Tab({ active, label, hint, onClick }) {
   );
 }
 
-// Куплені резерви: скільки ігор ще живуть. null — не згорає сам.
-function OwnedReserves({ state, dispatch }) {
-  if (state.reserves.length === 0) return null;
-  return (
-    <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--header-border)', background: 'var(--panel-inset)' }}>
-      <div className="field-label">НА РУКАХ ({state.reserves.length})</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {state.reserves.map((r) => {
-          const def = anyReserveByKey(r.key);
-          return (
-            <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-              <span style={{ flex: 1, color: 'var(--text-soft)' }}>{def?.name || r.key}</span>
-              <span style={{ fontSize: 10, color: 'var(--text-dimmer)', whiteSpace: 'nowrap' }}>
-                {r.gamesLeft == null ? 'не згорає' : `${r.gamesLeft} ігор`}
-              </span>
-              <button
-                type="button"
-                onClick={() => dispatch({ type: 'REMOVE_RESERVE', id: r.id })}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13 }}
-              >
-                ✕
-              </button>
-            </div>
-          );
-        })}
-      </div>
-      <button className="btn-ghost" type="button" style={{ fontSize: 10, padding: '4px 10px', marginTop: 10 }} onClick={() => dispatch({ type: 'BURN_MISSION_RESERVES' })}>
-        КІНЕЦЬ МІСІЇ — СПАЛИТИ РЕЗЕРВИ
-      </button>
-    </div>
-  );
-}
 
-// Ціна послуги для списку. refillone залежить від конкретної системи, тож тут показуємо
-// діапазон, а точну ціну — вже в модалці після вибору системи.
 function servicePrice(svc) {
   if (svc.cost != null) {
     return svc.manaCost ? `${svc.cost} PR / ${svc.manaCost} М` : `${svc.cost} PR`;
@@ -121,98 +77,6 @@ function RepairTab({ state, dispatch }) {
   );
 }
 
-function ReservesTab({ state, dispatch }) {
-  const [rank, setRank] = useState(1);
-  const [category, setCategory] = useState('all');
-
-  const list = RESERVES.filter(
-    (r) => r.rank === rank && (category === 'all' || r.category === category),
-  );
-  const cost = RESERVE_RANK_PR[rank];
-  const cats = RESERVE_CATEGORIES.filter((c) => RESERVES.some((r) => r.rank === rank && r.category === c.key));
-
-  return (
-    <div>
-      <OwnedReserves state={state} dispatch={dispatch} />
-
-      <div style={{ padding: '12px 20px 0 20px' }}>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {RANKS.map((rk) => (
-            <button
-              key={rk}
-              type="button"
-              onClick={() => { setRank(rk); setCategory('all'); }}
-              style={{
-                flex: 1,
-                padding: '7px 6px',
-                fontSize: 11,
-                background: rank === rk ? 'var(--header)' : 'var(--input-bg)',
-                color: rank === rk ? 'var(--text-bright)' : 'var(--text-dim)',
-                border: `1px solid ${rank === rk ? 'var(--accent)' : 'var(--input-border)'}`,
-                cursor: 'pointer',
-              }}
-            >
-              РАНГ {rk}
-              <div style={{ fontSize: 9, opacity: 0.8 }}>{RESERVE_RANK_PR[rk]} PR</div>
-            </button>
-          ))}
-        </div>
-
-
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 10 }}>
-          {[{ key: 'all', label: 'УСІ' }, ...cats].map((c) => (
-            <button
-              key={c.key}
-              type="button"
-              onClick={() => setCategory(c.key)}
-              style={{
-                padding: '4px 8px',
-                fontSize: 10,
-                background: category === c.key ? 'var(--panel-inset)' : 'transparent',
-                color: category === c.key ? 'var(--text-bright)' : 'var(--text-dimmer)',
-                border: '1px solid var(--rule)',
-                cursor: 'pointer',
-              }}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {state.shop.error && (
-        <div style={{ padding: '10px 20px 0 20px' }}>
-          <div className="error-box">{state.shop.error}</div>
-        </div>
-      )}
-
-      <div style={{ padding: '10px 0 20px 0' }}>
-        {list.map((r) => {
-          const affordable = state.pr >= cost;
-          return (
-            <div key={r.key} style={{ padding: '12px 20px', borderTop: '1px solid var(--rule)' }}>
-              <div style={{ fontSize: 12, color: 'var(--text-bright)' }}>{r.name}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-soft-dim)', lineHeight: 1.55, marginTop: 5 }}>{r.desc}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{cost} PR</div>
-                <button
-                  className="btn"
-                  type="button"
-                  disabled={!affordable}
-                  style={{ marginLeft: 'auto', fontSize: 11, opacity: affordable ? 1 : 0.55, cursor: affordable ? 'pointer' : 'not-allowed' }}
-                  onClick={() => dispatch({ type: 'BUY_RESERVE', key: r.key })}
-                >
-                  ПРИДБАТИ
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function ManaTab({ state, dispatch }) {
   return (
     <div style={{ padding: '8px 0 20px 0' }}>
@@ -250,7 +114,10 @@ function ManaTab({ state, dispatch }) {
 }
 
 export default function ShopDrawer({ state, dispatch }) {
-  const tab = state.shop.tab || 'reserves';
+  // Вкладки RESERVES більше немає, але вона могла лишитись у збереженому стані —
+  // невідому зводимо до першої, інакше шухляда відкрилася б порожньою.
+  const stored = state.shop.tab;
+  const tab = TABS.some((t) => t.key === stored) ? stored : TABS[0].key;
 
   return (
     <div style={{ position: 'fixed', top: 0, right: 0, height: '100vh', display: 'flex', alignItems: 'stretch', zIndex: 40 }}>
@@ -292,7 +159,6 @@ export default function ShopDrawer({ state, dispatch }) {
           </div>
 
           {tab === 'repair' && <RepairTab state={state} dispatch={dispatch} />}
-          {tab === 'reserves' && <ReservesTab state={state} dispatch={dispatch} />}
           {tab === 'mana' && <ManaTab state={state} dispatch={dispatch} />}
         </div>
       )}
