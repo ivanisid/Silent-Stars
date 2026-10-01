@@ -760,9 +760,9 @@ function DiscordLink({ user }) {
         </>
       ) : code ? (
         <>
-          <span>Введіть у Discord:</span>
-          <code style={{ color: 'var(--accent)', fontSize: 14, userSelect: 'all' }}>/link {code}</code>
-          <span style={{ color: 'var(--text-dimmer)' }}>(код діє 15 хв)</span>
+          <span>Код прив'язки:</span>
+          <code style={{ color: 'var(--accent)', fontSize: 14, userSelect: 'all' }}>{code}</code>
+          <span style={{ color: 'var(--text-dimmer)' }}>(введіть у Discord командою /link, діє 15 хв)</span>
           <button className="btn-ghost" type="button" disabled={busy} style={{ marginLeft: 'auto' }}
             onClick={() => run(load)}>
             ПЕРЕВІРИТИ
