@@ -354,3 +354,7 @@ create trigger discord_notify_signup
 -- Запис із Discord має з'явитися на відкритій дошці без перезавантаження.
 -- RLS на читання вже пускає будь-кого залогіненого.
 alter publication supabase_realtime add table public.game_slots, public.game_signups;
+
+-- Код прив'язки — лише для залогінених (функція й так відмовляє без auth.uid()).
+revoke execute on function public.discord_create_link_code() from public, anon;
+grant execute on function public.discord_create_link_code() to authenticated;
