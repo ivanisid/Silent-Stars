@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Card } from './ui';
-import { RARE_RESERVES, rareReserveByKey } from '../rareReserves';
+import { RARE_RESERVES, rareReserveByKey, anyReserveByKey } from '../rareReserves';
 import { derivePilotView } from '../derive';
 
 // Склад рідкісних резервів. Не магазин: тут нічого не купується й не витрачається —
@@ -79,6 +79,8 @@ export default function VaultPanel({ state, dispatch }) {
           })}
         </div>
 
+        <OnHand state={state} dispatch={dispatch} />
+
         {full ? (
           <div style={{ fontSize: 11, color: 'var(--warn)' }}>
             Склад заповнений — звільніть місце, щоб записати ще один.
@@ -105,6 +107,47 @@ export default function VaultPanel({ state, dispatch }) {
         />
       )}
     </Card>
+  );
+}
+
+// Резерви «на руках» — і куплені колись за PR, і взяті зі складу. Жили у вкладці
+// RESERVES магазину; коли вкладку прибрали, переїхали сюди, бо це наступний крок
+// того самого шляху: склад → на руках → згоріло після місії.
+function OnHand({ state, dispatch }) {
+  const list = state.reserves || [];
+  if (list.length === 0) return null;
+  return (
+    <div style={{ borderTop: '1px solid var(--rule)', paddingTop: 14 }}>
+      <div className="field-label">НА РУКАХ ({list.length})</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {list.map((r) => {
+          const def = anyReserveByKey(r.key);
+          return (
+            <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+              <span style={{ flex: 1, color: 'var(--text-soft)' }}>{def?.name || r.key}</span>
+              <span style={{ fontSize: 10, color: 'var(--text-dimmer)', whiteSpace: 'nowrap' }}>
+                {r.gamesLeft == null ? 'не згорає' : `${r.gamesLeft} ігор`}
+              </span>
+              <button
+                type="button"
+                onClick={() => dispatch({ type: 'REMOVE_RESERVE', id: r.id })}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13 }}
+              >
+                ✕
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <button
+        className="btn-ghost"
+        type="button"
+        style={{ fontSize: 10, padding: '4px 10px', marginTop: 10 }}
+        onClick={() => dispatch({ type: 'BURN_MISSION_RESERVES' })}
+      >
+        КІНЕЦЬ МІСІЇ — СПАЛИТИ РЕЗЕРВИ
+      </button>
+    </div>
   );
 }
 

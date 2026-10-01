@@ -50,14 +50,6 @@ export default function PrPanel({ state, dispatch }) {
           >
             РЕМОНТ ЗА PR →
           </button>
-          <button
-            className="btn-ghost"
-            type="button"
-            style={{ fontSize: 11 }}
-            onClick={() => dispatch({ type: 'OPEN_SHOP_TAB', tab: 'reserves' })}
-          >
-            РЕЗЕРВИ →
-          </button>
         </div>
       </div>
 
