@@ -6,6 +6,7 @@ import {
   RESERVE_RANK_PR,
   reserveByKey,
 } from '../reserves';
+import { anyReserveByKey } from '../rareReserves';
 
 const TABS = [
   { key: 'repair', label: 'PRINTER', hint: 'ремонт за PR' },
@@ -47,7 +48,7 @@ function OwnedReserves({ state, dispatch }) {
       <div className="field-label">НА РУКАХ ({state.reserves.length})</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {state.reserves.map((r) => {
-          const def = reserveByKey(r.key);
+          const def = anyReserveByKey(r.key);
           return (
             <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
               <span style={{ flex: 1, color: 'var(--text-soft)' }}>{def?.name || r.key}</span>

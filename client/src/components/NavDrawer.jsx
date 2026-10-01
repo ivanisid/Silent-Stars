@@ -63,6 +63,7 @@ export default function NavDrawer() {
   const items = [
     { label: 'ВИБІР ПІЛОТА', desc: 'Ваші персонажі', to: '/pilots' },
     { label: 'ЗАПИС НА ГРУ', desc: 'Слоти ігор та запис на них', to: '/board' },
+    { label: 'РІДКІСНІ РЕЗЕРВИ', desc: 'Каталог для перегляду', to: '/rare' },
     ...(isGm ? [{ label: 'ГМ-ПАНЕЛЬ', desc: 'Персонажі всіх гравців', to: '/gm', gold: true }] : []),
   ];
 

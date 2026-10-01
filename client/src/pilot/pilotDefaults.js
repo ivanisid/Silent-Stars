@@ -86,6 +86,9 @@ export function createDefaultPilotState() {
     // Придбані/створені резерви. gamesLeft null — резерв не згорає сам
     // (отриманий за Get Creative); число — скільки ігор він ще живе.
     reserves: [],
+    // Склад рідкісних резервів: до VAULT_CAP штук, не згорають, доки їх не взяли
+    // на місію. Наповнюється вручну — рідкісні видають як частину нагороди.
+    vault: [],
     contacts: [],
     contactDraft: { name: '', circle: '', help: '', debt: '' },
     // Трекер Get Creative: один проєкт за раз, черги немає.

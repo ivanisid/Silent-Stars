@@ -29,6 +29,7 @@ import SkillTriggers from '../pilot/components/SkillTriggers.jsx';
 // на місці — повернути панель це рядок імпорту й рядок рендера нижче.
 // import HangarPanel from '../pilot/components/HangarPanel.jsx';
 import MechsPanel from '../pilot/components/MechsPanel.jsx';
+import VaultPanel from '../pilot/components/VaultPanel.jsx';
 import OperationsLogPanel from '../pilot/components/OperationsLogPanel.jsx';
 import NavDrawer from '../components/NavDrawer.jsx';
 import NarrativeEditor from '../pilot/components/NarrativeEditor.jsx';
@@ -156,6 +157,7 @@ export default function PilotProfilePage() {
 
         <BondMenu state={state} dispatch={dispatch} />
         <MechsPanel state={state} dispatch={dispatch} />
+        <VaultPanel state={state} dispatch={dispatch} />
         <SkillTriggers state={state} dispatch={dispatch} />
         {/* <ContactsPanel state={state} dispatch={dispatch} /> — схована, див. імпорт вище */}
         {/* Даунтайм прибраний з чарника цілком: передмісійний — раніше, щотижневий
