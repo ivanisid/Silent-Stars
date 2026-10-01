@@ -31,7 +31,7 @@ import {
 } from './logic';
 import { mergeMechsByName } from './compconImport';
 import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft } from './reserves';
-import { RARE_RESERVES, VAULT_CAP, rareReserveByKey, anyReserveByKey } from './rareReserves';
+import { RARE_RESERVES, rareReserveByKey, anyReserveByKey, vaultCap } from './rareReserves';
 
 const ALL_DOWNTIME_DATA = WEEKLY_DOWNTIME_DATA;
 
@@ -52,6 +52,11 @@ function findMech(state, id) {
 
 function prCap(state) {
   return (state.hangar.owned.buffer || 0) >= 1 ? PR_CAP_BUFFER : PR_CAP_BASE;
+}
+
+// Кап складу рідкісних резервів: 5, або 10 з покращенням ангару «Місце на складі».
+function vCap(state) {
+  return vaultCap(state.hangar.owned);
 }
 
 // Ціна послуги за PR. Для поповнення зарядів однієї системи вона залежить від самої
@@ -778,11 +783,12 @@ export function pilotReducer(state, action) {
     case 'ADD_TO_VAULT': {
       const def = rareReserveByKey(action.key);
       if (!def) return state;
-      if (state.vault.length >= VAULT_CAP) return state;
+      const cap = vCap(state);
+      if (state.vault.length >= cap) return state;
       const entry = { id: newId(state.vault), key: def.key };
       return log(
         { ...state, vault: [...state.vault, entry] },
-        `Склад: записано «${def.name}» (ранг ${def.rank}) — ${state.vault.length + 1}/${VAULT_CAP}`,
+        `Склад: записано «${def.name}» (ранг ${def.rank}) — ${state.vault.length + 1}/${cap}`,
       );
     }
     case 'REMOVE_FROM_VAULT': {
@@ -791,7 +797,7 @@ export function pilotReducer(state, action) {
       const def = rareReserveByKey(entry.key);
       return log(
         { ...state, vault: state.vault.filter((v) => v.id !== action.id) },
-        `Склад: списано «${def?.name || entry.key}» — ${state.vault.length - 1}/${VAULT_CAP}`,
+        `Склад: списано «${def?.name || entry.key}» — ${state.vault.length - 1}/${vCap(state)}`,
       );
     }
     case 'TAKE_VAULT_TO_MISSION': {

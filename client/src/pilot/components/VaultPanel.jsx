@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Card } from './ui';
-import { RARE_RESERVES, VAULT_CAP, rareReserveByKey } from '../rareReserves';
+import { RARE_RESERVES, rareReserveByKey } from '../rareReserves';
+import { derivePilotView } from '../derive';
 
 // Склад рідкісних резервів. Не магазин: тут нічого не купується й не витрачається —
 // гравець записує те, що видали як частину нагороди за місію. На складі резерв лежить
@@ -8,14 +9,16 @@ import { RARE_RESERVES, VAULT_CAP, rareReserveByKey } from '../rareReserves';
 export default function VaultPanel({ state, dispatch }) {
   const [picking, setPicking] = useState(false);
   const vault = state.vault || [];
-  const full = vault.length >= VAULT_CAP;
+  // Кап приходить із derive, бо залежить від покращення ангару «Місце на складі».
+  const cap = derivePilotView(state).vaultCap;
+  const full = vault.length >= cap;
 
   return (
     <Card
       title="СКЛАД РІДКІСНИХ РЕЗЕРВІВ"
       right={
         <span style={{ fontSize: 11, color: full ? 'var(--warn)' : 'var(--text-info)' }}>
-          {vault.length} / {VAULT_CAP}
+          {vault.length} / {cap}
         </span>
       }
     >
@@ -23,7 +26,7 @@ export default function VaultPanel({ state, dispatch }) {
         {vault.length === 0 && (
           <div style={{ fontSize: 12, color: 'var(--text-dimmer)', lineHeight: 1.6 }}>
             Склад порожній. Рідкісні резерви не купуються — їх видають як частину
-            нагороди за місію. Отриманий запишіть сюди.
+            нагороди за місію. Отриманий запишіть сюди: вміщується {cap}.
           </div>
         )}
 

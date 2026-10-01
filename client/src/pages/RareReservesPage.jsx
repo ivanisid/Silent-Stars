@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { RARE_RESERVES, RARE_RANKS, VAULT_CAP } from '../pilot/rareReserves';
+import { RARE_RESERVES, RARE_RANKS, VAULT_CAP_BASE, VAULT_CAP_STORAGE } from '../pilot/rareReserves';
 import NavDrawer from '../components/NavDrawer.jsx';
 
 // Каталог рідкісних резервів — тільки перегляд. Купити їх не можна: вони приходять
@@ -42,8 +42,9 @@ export default function RareReservesPage() {
           <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.7, marginTop: 8 }}>
             Їх не купують і не знаходять за даунтайм — вони приходять як частина нагороди
             за місію. Отриманий резерв запишіть на склад у своєму чарнику: він вміщує{' '}
-            {VAULT_CAP} штук і нічого не витрачає, доки резерв лежить. Згорає лише те, що
-            взяли на місію.
+            {VAULT_CAP_BASE} штук ({VAULT_CAP_STORAGE} з покращенням ангару «Місце на
+            складі») і нічого не витрачає, доки резерв лежить. Згорає лише те, що взяли
+            на місію.
           </div>
         </div>
 

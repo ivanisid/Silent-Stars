@@ -1,5 +1,6 @@
 import { HANGAR_DATA, PR_CAP_BASE, PR_CAP_BUFFER } from './constants';
 import { llTier, manaLevelCost, skillCapMax, skillCapUsed } from './logic';
+import { vaultCap } from './rareReserves';
 
 // Cross-cutting computed values used by multiple panels — the parts of the original
 // renderVals() that aren't purely local to one component.
@@ -23,6 +24,9 @@ export function derivePilotView(state) {
   // «Ресурсний буфер» більше не відкриває склад, а лише піднімає кап.
   const prCap = (state.hangar.owned.buffer || 0) >= 1 ? PR_CAP_BUFFER : PR_CAP_BASE;
 
+  // Склад рідкісних резервів: 5, або 10 з покращенням ангару «Місце на складі».
+  const vCap = vaultCap(state.hangar.owned);
+
   const capMax = skillCapMax(ll, state.skillCapBonus);
   const capUsed = skillCapUsed(state.skillTriggers);
 
@@ -34,6 +38,7 @@ export function derivePilotView(state) {
     canLevelUp,
     llNextLabel,
     prCap,
+    vaultCap: vCap,
     skillCapMax: capMax,
     skillCapUsed: capUsed,
   };
