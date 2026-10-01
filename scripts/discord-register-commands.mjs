@@ -44,8 +44,11 @@ const res = await fetch(
     body: JSON.stringify(commands),
   },
 );
-if (!res.ok) {
+if (res.ok) {
+  console.log('Зареєстровано:', (await res.json()).map((c) => `/${c.name}`).join(', '));
+} else {
   console.error(res.status, await res.text());
-  process.exit(1);
+  if (res.status === 401) console.error("Токен невірний: скопіюйте свіжий з Developer Portal → Bot → Reset Token.");
+  // exitCode, а не process.exit(): на Windows exit() посеред fetch валить Node з assertion.
+  process.exitCode = 1;
 }
-console.log('Зареєстровано:', (await res.json()).map((c) => `/${c.name}`).join(', '));
