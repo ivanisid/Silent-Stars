@@ -159,7 +159,7 @@ export const api = {
     return data;
   },
 
-  gmCreateSlot: async ({ title, description, gameAt, signupDeadline, seats, rewardMana, rewardPr }) => {
+  gmCreateSlot: async ({ title, description, gameAt, signupDeadline, seats, rewardMana, rewardPr, difficulty }) => {
     const { error } = await supabase.from('game_slots').insert({
       title: title.trim(),
       description: description.trim(),
@@ -168,6 +168,7 @@ export const api = {
       seats,
       reward_mana: rewardMana,
       reward_pr: rewardPr,
+      difficulty: difficulty || null,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -179,17 +180,17 @@ export const api = {
   // UPDATE не зачепив жодного рядка — RLS відфільтрувала, слот видалено, id чужий —
   // і правка нагороди зникає мовчки, а UI показує, що все збережено. Повертаємо рядок
   // і падаємо, якщо його немає: краще видима помилка, ніж тиха втрата суми.
-  gmUpdateSlotReward: async (slotId, { rewardMana, rewardPr }) => {
+  gmUpdateSlotReward: async (slotId, { rewardMana, rewardPr, difficulty }) => {
     const { data, error } = await supabase
       .from('game_slots')
-      .update({ reward_mana: rewardMana, reward_pr: rewardPr })
+      .update({ reward_mana: rewardMana, reward_pr: rewardPr, difficulty: difficulty || null })
       .eq('id', slotId)
-      .select('id, reward_mana, reward_pr');
+      .select('id, reward_mana, reward_pr, difficulty');
     if (error) throw new Error(error.message);
     if (!data || data.length === 0) {
       throw new Error('Нагороду НЕ збережено — слот не оновився. Оновіть сторінку й спробуйте ще раз.');
     }
-    return { rewardMana: data[0].reward_mana, rewardPr: data[0].reward_pr };
+    return { rewardMana: data[0].reward_mana, rewardPr: data[0].reward_pr, difficulty: data[0].difficulty };
   },
 
   // Та сама причина, що й у gmUpdateSlotReward: без .select() нульове оновлення
