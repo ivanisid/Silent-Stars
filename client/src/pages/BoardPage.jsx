@@ -273,7 +273,7 @@ function CreateSlotForm({ onCreated }) {
   );
 }
 
-function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
+function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   const navigate = useNavigate();
   const [pilotId, setPilotId] = useState('');
   const [mechId, setMechId] = useState('');
@@ -298,6 +298,9 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
   const awarded = slot.signups.filter((g) => g.approved === true).length;
   const mySignup = slot.signups.find((g) => g.userId === user.id);
   const contest = slot.signups.length > slot.seats;
+  // Пріоритет (d20 + бонус) кидається під час запису; вищий іде вгору списку, рівні — у порядку запису.
+  const priority = (g) => (g.roll === null ? -1 : g.roll + (g.rollBonus || 0));
+  const ranked = [...slot.signups].sort((a, b) => priority(b) - priority(a));
   const deadlinePassed = deadlineIsPast(slot.signupDeadline);
   // Running the game is what grants the controls, not being a GM: another GM is an
   // ordinary player here, and the person running it does not play in it.
@@ -451,13 +454,13 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
 
         {contest && isOpen && (
           <div style={{ fontSize: 11, color: 'var(--warn)', letterSpacing: 1 }}>
-            УЧАСНИКІВ БІЛЬШЕ, НІЖ МІСЦЬ — КОНТЕСТ D20
+            УЧАСНИКІВ БІЛЬШЕ, НІЖ МІСЦЬ — СКЛАД ВИЗНАЧАЄ ПРІОРИТЕТ
           </div>
         )}
 
         {slot.signups.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {slot.signups.map((g) => {
+            {ranked.map((g) => {
               const mine = g.userId === user.id;
               return (
                 <div
@@ -503,15 +506,13 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
                     </button>
                   )}
                   <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
-                    {g.roll !== null ? (
-                      <span style={{ color: 'var(--text-bright)', whiteSpace: 'nowrap' }}>
-                        🎲 {g.roll}
-                        {g.rollBonus > 0 && <span style={{ color: GOLD }}> + {g.rollBonus}</span>}
-                        {' = '}
-                        <span style={{ fontSize: 14 }}>{g.roll + (g.rollBonus || 0)}</span>
+                    {g.roll !== null && (
+                      <span
+                        style={{ color: 'var(--text-bright)', whiteSpace: 'nowrap' }}
+                        title={`d20: ${g.roll}${g.rollBonus > 0 ? ` + бонус ${g.rollBonus}` : ''}`}
+                      >
+                        ПРІОРИТЕТ <span style={{ fontSize: 14, color: g.rollBonus > 0 ? GOLD : undefined }}>{g.roll + (g.rollBonus || 0)}</span>
                       </span>
-                    ) : (
-                      contest && <span style={{ color: 'var(--text-dimmer)' }}>без кидка</span>
                     )}
                     {g.approved === true && <span style={{ color: 'var(--success)', letterSpacing: 1 }}>✓ УЧАСТЬ</span>}
                     {g.approved === false && <span style={{ color: 'var(--danger)', letterSpacing: 1 }}>✗ НЕ ЦЬОГО РАЗУ</span>}
@@ -573,11 +574,6 @@ function SlotCard({ slot, user, isGm, myPilots, myBonus, onChanged }) {
         )}
         {isOpen && mySignup && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            {contest && mySignup.roll === null && (
-              <button className="btn" type="button" disabled={busy} onClick={() => run(() => api.boardRoll(mySignup.id))}>
-                🎲 КИНУТИ D20{myBonus > 0 ? ` (+${myBonus})` : ''}
-              </button>
-            )}
             <button className="btn-ghost" type="button" disabled={busy} onClick={() => run(() => api.boardWithdraw(mySignup.id))}>
               ВИЙТИ ЗІ СЛОТА
             </button>
@@ -873,8 +869,8 @@ export default function BoardPage() {
 
         <div style={{ fontSize: 11, color: 'var(--text-dimmer)', letterSpacing: 1, marginBottom: 24 }}>
           {myBonus > 0
-            ? <>ВАШ БОНУС ДО КИДКА УЧАСТІ: <span style={{ color: GOLD }}>+{myBonus}</span> (накопичується, поки не виграєте контест)</>
-            : 'БОНУСУ ДО КИДКА НЕМАЄ — ВІН НАКОПИЧУЄТЬСЯ ЗА ПРОГРАНІ КОНТЕСТИ'}
+            ? <>ВАШ БОНУС ДО ПРІОРИТЕТУ: <span style={{ color: GOLD }}>+{myBonus}</span> (додається до d20 при записі; накопичується, поки не виграєте контест)</>
+            : 'ПРИ ЗАПИСІ КИДАЄТЬСЯ D20 — ЦЕ ВАШ ПРІОРИТЕТ. БОНУС ДО НЬОГО НАКОПИЧУЄТЬСЯ ЗА ПРОГРАНІ КОНТЕСТИ'}
         </div>
 
         {user && <DiscordLink user={user} />}
@@ -898,7 +894,6 @@ export default function BoardPage() {
               user={user}
               isGm={isGm}
               myPilots={myPilots}
-              myBonus={myBonus}
               onChanged={reload}
             />
           ))}

@@ -153,12 +153,6 @@ export const api = {
     return { ok: true };
   },
 
-  boardRoll: async (signupId) => {
-    const { data, error } = await supabase.rpc('board_roll', { p_signup_id: signupId });
-    if (error) throw new Error(error.message);
-    return data;
-  },
-
   // ----- Discord -----
   // Запис через Discord іде в ті ж game_signups; тут лише прив'язка акаунта.
 

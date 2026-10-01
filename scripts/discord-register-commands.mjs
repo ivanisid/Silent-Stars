@@ -31,6 +31,13 @@ const commands = [
     ],
   },
   {
+    name: 'pilot',
+    description: 'Показати картку свого пілота в каналі',
+    options: [
+      { type: STRING, name: 'callsign', description: 'Позивний (якщо пілотів кілька)', autocomplete: true },
+    ],
+  },
+  {
     name: 'board',
     description: 'Опублікувати в каналі всі активні ігри, яких там ще немає (лише ГМ)',
   },

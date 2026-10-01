@@ -1,4 +1,4 @@
-// Interactions Endpoint Discord-бота: слеш-команди (/link, /game, /board) і кнопки під
+// Interactions Endpoint Discord-бота: слеш-команди (/link, /game, /pilot, /board) і кнопки під
 // оголошенням гри. Пише в ті ж game_signups / game_slots, що й апка, через discord_*
 // функції в базі — оголошення потім оновлює тригер → discord-sync.
 // Розгортається з verify_jwt = false: Discord підписує запити Ed25519, це і є автентифікація.
@@ -96,9 +96,11 @@ async function activePilots(userId: string) {
 }
 
 async function signup(discordId: string, slotId: string, pilot: any, mechId: string | null) {
-  await rpc('discord_signup', { p_discord_id: discordId, p_slot_id: slotId, p_pilot_id: pilot.id, p_mech_id: mechId });
+  const s = await rpc('discord_signup', { p_discord_id: discordId, p_slot_id: slotId, p_pilot_id: pilot.id, p_mech_id: mechId });
   const mech = (pilot.state?.mechs || []).find((m: any) => m.id === mechId);
-  return `✅ Записано: **${pilot.callsign}**${mech ? ` на ▮ ${mech.name}` : ''}. Список в оголошенні оновиться за мить.`;
+  const bonus = s.roll_bonus ? ` + бонус ${s.roll_bonus}` : '';
+  return `✅ Записано: **${pilot.callsign}**${mech ? ` на ▮ ${mech.name}` : ''}. ` +
+    `Пріоритет **${s.roll + (s.roll_bonus || 0)}** (d20: ${s.roll}${bonus}).`;
 }
 
 function mechMenu(slotId: string, pilot: any) {
@@ -122,11 +124,8 @@ async function onComponent(i: any, discordId: string) {
     return reply('Ви відписалися від гри.');
   }
 
-  if (kind === 'rl') {
-    const r = await rpc('discord_roll', { p_discord_id: discordId, p_slot_id: slotId });
-    const total = r.roll + (r.roll_bonus || 0);
-    return reply(`🎲 d20 = **${r.roll}**${r.roll_bonus ? ` + бонус ${r.roll_bonus} = **${total}**` : ''}`);
-  }
+  // Кнопка зі старих оголошень, до того як кидок став автоматичним.
+  if (kind === 'rl') return reply('Кидок тепер робиться автоматично під час запису — пріоритет видно в списку пілотів.');
 
   if (kind === 'su') {
     const uid = await linkedUserId(discordId);
@@ -177,6 +176,81 @@ async function onComponent(i: any, discordId: string) {
   return reply('Невідома дія.');
 }
 
+// ----- Картка пілота (/pilot) -----
+// Лише власні пілоти: чужих гравець не бачить і в апці (RLS), бот цього не обходить.
+// Відповідь публічна — показати пілота в каналі і є суттю команди.
+
+// Дзеркало llTier з client/src/pilot/logic.js.
+const tierOf = (ll: number) => (ll <= 1 ? '0' : ll <= 5 ? '1' : ll <= 10 ? '2' : '3');
+
+function pilotCard(p: any, owner: string) {
+  const s = p.state || {};
+  const ll = s.ll ?? 2;
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [
+    { name: 'Рівень', value: `LL${ll} · Тір ${tierOf(ll)}`, inline: true },
+    { name: 'Ігор', value: String(s.games ?? 0), inline: true },
+    { name: 'Мана', value: `${s.mana?.balance ?? 0} М`, inline: true },
+    { name: 'PR', value: String(s.pr ?? 0), inline: true },
+    { name: 'HP', value: `${s.hp?.current ?? '?'}/${s.hp?.max ?? '?'}`, inline: true },
+    { name: 'Стрес', value: `${s.stress ?? 0}/${s.stressMax ?? 8}`, inline: true },
+  ];
+  if (s.bond?.archetype) fields.push({ name: 'Бонд', value: s.bond.archetype, inline: true });
+  const mechs = (s.mechs || []).map((m: any) => {
+    const frame = [m.frameSource, m.frame].filter(Boolean).join(' ');
+    return `▮ **${m.name}**${frame ? ` — ${frame}` : ''} · HP ${m.hpCurrent ?? '?'}/${m.hpMax ?? '?'} · ремонт ${m.repairCurrent ?? '?'}/${m.repairMax ?? '?'}`;
+  });
+  fields.push({ name: 'Мехи', value: mechs.length ? mechs.join('\n').slice(0, 1024) : '_немає_' });
+  return {
+    title: `${p.callsign} — ${p.name}`.slice(0, 256),
+    color: 0x5865f2,
+    fields,
+    footer: { text: `Пілот ${owner}` },
+  };
+}
+
+async function onPilot(i: any, discordId: string, username: string) {
+  const uid = await linkedUserId(discordId);
+  if (!uid) return reply(NOT_LINKED);
+  const pilots = await activePilots(uid);
+  if (!pilots.length) return reply('У вас немає активних пілотів.');
+
+  const wanted = (opt(i, 'callsign') as string | undefined)?.trim().toLowerCase();
+  if (wanted) {
+    const p = pilots.find((x) => x.id === wanted || x.callsign?.toLowerCase() === wanted);
+    if (!p) return reply(`Пілота «${opt(i, 'callsign')}» серед ваших не знайдено.`);
+    return Response.json({ type: 4, data: { embeds: [pilotCard(p, username)], allowed_mentions: { parse: [] } } });
+  }
+  if (pilots.length === 1) {
+    return Response.json({ type: 4, data: { embeds: [pilotCard(pilots[0], username)], allowed_mentions: { parse: [] } } });
+  }
+  // Кілька пілотів і нічого не вказано — короткий перелік замість десятка карток.
+  const list = pilots.map((p) => `**${p.callsign}** — ${p.name} · LL${p.state?.ll ?? 2} · ігор: ${p.state?.games ?? 0}`);
+  return Response.json({
+    type: 4,
+    data: {
+      embeds: [{
+        title: `Пілоти ${username}`.slice(0, 256),
+        color: 0x5865f2,
+        description: list.join('\n').slice(0, 4000),
+        footer: { text: 'Детальна картка: /pilot callsign' },
+      }],
+      allowed_mentions: { parse: [] },
+    },
+  });
+}
+
+// Підказки позивних під час набору /pilot.
+async function onAutocomplete(i: any, discordId: string) {
+  const uid = await linkedUserId(discordId);
+  const typed = String(i.data.options?.find((o: any) => o.focused)?.value ?? '').toLowerCase();
+  const pilots = uid ? await activePilots(uid) : [];
+  const choices = pilots
+    .filter((p) => `${p.callsign} ${p.name}`.toLowerCase().includes(typed))
+    .slice(0, 25)
+    .map((p) => ({ name: `${p.callsign} — ${p.name}`.slice(0, 100), value: p.id }));
+  return Response.json({ type: 8, data: { choices } });
+}
+
 // ----- Слеш-команди -----
 
 function opt(i: any, name: string) {
@@ -224,6 +298,9 @@ async function onCommand(i: any, discordId: string, username: string) {
       return reply('✅ Гру створено — оголошення з\'явиться в каналі, і вона вже є на дошці в апці. Нагороду й складність можна задати в апці.');
     }
 
+    case 'pilot':
+      return onPilot(i, discordId, username);
+
     case 'board': {
       if (!(await rpc('discord_is_gm', { p_discord_id: discordId }))) return reply('Ця команда лише для ГМа.');
       return deferred(i, async () => {
@@ -258,6 +335,7 @@ Deno.serve(async (req) => {
   try {
     if (i.type === 2) return await onCommand(i, discordId, username);
     if (i.type === 3) return await onComponent(i, discordId);
+    if (i.type === 4) return await onAutocomplete(i, discordId);
   } catch (err) {
     return reply(errText(err));
   }

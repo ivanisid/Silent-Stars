@@ -59,7 +59,7 @@ function ts(iso: string | null) {
   return `<t:${unix}:F> (<t:${unix}:R>)`;
 }
 
-function clip(s: string, max: number) {
+export function clip(s: string, max: number) {
   return s.length > max ? s.slice(0, max - 1) + '…' : s;
 }
 
@@ -101,9 +101,12 @@ export async function loadSlotView(db: SupabaseClient, slotId: string): Promise<
       discordId: discord.get(r.user_id),
       roll: r.roll,
       rollBonus: r.roll_bonus,
+      priority: r.roll == null ? null : r.roll + (r.roll_bonus || 0),
       approved: r.approved,
     };
   });
+  // Ранжований список: вищий пріоритет — вище; рівні лишаються в порядку запису.
+  signups.sort((a, b) => (b.priority ?? -1) - (a.priority ?? -1));
 
   return { slot: { ...slot, gmNick: nick.get(slot.created_by) || '', gmDiscordId: discord.get(slot.created_by) }, signups };
 }
@@ -121,7 +124,7 @@ export function renderSlotMessage({ slot, signups }: SlotView) {
   if (deadline && isOpen) fields.push({ name: 'Набір до', value: deadline });
   fields.push({
     name: 'Місця',
-    value: `${signups.length}/${slot.seats}` + (contest && isOpen ? ' · більше охочих, ніж місць — кидок d20' : ''),
+    value: `${signups.length}/${slot.seats}` + (contest && isOpen ? ' · охочих більше, ніж місць — ГМ дивиться на пріоритет' : ''),
     inline: true,
   });
   if (slot.difficulty && DIFFICULTY_LABELS[slot.difficulty]) {
@@ -147,7 +150,7 @@ export function renderSlotMessage({ slot, signups }: SlotView) {
     if (g.ll) line += ` · LL${g.ll}`;
     if (g.mech) line += ` · ▮ ${g.mech}`;
     line += ` — ${who}`;
-    if (g.roll != null) line += ` · 🎲 ${g.roll}${g.rollBonus ? `+${g.rollBonus}` : ''}`;
+    if (g.priority != null) line += ` · пріоритет **${g.priority}**`;
     return line;
   });
   fields.push({ name: 'Пілоти', value: clip(lines.join('\n') || '_Поки ніхто не записався._', 1024) });
@@ -157,9 +160,6 @@ export function renderSlotMessage({ slot, signups }: SlotView) {
     { type: 2, style: 3, label: 'Записатись', custom_id: `su:${slot.id}`, disabled: !isOpen },
     { type: 2, style: 2, label: 'Відписатись', custom_id: `wd:${slot.id}`, disabled: !isOpen },
   ];
-  if (contest && isOpen) {
-    buttons.push({ type: 2, style: 1, label: 'Кидок участі', emoji: { name: '🎲' }, custom_id: `rl:${slot.id}` });
-  }
   if (appUrl) buttons.push({ type: 2, style: 5, label: 'Відкрити в апці', url: `${appUrl.replace(/\/$/, '')}/board` });
 
   return {
