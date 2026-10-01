@@ -31,6 +31,7 @@ import {
 } from './logic';
 import { mergeMechsByName } from './compconImport';
 import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft } from './reserves';
+import { RARE_RESERVES, VAULT_CAP, rareReserveByKey, anyReserveByKey } from './rareReserves';
 
 const ALL_DOWNTIME_DATA = WEEKLY_DOWNTIME_DATA;
 
@@ -769,6 +770,47 @@ export function pilotReducer(state, action) {
     // Відкрити шухляду одразу на потрібній вкладці — з панелі PR, щоб не шукати її вручну.
     case 'OPEN_SHOP_TAB':
       return { ...state, shop: { ...state.shop, open: true, tab: action.tab, item: null, error: '' } };
+    // ---------- Склад рідкісних резервів ----------
+    // Рідкісні резерви не купуються: вони приходять як частина нагороди за місію,
+    // і гравець записує їх сюди сам. На складі резерв НЕ згорає — згорає тільки те,
+    // що з нього взяли на місію. Тому «взяти» не витрачає резерв, а перекладає його
+    // в state.reserves з gamesLeft 1, де спрацьовує наявний BURN_MISSION_RESERVES.
+    case 'ADD_TO_VAULT': {
+      const def = rareReserveByKey(action.key);
+      if (!def) return state;
+      if (state.vault.length >= VAULT_CAP) return state;
+      const entry = { id: newId(state.vault), key: def.key };
+      return log(
+        { ...state, vault: [...state.vault, entry] },
+        `Склад: записано «${def.name}» (ранг ${def.rank}) — ${state.vault.length + 1}/${VAULT_CAP}`,
+      );
+    }
+    case 'REMOVE_FROM_VAULT': {
+      const entry = state.vault.find((v) => v.id === action.id);
+      if (!entry) return state;
+      const def = rareReserveByKey(entry.key);
+      return log(
+        { ...state, vault: state.vault.filter((v) => v.id !== action.id) },
+        `Склад: списано «${def?.name || entry.key}» — ${state.vault.length - 1}/${VAULT_CAP}`,
+      );
+    }
+    case 'TAKE_VAULT_TO_MISSION': {
+      const entry = state.vault.find((v) => v.id === action.id);
+      if (!entry) return state;
+      const def = rareReserveByKey(entry.key);
+      if (!def) return state;
+      // Рідкісні резерви не входять до «Адаптованих запчастин», тож завжди одна гра.
+      const taken = { id: newId(state.reserves), key: def.key, source: 'vault', gamesLeft: 1 };
+      return log(
+        {
+          ...state,
+          vault: state.vault.filter((v) => v.id !== action.id),
+          reserves: [...state.reserves, taken],
+        },
+        `Склад → на місію: «${def.name}» (ранг ${def.rank}), згорить після місії`,
+      );
+    }
+
     // Купівля резерву за PR без обмежень: чи потрібна downtime-дія — питання правил
     // за столом, додаток його не стежить.
     case 'BUY_RESERVE': {
@@ -817,7 +859,7 @@ export function pilotReducer(state, action) {
       if (burned.length === 0 && kept.length === state.reserves.length) {
         return log({ ...state, reserves: kept }, 'Кінець місії: термін дії резервів оновлено');
       }
-      const names = burned.map((r) => reserveByKey(r.key)?.name || r.key).join(', ');
+      const names = burned.map((r) => anyReserveByKey(r.key)?.name || r.key).join(', ');
       return log(
         { ...state, reserves: kept },
         `Кінець місії: згоріло резервів — ${burned.length}${names ? ` (${names})` : ''}`,
