@@ -175,6 +175,18 @@ export const api = {
     return { ok: true };
   },
 
+  // Discord-теги складу для ГМа гри: рядок «<@id> <@id>», який Discord при вставці
+  // перетворює на теги. Хто не прив'язав Discord — іде ніком через @, тегнути вручну.
+  getRosterTags: async (slotId) => {
+    const { data, error } = await supabase.rpc('slot_discord_mentions', { p_slot_id: slotId });
+    if (error) throw new Error(error.message);
+    const list = data || [];
+    return {
+      text: list.map((m) => (m.discordId ? `<@${m.discordId}>` : `@${m.nick}`)).join(' '),
+      unlinked: list.filter((m) => !m.discordId).map((m) => m.nick),
+    };
+  },
+
   // Будь-яка зміна слотів чи записів (зокрема з Discord) → onChange. Повертає відписку.
   subscribeBoard: (onChange) => {
     const channel = supabase

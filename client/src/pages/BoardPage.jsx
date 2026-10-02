@@ -288,6 +288,8 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   // Збереження нагороди мовчазне: без підтвердження ГМ не відрізняє «зберіг»
   // від «передумав і закрив редактор».
   const [savedNote, setSavedNote] = useState('');
+  // Підтвердження «теги скопійовано» — без нього кнопка нічим не показує, що спрацювала.
+  const [tagsNote, setTagsNote] = useState('');
 
   const badge = statusBadge(slot);
   const isOpen = slot.status === 'open';
@@ -685,6 +687,25 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                 ЗАВЕРШИТИ ГРУ І ВИДАТИ НАГОРОДУ
               </button>
             )}
+            {isApproved && (
+              <button
+                className="btn-ghost"
+                type="button"
+                disabled={busy}
+                title="Рядок тегів складу для Discord: вставте в гілку, пост чи чат"
+                onClick={() => run(async () => {
+                  const { text, unlinked } = await api.getRosterTags(slot.id);
+                  await navigator.clipboard.writeText(text);
+                  setTagsNote(
+                    'Теги скопійовано — вставте в Discord.' +
+                    (unlinked.length ? ` Без прив'язаного Discord: ${unlinked.join(', ')}.` : ''),
+                  );
+                })}
+              >
+                🏷 КОПІЮВАТИ ТЕГИ
+              </button>
+            )}
+            {tagsNote && <span style={{ fontSize: 11, color: 'var(--success)', width: '100%' }}>{tagsNote}</span>}
             <button
               className="btn-ghost"
               type="button"

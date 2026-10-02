@@ -165,6 +165,18 @@ export function renderSlotMessage({ slot, signups }: SlotView) {
     { type: 2, style: 2, label: 'Відписатись', custom_id: `wd:${slot.id}`, disabled: !isOpen },
   ];
   if (appUrl) buttons.push({ type: 2, style: 5, label: 'Відкрити в апці', url: `${appUrl.replace(/\/$/, '')}/board` });
+  const components: any[] = [{ type: 1, components: buttons }];
+
+  // Після затвердження складу — швидкі способи зібрати тих, хто летить. Кнопки бачать усі,
+  // але спрацьовують вони лише для ГМа цієї гри (перевіряє discord-interactions).
+  if (settled && signups.some((g) => g.approved)) {
+    const gm: any[] = [{ type: 2, style: 1, label: 'Гілка для складу', emoji: { name: '🧵' }, custom_id: `th:${slot.id}` }];
+    if (Deno.env.get('DISCORD_FORUM_ID')) {
+      gm.push({ type: 2, style: 1, label: 'Пост на дошці завдань', emoji: { name: '📌' }, custom_id: `fp:${slot.id}` });
+    }
+    gm.push({ type: 2, style: 2, label: 'Теги складу', emoji: { name: '🏷️' }, custom_id: `tg:${slot.id}` });
+    components.push({ type: 1, components: gm });
+  }
 
   return {
     content: '',
@@ -177,7 +189,7 @@ export function renderSlotMessage({ slot, signups }: SlotView) {
         footer: { text: st.text },
       },
     ],
-    components: [{ type: 1, components: buttons }],
+    components,
     allowed_mentions: { parse: [] }, // згадки лише для відображення, без пінгів на кожну правку
   };
 }

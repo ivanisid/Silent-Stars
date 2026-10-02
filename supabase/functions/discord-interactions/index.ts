@@ -3,7 +3,7 @@
 // функції в базі — оголошення потім оновлює тригер → discord-sync.
 // Розгортається з verify_jwt = false: Discord підписує запити Ed25519, це і є автентифікація.
 
-import { adminClient, DISCORD_API, syncSlot } from '../_shared/discord.ts';
+import { adminClient, clip, DISCORD_API, discordFetch, loadSlotView, syncSlot } from '../_shared/discord.ts';
 
 const db = adminClient();
 
@@ -125,6 +125,8 @@ async function onComponent(i: any, discordId: string) {
     return reply('Ви відписалися від гри.');
   }
 
+  if (kind === 'th' || kind === 'fp' || kind === 'tg') return onRosterTool(i, kind, discordId, slotId);
+
   // Кнопка зі старих оголошень, до того як кидок став автоматичним.
   if (kind === 'rl') return reply('Кидок тепер робиться автоматично під час запису — пріоритет видно в списку пілотів.');
 
@@ -172,6 +174,89 @@ async function onComponent(i: any, discordId: string) {
     } catch (err) {
       return update(errText(err));
     }
+  }
+
+  return reply('Невідома дія.');
+}
+
+// ----- Зібрати склад: гілка, пост на дошці завдань, теги -----
+// Лише для ГМа, який веде гру. Створене запам'ятовується в discord_slot_messages, тож
+// повторне натискання веде до вже наявної гілки / поста, а не плодить копії.
+
+const tagOf = (g: any) => (g.discordId ? `<@${g.discordId}>` : `**${g.nick}**`);
+
+function briefing(slot: any, going: any[]) {
+  const lines = [`📋 **«${slot.title || 'Гра'}»** — склад затверджено.`];
+  if (slot.game_at) {
+    const t = Math.floor(new Date(slot.game_at).getTime() / 1000);
+    lines.push(`Старт <t:${t}:F> (<t:${t}:R>).`);
+  }
+  lines.push(`**Летять:** ${going.map((g) => `${tagOf(g)} (${g.callsign}${g.mech ? ` · ▮ ${g.mech}` : ''})`).join(', ')}`);
+  return lines.join('\n');
+}
+
+async function onRosterTool(i: any, kind: string, discordId: string, slotId: string) {
+  const uid = await linkedUserId(discordId);
+  if (!uid) return reply(NOT_LINKED);
+  const view = await loadSlotView(db, slotId);
+  if (!view) return reply('Гру не знайдено.');
+  if (view.slot.created_by !== uid) return reply('Це може лише ГМ, який веде цю гру.');
+  const { slot } = view;
+  const going = view.signups.filter((g) => g.approved === true);
+  if (!going.length) return reply('У складі нікого немає.');
+  const mention = { users: going.map((g) => g.discordId).filter(Boolean) };
+
+  if (kind === 'tg') {
+    const tags = going.map((g) => (g.discordId ? `<@${g.discordId}>` : `@${g.nick}`)).join(' ');
+    const unlinked = going.filter((g) => !g.discordId).map((g) => g.nick);
+    return reply(
+      `Теги складу — скопіюй і встав куди треба:\n\`\`\`\n${tags}\n\`\`\`` +
+      (unlinked.length ? `\nБез прив'язаного Discord (тегнути вручну): ${unlinked.join(', ')}` : ''),
+    );
+  }
+
+  const { data: msg } = await db.from('discord_slot_messages').select('*').eq('slot_id', slotId).maybeSingle();
+
+  if (kind === 'th') {
+    if (!msg) return reply('Оголошення цієї гри немає в каналі — спершу /board.');
+    if (msg.thread_id) return reply(`Гілка вже є: <#${msg.thread_id}>`);
+    return deferred(i, async () => {
+      // Гілка з самого оголошення: учасники бачать її прямо під ним.
+      const res = await discordFetch(`/channels/${msg.channel_id}/messages/${msg.message_id}/threads`, {
+        method: 'POST',
+        body: JSON.stringify({ name: clip(`🧵 ${slot.title || 'Гра'}`, 100), auto_archive_duration: 10080 }),
+      });
+      if (!res.ok) throw new Error(`Discord ${res.status}: ${await res.text()}`);
+      const thread = await res.json();
+      await db.from('discord_slot_messages').update({ thread_id: thread.id }).eq('slot_id', slotId);
+      // Тег у гілці сам додає людину до неї.
+      const post = await discordFetch(`/channels/${thread.id}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content: clip(briefing(slot, going), 2000), allowed_mentions: mention }),
+      });
+      if (!post.ok) throw new Error(`Discord ${post.status}: ${await post.text()}`);
+      return `🧵 Гілку створено: <#${thread.id}>`;
+    });
+  }
+
+  if (kind === 'fp') {
+    const forum = Deno.env.get('DISCORD_FORUM_ID');
+    if (!forum) return reply('Дошку завдань не налаштовано (секрет DISCORD_FORUM_ID).');
+    if (msg?.forum_thread_id) return reply(`Пост уже є: <#${msg.forum_thread_id}>`);
+    return deferred(i, async () => {
+      const desc = slot.description ? `\n\n${clip(slot.description, 1500)}` : '';
+      const res = await discordFetch(`/channels/${forum}/threads`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: clip(slot.title || 'Гра', 100),
+          message: { content: clip(briefing(slot, going) + desc, 2000), allowed_mentions: mention },
+        }),
+      });
+      if (!res.ok) throw new Error(`Discord ${res.status}: ${await res.text()}`);
+      const post = await res.json();
+      if (msg) await db.from('discord_slot_messages').update({ forum_thread_id: post.id }).eq('slot_id', slotId);
+      return `📌 Пост на дошці завдань створено: <#${post.id}>`;
+    });
   }
 
   return reply('Невідома дія.');
