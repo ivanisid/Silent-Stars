@@ -69,6 +69,6 @@ Deno.serve(async (req) => {
     }
   };
   const result = await attempt('sync', () => syncSlot(db, slot_id, post === true));
-  const notified = typeof event === 'string' ? await attempt('notify', () => notifyStatus(db, slot_id, event)) : undefined;
+  const notified = typeof event === 'string' ? await attempt('notify', () => notifyStatus(db, slot_id, event, body)) : undefined;
   return Response.json({ result, notified, errors }, { status: errors.length ? 500 : 200 });
 });

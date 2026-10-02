@@ -147,6 +147,13 @@ export const api = {
     return { ok: true };
   },
 
+  // Після затвердження складу: віддати своє місце — його отримує наступний за пріоритетом.
+  boardReleaseSeat: async (slotId) => {
+    const { data, error } = await supabase.rpc('release_seat', { p_slot_id: slotId });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
   boardWithdraw: async (signupId) => {
     const { error } = await supabase.from('game_signups').delete().eq('id', signupId);
     if (error) throw new Error(error.message);

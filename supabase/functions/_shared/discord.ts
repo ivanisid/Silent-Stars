@@ -76,7 +76,7 @@ export async function loadSlotView(db: SupabaseClient, slotId: string): Promise<
 
   const { data: rows, error: e2 } = await db
     .from('game_signups')
-    .select('id, user_id, pilot_id, mech_id, mech_name, roll, roll_bonus, guaranteed, approved, created_at, pilots(callsign, name, state)')
+    .select('id, user_id, pilot_id, mech_id, mech_name, roll, roll_bonus, guaranteed, released_at, approved, created_at, pilots(callsign, name, state)')
     .eq('slot_id', slotId)
     .order('created_at');
   if (e2) throw new Error(e2.message);
@@ -93,6 +93,8 @@ export async function loadSlotView(db: SupabaseClient, slotId: string): Promise<
     const mechs = r.pilots?.state?.mechs || [];
     const mech = mechs.find((m: any) => m.id === r.mech_id)?.name || r.mech_name;
     return {
+      id: r.id,
+      userId: r.user_id,
       callsign: r.pilots?.callsign || '—',
       pilotName: r.pilots?.name || '',
       ll: r.pilots?.state?.ll,
@@ -102,6 +104,7 @@ export async function loadSlotView(db: SupabaseClient, slotId: string): Promise<
       roll: r.roll,
       rollBonus: r.roll_bonus,
       guaranteed: r.guaranteed === true,
+      released: r.released_at != null,
       priority: r.roll == null ? null : r.roll + (r.roll_bonus || 0),
       approved: r.approved,
     };
@@ -147,7 +150,7 @@ export function renderSlotMessage({ slot, signups }: SlotView) {
 
   const lines = signups.map((g, i) => {
     let mark = '';
-    if (settled) mark = g.approved ? '✅ ' : '❌ ';
+    if (settled) mark = g.approved ? '✅ ' : g.released ? '↩️ ' : '❌ ';
     const who = g.discordId ? `<@${g.discordId}>` : g.nick;
     let line = `${mark}${i + 1}. **${g.callsign}**`;
     if (g.ll) line += ` · LL${g.ll}`;
@@ -164,6 +167,14 @@ export function renderSlotMessage({ slot, signups }: SlotView) {
     { type: 2, style: 3, label: 'Записатись', custom_id: `su:${slot.id}`, disabled: !isOpen },
     { type: 2, style: 2, label: 'Відписатись', custom_id: `wd:${slot.id}`, disabled: !isOpen },
   ];
+  // Поки набір відкритий — ГМ може затвердити склад прямо звідси (перевіряє discord-interactions).
+  if (isOpen && signups.length) {
+    buttons.push({ type: 2, style: 1, label: 'Затвердити склад', emoji: { name: '📋' }, custom_id: `ap:${slot.id}` });
+  }
+  // Після затвердження — той, хто не зможе прийти, віддає місце наступному в черзі.
+  if (slot.status === 'approved') {
+    buttons.push({ type: 2, style: 4, label: 'Звільнити місце', emoji: { name: '↩️' }, custom_id: `rs:${slot.id}` });
+  }
   if (appUrl) buttons.push({ type: 2, style: 5, label: 'Відкрити в апці', url: `${appUrl.replace(/\/$/, '')}/board` });
   const components: any[] = [{ type: 1, components: buttons }];
 

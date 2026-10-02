@@ -26,7 +26,7 @@ async function post(db: SupabaseClient, slotId: string, content: string, mention
 }
 
 // Зміна статусу гри: склад затверджено / гру зіграно / скасовано.
-export async function notifyStatus(db: SupabaseClient, slotId: string, event: string) {
+export async function notifyStatus(db: SupabaseClient, slotId: string, event: string, extra: Record<string, any> = {}) {
   const view = await loadSlotView(db, slotId);
   if (!view) return 'no-slot';
   const { slot, signups } = view;
@@ -57,6 +57,19 @@ export async function notifyStatus(db: SupabaseClient, slotId: string, event: st
       `🏁 ${titleOf(slot)} зіграно! ${reward ? `Нараховано: **${reward}**` : 'Гру зараховано'} — ${pilotList(going)}`,
       going.map((g) => g.discordId),
     );
+    return 'notified';
+  }
+
+  // Гравець звільнив місце; на нього автоматично зайшов наступний у черзі (або ніхто).
+  if (event === 'released') {
+    const gone = signups.find((g) => g.userId === extra.released_user);
+    const inn = signups.find((g) => g.userId === extra.promoted_user);
+    const gm = slot.gmDiscordId ? `<@${slot.gmDiscordId}>` : `**${slot.gmNick}**`;
+    const lines = [`↩️ ${gone ? `${who(gone)} (${gone.callsign})` : 'Гравець'} звільнив місце в ${titleOf(slot)}.`];
+    lines.push(inn
+      ? `На його місце в склад заходить ${who(inn)} (${inn.callsign}) — якщо не зможеш, теж тисни «Звільнити місце».`
+      : `${gm}, у резерві нікого немає — місце вільне.`);
+    await post(db, slotId, lines.join('\n'), [inn?.discordId, slot.gmDiscordId]);
     return 'notified';
   }
 

@@ -527,7 +527,8 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                       </span>
                     )}
                     {g.approved === true && <span style={{ color: 'var(--success)', letterSpacing: 1 }}>✓ УЧАСТЬ</span>}
-                    {g.approved === false && <span style={{ color: 'var(--danger)', letterSpacing: 1 }}>✗ НЕ ЦЬОГО РАЗУ</span>}
+                    {g.approved === false && g.releasedAt && <span style={{ color: 'var(--text-dim)', letterSpacing: 1 }}>↩ ЗВІЛЬНИВ МІСЦЕ</span>}
+                    {g.approved === false && !g.releasedAt && <span style={{ color: 'var(--danger)', letterSpacing: 1 }}>✗ НЕ ЦЬОГО РАЗУ</span>}
                   </span>
                 </div>
               );
@@ -581,6 +582,25 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
               }}
             >
               ЗАПИСАТИСЬ
+            </button>
+          </div>
+        )}
+        {isApproved && mySignup?.approved === true && (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              className="btn-ghost"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                const msg =
+                  'Звільнити своє місце в складі?\n\n' +
+                  'Його одразу отримає наступний за пріоритетом із тих, хто не потрапив. ' +
+                  'Повернутися в склад після цього не вийде.';
+                if (!window.confirm(msg)) return;
+                run(() => api.boardReleaseSeat(slot.id));
+              }}
+            >
+              ↩ ЗВІЛЬНИТИ МІСЦЕ
             </button>
           </div>
         )}

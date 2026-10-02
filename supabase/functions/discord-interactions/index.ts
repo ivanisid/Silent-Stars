@@ -127,6 +127,15 @@ async function onComponent(i: any, discordId: string) {
 
   if (kind === 'th' || kind === 'fp' || kind === 'tg') return onRosterTool(i, kind, discordId, slotId);
 
+  if (kind === 'ap' || kind === 'ax' || kind === 'ad') return onApprove(i, kind, discordId, slotId);
+
+  if (kind === 'rs') {
+    const r = await rpc('discord_release_seat', { p_discord_id: discordId, p_slot_id: slotId });
+    return reply(r.promoted
+      ? '↩️ Місце звільнено — його вже отримав наступний у черзі.'
+      : '↩️ Місце звільнено. У резерві нікого немає, ГМа повідомлено.');
+  }
+
   // Кнопка зі старих оголошень, до того як кидок став автоматичним.
   if (kind === 'rl') return reply('Кидок тепер робиться автоматично під час запису — пріоритет видно в списку пілотів.');
 
@@ -177,6 +186,61 @@ async function onComponent(i: any, discordId: string) {
   }
 
   return reply('Невідома дія.');
+}
+
+// ----- Затвердити склад -----
+// Крок 1 (ap): ГМу — меню зі списком за пріоритетом; перші за кількістю місць і гарантовані
+// вже відмічені. Крок 2 (ax): вибір надіслано — затверджуємо тими ж правилами, що й апка.
+
+async function onApprove(i: any, kind: string, discordId: string, slotId: string) {
+  const uid = await linkedUserId(discordId);
+  if (!uid) return reply(NOT_LINKED);
+  const view = await loadSlotView(db, slotId);
+  if (!view) return reply('Гру не знайдено.');
+  if (view.slot.created_by !== uid) return reply('Затвердити склад може лише ГМ, який веде цю гру.');
+
+  // Запропонований склад: перші за пріоритетом на кількість місць (гарантовані — завжди).
+  const suggested = view.signups.filter((g, n) => g.guaranteed || n < view.slot.seats).map((g) => g.id);
+
+  if (kind === 'ax' || kind === 'ad') {
+    try {
+      const picked = kind === 'ax' ? i.data.values : suggested;
+      await rpc('discord_approve_roster', { p_discord_id: discordId, p_slot_id: slotId, p_approved: picked });
+      return update('✅ Склад затверджено — бот уже повідомив гравців у каналі.');
+    } catch (err) {
+      return update(errText(err));
+    }
+  }
+
+  if (view.slot.status !== 'open') return reply('Склад уже затверджено.');
+  const list = view.signups.slice(0, 25); // уже відсортовані: гарантовані, далі пріоритет
+  if (!list.length) return reply('Ще ніхто не записався.');
+  return reply(
+    `Обери, хто летить (місць: **${view.slot.seats}**). Позначені перші за пріоритетом — зніми чи додай, ` +
+    'і склад затвердиться, щойно закриєш меню. Або тисни кнопку, щоб узяти запропонований склад як є. ' +
+    'Гарантовані місця увійдуть у склад у будь-якому разі.',
+    {
+      components: [{
+        type: 1,
+        components: [{
+          type: 3,
+          custom_id: `ax:${slotId}`,
+          placeholder: 'Склад гри',
+          min_values: 0,
+          max_values: list.length,
+          options: list.map((g, n) => ({
+            label: `${g.callsign} — ${g.nick}`.slice(0, 100),
+            value: g.id,
+            description: g.guaranteed ? '🛡 гарантоване місце' : `пріоритет ${g.priority ?? '—'}`,
+            default: g.guaranteed || n < view.slot.seats,
+          })),
+        }],
+      }, {
+        type: 1,
+        components: [{ type: 2, style: 3, label: `Затвердити як запропоновано (${suggested.length})`, custom_id: `ad:${slotId}` }],
+      }],
+    },
+  );
 }
 
 // ----- Зібрати склад: гілка, пост на дошці завдань, теги -----
