@@ -1,11 +1,13 @@
 // Перемальовує оголошення гри в Discord і шле сповіщення. Викликається:
 //   * тригером discord_notify (через pg_net) на кожну зміну game_slots / game_signups —
 //     неважливо, з апки чи з Discord; при зміні статусу гри приходить ще й event;
-//   * планувальником pg_cron кожні 10 хвилин з mode = 'remind' — нагадування перед грою.
+//   * планувальником pg_cron кожні 10 хвилин з mode = 'remind' — нагадування перед грою;
+//   * тригерами на discord_links / pilots з mode = 'roles' — ролі LANCER і LLn.
 // Розгортається з verify_jwt = false; натомість перевіряє x-sync-secret із vault.
 
 import { adminClient, syncSlot } from '../_shared/discord.ts';
 import { notifyStatus, remind } from '../_shared/notify.ts';
+import { syncRoles } from '../_shared/roles.ts';
 
 const db = adminClient();
 let secret: string | null = null;
@@ -26,7 +28,23 @@ Deno.serve(async (req) => {
   if (!secret) return new Response('Secret unavailable', { status: 500 });
   if (req.headers.get('x-sync-secret') !== secret) return new Response('Forbidden', { status: 403 });
 
-  const { slot_id, post, event, mode } = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => ({}));
+  const { slot_id, post, event, mode } = body;
+
+  // Ролі LANCER / LLn. 'roles_all' — разовий прохід по всіх прив'язаних (після запуску фічі).
+  if (mode === 'roles' || mode === 'roles_all') {
+    try {
+      let ids: string[] = Array.isArray(body.discord_ids) ? body.discord_ids : [];
+      if (mode === 'roles_all') {
+        const { data } = await db.from('discord_links').select('discord_user_id');
+        ids = (data || []).map((l) => l.discord_user_id);
+      }
+      return Response.json({ roles: await syncRoles(db, ids) });
+    } catch (err) {
+      console.error('discord-sync roles', err);
+      return Response.json({ error: String(err) }, { status: 500 });
+    }
+  }
 
   if (mode === 'remind') {
     try {
