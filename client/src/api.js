@@ -170,6 +170,36 @@ export const api = {
     return data;
   },
 
+  // Вхід через Discord (OAuth). Повертає браузер з Discord на redirect-адресу вже з сесією.
+  loginWithDiscord: async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'discord',
+      options: { redirectTo: `${window.location.origin}/pilots` },
+    });
+    if (error) throw new Error(error.message);
+  },
+
+  // Додати Discord-вхід до вже наявного акаунта (нік+пароль). Після цього обидва способи
+  // ведуть в один акаунт, а прив'язку discord_links база ставить сама.
+  linkDiscordLogin: async () => {
+    const { error } = await supabase.auth.linkIdentity({
+      provider: 'discord',
+      options: { redirectTo: `${window.location.origin}/board` },
+    });
+    if (error) {
+      if (/manual linking/i.test(error.message)) {
+        throw new Error('Прив\'язка Discord-входу ще не ввімкнена на сервері — скажіть ГМу.');
+      }
+      throw new Error(error.message);
+    }
+  },
+
+  hasDiscordLogin: async () => {
+    const { data, error } = await supabase.auth.getUserIdentities();
+    if (error) return false;
+    return (data?.identities || []).some((i) => i.provider === 'discord');
+  },
+
   createDiscordLinkCode: async () => {
     const { data, error } = await supabase.rpc('discord_create_link_code');
     if (error) throw new Error(error.message);

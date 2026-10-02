@@ -766,10 +766,13 @@ function DiscordLink({ user }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // Чи може цей акаунт входити через Discord (OAuth). Прив'язка /link кодом цього не дає.
+  const [hasLogin, setHasLogin] = useState(false);
 
   async function load() {
     try {
       setLink(await api.getDiscordLink(user.id));
+      setHasLogin(await api.hasDiscordLogin());
     } catch (err) {
       setError(err.message);
     }
@@ -801,10 +804,21 @@ function DiscordLink({ user }) {
         <>
           <span style={{ color: 'var(--text-bright)' }}>прив'язано{link.discord_username ? ` · ${link.discord_username}` : ''}</span>
           <span style={{ color: 'var(--text-dimmer)' }}>— записуйтесь кнопками під оголошеннями в Discord</span>
-          <button className="btn-ghost" type="button" disabled={busy} style={{ marginLeft: 'auto' }}
-            onClick={() => run(async () => { await api.unlinkDiscord(user.id); setLink(null); setCode(''); })}>
-            ВІДВ'ЯЗАТИ
-          </button>
+          {!hasLogin && (
+            <button className="btn-ghost" type="button" disabled={busy} style={{ marginLeft: 'auto' }}
+              title="Після цього можна входити в апку кнопкою «Увійти через Discord» — у цей самий акаунт"
+              onClick={() => run(api.linkDiscordLogin)}>
+              УВІМКНУТИ ВХІД ЧЕРЕЗ DISCORD
+            </button>
+          )}
+          {/* Відв'язка кодом не прибирає Discord-вхід, тож для таких акаунтів її не пропонуємо. */}
+          {!hasLogin && (
+            <button className="btn-ghost" type="button" disabled={busy}
+              onClick={() => run(async () => { await api.unlinkDiscord(user.id); setLink(null); setCode(''); })}>
+              ВІДВ'ЯЗАТИ
+            </button>
+          )}
+          {hasLogin && <span style={{ color: 'var(--text-dimmer)', marginLeft: 'auto' }}>вхід через Discord увімкнено</span>}
         </>
       ) : code ? (
         <>
@@ -819,9 +833,14 @@ function DiscordLink({ user }) {
       ) : (
         <>
           <span style={{ color: 'var(--text-dimmer)' }}>не прив'язано — прив'яжіть, щоб записуватись на ігри прямо з Discord</span>
+          {/* Через Discord одним кліком: і прив'язка, і вхід. Код /link — запасний шлях. */}
           <button className="btn" type="button" disabled={busy} style={{ marginLeft: 'auto' }}
+            onClick={() => run(api.linkDiscordLogin)}>
+            ПРИВ'ЯЗАТИ ЧЕРЕЗ DISCORD
+          </button>
+          <button className="btn-ghost" type="button" disabled={busy}
             onClick={() => run(async () => setCode(await api.createDiscordLinkCode()))}>
-            ПРИВ'ЯЗАТИ DISCORD
+            КОД ДЛЯ /link
           </button>
         </>
       )}

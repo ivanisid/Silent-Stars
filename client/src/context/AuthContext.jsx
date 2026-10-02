@@ -6,7 +6,10 @@ const AuthContext = createContext(null);
 
 function sessionToUser(session) {
   if (!session?.user) return null;
-  return { id: session.user.id, nick: session.user.user_metadata?.nick || '' };
+  // Акаунт, створений входом через Discord, ніка не має — беремо ім'я з Discord.
+  const meta = session.user.user_metadata || {};
+  const nick = meta.nick || meta.custom_claims?.global_name || meta.full_name || meta.name || '';
+  return { id: session.user.id, nick };
 }
 
 export function AuthProvider({ children }) {

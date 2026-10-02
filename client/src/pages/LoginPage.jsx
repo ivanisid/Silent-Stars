@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { api } from '../api';
 
 export default function LoginPage() {
   const { login, register } = useAuth();
@@ -140,6 +141,32 @@ export default function LoginPage() {
               {isRegister ? 'Вже є акаунт? Перемкніться на вкладку «Вхід».' : 'Тут в перше? Оберіть «Реєстрація».'}
             </div>
           </form>
+
+          <div style={{ padding: '0 20px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-dimmer)', textAlign: 'center', letterSpacing: 2 }}>— АБО —</div>
+            <button
+              className="btn-ghost"
+              type="button"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError('');
+                try {
+                  await api.loginWithDiscord(); // далі браузер іде на Discord і повертається вже з сесією
+                } catch (err) {
+                  setError(err.message);
+                  setBusy(false);
+                }
+              }}
+            >
+              УВІЙТИ ЧЕРЕЗ DISCORD
+            </button>
+            {/* Інакше нік-акаунт і Discord-акаунт стануть двома різними — з різними пілотами. */}
+            <div style={{ fontSize: 11, color: 'var(--warn)', textAlign: 'center', lineHeight: 1.5 }}>
+              Вже маєте акаунт з ніком? Спершу увійдіть як звичайно і на сторінці «Запис на гру» натисніть
+              «Увімкнути вхід через Discord». Інакше створиться новий, порожній акаунт.
+            </div>
+          </div>
         </div>
 
         <div style={{ marginTop: 14, fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>
