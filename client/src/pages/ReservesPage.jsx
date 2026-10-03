@@ -213,7 +213,9 @@ function RareList({ q }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {list.map((r) => (
-          <div key={r.key} style={cardStyle}>
+          <div key={r.key} style={{ ...cardStyle, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+            <ReserveIcon kind="rare" title="Рідкісний резерв" />
+            <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
               <div style={{ fontSize: 14, color: 'var(--text-bright)' }}>{r.name}</div>
               <div style={{ fontSize: 10, color: 'var(--text-info)', letterSpacing: 1 }}>РАНГ {r.rank}</div>
@@ -238,6 +240,7 @@ function RareList({ q }) {
                 {r.flavor}
               </div>
             )}
+            </div>
           </div>
         ))}
         {list.length === 0 && <Empty />}
