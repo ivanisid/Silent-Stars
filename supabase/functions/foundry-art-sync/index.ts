@@ -6,9 +6,12 @@
 // (дотягує те, що не вдалося). Кожен виклик:
 //   1. арти мехів, яких уже немає в пілота, позначаються видаленими;
 //   2. видалені арти (замінені, прибрані, пілот видалений) прибираються з Foundry і сховища;
-//   3. нові арти кладуться в <FILEBROWSER_DATA_PATH>/<ART_ROOT>/<нік>/<позивний>/
-//      як portrait.<ext> або mech-<мех>.<ext>; рядку ставиться foundry_path
-//      (шлях відносно Data — його й вставляють у Foundry).
+//   3. нові арти кладуться в <FILEBROWSER_DATA_PATH>/<ART_ROOT>/<нік>/ так:
+//        <ПОЗИВНИЙ>/<ПОЗИВНИЙ>.<ext>                — портрет, у папці пілота
+//        <ПОЗИВНИЙ>/<МЕХ>/<МЕХ>.<ext>               — арт меха, кожен мех у своїй папці
+//      рядку ставиться foundry_path (шлях відносно Data — його й вставляють у Foundry);
+//   4. уже синхронізовані арти, чий шлях застарів (перейменували пілота чи меха, змінилась
+//      схема папок), переїжджають на новий шлях.
 // Видалення йде перед записом, тож новий портрет лягає під тим самим ім'ям, що й старий.
 //
 // Секрети: FILEBROWSER_URL, FILEBROWSER_USER, FILEBROWSER_PASSWORD, FILEBROWSER_DATA_PATH
@@ -41,6 +44,60 @@ function slug(s: unknown) {
     .replace(/[^a-z0-9._-]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^[-.]+|[-.]+$/g, '');
+}
+
+// Ім'я пілота / меха для папки й файлу: зберігає регістр (CHEMBER → CHEMBER), кирилицю
+// переводить у латиницю, пробіли — у «_»; решту неприпустимого прибирає.
+function displayName(s: unknown) {
+  return String(s || '')
+    .split('')
+    .map((ch) => {
+      const low = ch.toLowerCase();
+      if (!(low in TRANSLIT)) return ch;
+      const t = TRANSLIT[low];
+      return ch === low ? t : t.charAt(0).toUpperCase() + t.slice(1);
+    })
+    .join('')
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-._]+|[-._]+$/g, '');
+}
+
+// Назви папок мехів одного пілота: однакові назви отримують -2, -3… за порядком у списку.
+function mechFolderNames(pilot: any) {
+  const used = new Map<string, number>();
+  const out = new Map<string, string>();
+  for (const m of pilot?.state?.mechs || []) {
+    const base = displayName(m.name) || `MECH-${m.id}`;
+    const n = (used.get(base.toLowerCase()) || 0) + 1;
+    used.set(base.toLowerCase(), n);
+    out.set(String(m.id), n === 1 ? base : `${base}-${n}`);
+  }
+  return out;
+}
+
+// Де арт має лежати зараз (шлях відносно Data). null — пілота чи меха вже немає.
+async function desiredPath(row: any) {
+  if (!row.pilot_id) return null;
+  const { data: pilot } = await db.from('pilots').select('callsign, state').eq('id', row.pilot_id).maybeSingle();
+  if (!pilot) return null;
+  const folder = await folderFor(row.user_id);
+  const pilotName = displayName(pilot.callsign) || `PILOT-${row.pilot_id.slice(0, 8)}`;
+  const ext = extOf(row.file_name);
+  if (row.kind === 'portrait') return `${ART_ROOT}/${folder}/${pilotName}/${pilotName}${ext}`;
+  const mechName = mechFolderNames(pilot).get(String(row.mech_id));
+  if (!mechName) return null;
+  return `${ART_ROOT}/${folder}/${pilotName}/${mechName}/${mechName}${ext}`;
+}
+
+async function upload(rel: string, storagePath: string) {
+  const { data: blob, error } = await db.storage.from(BUCKET).download(storagePath);
+  if (error) throw new Error(`download: ${error.message}`);
+  // override: шлях належить цьому арту (ім'я пілота/меха), а File Browser сам створить папки.
+  const res = await fb('POST', rel, new Uint8Array(await blob.arrayBuffer()), '?override=true');
+  if (!res.ok) throw new Error(`File Browser upload ${res.status}: ${await res.text()}`);
 }
 
 function extOf(name: string) {
@@ -87,14 +144,6 @@ async function fb(method: string, rel: string, body?: Uint8Array, query = '') {
   return res;
 }
 
-async function fbExists(rel: string) {
-  const res = await fb('GET', rel);
-  if (res.status === 404) return false;
-  if (!res.ok) throw new Error(`File Browser GET ${res.status}: ${await res.text()}`);
-  await res.body?.cancel();
-  return true;
-}
-
 // ----- Папка гравця -----
 
 const folderCache = new Map<string, string>();
@@ -133,9 +182,15 @@ async function syncDeleted(log: string[]) {
   const { data: rows, error } = await db.from('art_uploads')
     .select('id, storage_path, foundry_path').not('deleted_at', 'is', null).limit(30);
   if (error) throw new Error(error.message);
+  if (!rows.length) return;
+  // Замінений портрет мав той самий шлях, що й новий. Якщо новий уже лежить там, файл
+  // не чіпаємо — інакше видалення старого стерло б новий.
+  const { data: live } = await db.from('art_uploads').select('foundry_path')
+    .is('deleted_at', null).not('foundry_path', 'is', null);
+  const inUse = new Set((live || []).map((r) => r.foundry_path));
   for (const row of rows) {
     try {
-      if (row.foundry_path) {
+      if (row.foundry_path && !inUse.has(row.foundry_path)) {
         const res = await fb('DELETE', row.foundry_path);
         if (!res.ok && res.status !== 404) throw new Error(`File Browser DELETE ${res.status}: ${await res.text()}`);
       }
@@ -156,35 +211,38 @@ async function syncNew(log: string[]) {
 
   for (const row of rows) {
     try {
-      const folder = await folderFor(row.user_id);
-      let pilot: any = null;
-      if (row.pilot_id) {
-        ({ data: pilot } = await db.from('pilots').select('callsign, state').eq('id', row.pilot_id).maybeSingle());
-      }
-      const dir = `${ART_ROOT}/${folder}${pilot ? `/${slug(pilot.callsign) || row.pilot_id.slice(0, 8)}` : ''}`;
-
-      const ext = extOf(row.file_name);
-      let base = slug(row.file_name.replace(/\.[^.]*$/, '')) || 'art';
-      if (row.kind === 'portrait') base = 'portrait';
-      if (row.kind === 'mech') {
-        const mech = (pilot?.state?.mechs || []).find((m: any) => String(m.id) === row.mech_id);
-        base = `mech-${slug(mech?.name) || row.mech_id}`;
-      }
-      // Ім'я ще зайняте (старий файл не встиг прибратися) — не перезаписуємо, беремо -2, -3…
-      let name = `${base}${ext}`;
-      for (let n = 2; await fbExists(`${dir}/${name}`); n++) name = `${base}-${n}${ext}`;
-
-      const { data: blob, error: dlErr } = await db.storage.from(BUCKET).download(row.storage_path);
-      if (dlErr) throw new Error(`download: ${dlErr.message}`);
-      const rel = `${dir}/${name}`;
-      // File Browser сам створює відсутні папки на шляху.
-      const res = await fb('POST', rel, new Uint8Array(await blob.arrayBuffer()), '?override=false');
-      if (!res.ok) throw new Error(`File Browser upload ${res.status}: ${await res.text()}`);
-
+      const rel = await desiredPath(row);
+      if (!rel) continue; // мех ще не збережений у пілота — наступний прохід
+      await upload(rel, row.storage_path);
       await db.from('art_uploads').update({ synced_at: new Date().toISOString(), foundry_path: rel }).eq('id', row.id);
       log.push(`+ ${rel}`);
     } catch (err) {
       log.push(`! ${row.file_name} (${row.id}): ${(err as Error).message}`);
+    }
+  }
+}
+
+// Перейменували пілота чи меха (або змінилась схема папок) — переносимо файл на новий шлях:
+// кладемо копію зі сховища туди, де треба, і прибираємо стару.
+async function relocate(log: string[]) {
+  const { data: rows, error } = await db.from('art_uploads')
+    .select('id, user_id, pilot_id, kind, mech_id, storage_path, file_name, foundry_path')
+    .not('synced_at', 'is', null).is('deleted_at', null);
+  if (error) throw new Error(error.message);
+
+  for (const row of rows) {
+    try {
+      const rel = await desiredPath(row);
+      if (!rel || rel === row.foundry_path) continue;
+      await upload(rel, row.storage_path);
+      if (row.foundry_path) {
+        const res = await fb('DELETE', row.foundry_path);
+        if (!res.ok && res.status !== 404) throw new Error(`File Browser DELETE ${res.status}: ${await res.text()}`);
+      }
+      await db.from('art_uploads').update({ foundry_path: rel }).eq('id', row.id);
+      log.push(`~ ${row.foundry_path} → ${rel}`);
+    } catch (err) {
+      log.push(`! move ${row.id}: ${(err as Error).message}`);
     }
   }
 }
@@ -207,6 +265,7 @@ Deno.serve(async (req) => {
   try {
     await cleanupRemovedMechs();
     await syncDeleted(log);
+    await relocate(log);
     await syncNew(log);
   } catch (err) {
     console.error('foundry-art-sync', err);
