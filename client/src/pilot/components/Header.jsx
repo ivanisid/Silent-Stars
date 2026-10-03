@@ -25,10 +25,11 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus,
         borderBottom: '2px solid var(--header-border)',
       }}
     >
-      {/* Портрет праворуч, як у COMP/CON; решта шапки — ліворуч від нього. */}
-      <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start', flexWrap: 'wrap-reverse' }}>
-      <div style={{ flex: 1, minWidth: 300 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 16 }}>
+      {/* Портрет праворуч на всю висоту шапки, як у COMP/CON. Ліва колонка розтягується на ту
+          саму висоту: ім'я — вгорі, рядок ЛЛ — внизу, на рівні низу портрета. */}
+      <div style={{ display: 'flex', gap: 32, alignItems: 'stretch', flexWrap: 'wrap' }}>
+      <div style={{ flex: 1, minWidth: 300, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div style={{ flex: 1, minWidth: 260 }}>
           {!editingMeta ? (
             <>
@@ -95,7 +96,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus,
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 28, alignItems: 'center', marginTop: 20, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ fontSize: 13, color: 'var(--text-info)', whiteSpace: 'nowrap' }}>
           ІГОР ЗІГРАНО: <span style={{ color: 'var(--text-bright)' }}>{state.games}</span>
         </div>
@@ -156,8 +157,9 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus,
           canEdit={canEditArt}
           onUpload={onUploadPortrait}
           onRemove={onRemoveArt}
-          width={190}
-          height={230}
+          width={200}
+          height={240}
+          fit="cover"
         />
       </div>
     </div>
