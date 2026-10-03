@@ -6,6 +6,7 @@ import PilotProfilePage from './pages/PilotProfilePage.jsx';
 import GmPanelPage from './pages/GmPanelPage.jsx';
 import BoardPage from './pages/BoardPage.jsx';
 import ReservesPage from './pages/ReservesPage.jsx';
+import ArtPage from './pages/ArtPage.jsx';
 
 function RequireAuth({ children }) {
   const { isAuthed, ready } = useAuth();
@@ -47,6 +48,14 @@ export default function App() {
         element={
           <RequireAuth>
             <ReservesPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/art"
+        element={
+          <RequireAuth>
+            <ArtPage />
           </RequireAuth>
         }
       />

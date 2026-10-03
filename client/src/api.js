@@ -160,6 +160,61 @@ export const api = {
     return { ok: true };
   },
 
+  // ----- Арти для Foundry -----
+  // Файл іде в приватний бакет pilot-art у папку гравця, рядок — в art_uploads.
+  // Далі синхронізатор на сервері Foundry кладе його в Data/pilots/<нік>/.
+
+  listArt: async () => {
+    const { data, error } = await supabase
+      .from('art_uploads')
+      .select('id, storage_path, file_name, size_bytes, created_at, synced_at, foundry_path')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    if (!data.length) return [];
+    // Бакет приватний — прев'ю через тимчасові посилання.
+    const { data: signed } = await supabase.storage
+      .from('pilot-art')
+      .createSignedUrls(data.map((a) => a.storage_path), 3600);
+    const url = new Map((signed || []).map((s) => [s.path, s.signedUrl]));
+    return data.map((a) => ({ ...a, previewUrl: url.get(a.storage_path) || null }));
+  },
+
+  uploadArt: async (userId, file) => {
+    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+    const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from('pilot-art').upload(path, file, { contentType: file.type });
+    if (upErr) {
+      if (/exceeded|too large|maximum/i.test(upErr.message)) throw new Error(`«${file.name}» більший за 10 МБ.`);
+      if (/mime|type/i.test(upErr.message)) throw new Error(`«${file.name}» — не зображення (потрібен png, jpg, webp або gif).`);
+      throw new Error(upErr.message);
+    }
+    const { error } = await supabase.from('art_uploads').insert({
+      storage_path: path,
+      file_name: file.name,
+      size_bytes: file.size,
+    });
+    if (error) {
+      // Без рядка синхронізатор файл не побачить — прибираємо його, щоб не лишався сиротою.
+      await supabase.storage.from('pilot-art').remove([path]);
+      throw new Error(error.message);
+    }
+  },
+
+  // М'яке видалення: файл із Foundry і зі сховища прибирає синхронізатор.
+  deleteArt: async (id) => {
+    const { error } = await supabase.rpc('art_delete', { p_id: id });
+    if (error) throw new Error(error.message);
+  },
+
+  subscribeArt: (onChange) => {
+    const channel = supabase
+      .channel('art')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'art_uploads' }, onChange)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  },
+
   // ----- Discord -----
   // Запис через Discord іде в ті ж game_signups; тут лише прив'язка акаунта.
 
