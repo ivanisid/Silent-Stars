@@ -25,10 +25,10 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus,
         borderBottom: '2px solid var(--header-border)',
       }}
     >
-      {/* Портрет праворуч на всю висоту шапки, як у COMP/CON. Ліва колонка розтягується на ту
-          саму висоту: ім'я — вгорі, рядок ЛЛ — внизу, на рівні низу портрета. */}
-      <div style={{ display: 'flex', gap: 32, alignItems: 'stretch', flexWrap: 'wrap' }}>
-      <div style={{ flex: 1, minWidth: 300, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 20 }}>
+      {/* Портрет праворуч, як у COMP/CON. Уся інформація пілота — щільним блоком угорі
+          ліворуч: ім'я, під ним одразу рядок ЛЛ, без розриву до низу портрета. */}
+      <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      <div style={{ flex: 1, minWidth: 300, display: 'flex', flexDirection: 'column', gap: 22 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div style={{ flex: 1, minWidth: 260 }}>
           {!editingMeta ? (
