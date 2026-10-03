@@ -11,6 +11,8 @@ export default function PilotSelectPage() {
   const navigate = useNavigate();
 
   const [pilots, setPilots] = useState([]);
+  // Портрети окремо від списку: якщо їх не вдалося підтягнути, список однаково працює.
+  const [portraits, setPortraits] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
@@ -36,6 +38,7 @@ export default function PilotSelectPage() {
       const list = await api.listPilots(user.id);
       setPilots(list);
       setLoadError('');
+      api.listPortraits(list.map((p) => p.id)).then(setPortraits).catch(() => {});
     } catch (err) {
       setLoadError(err.message);
     } finally {
@@ -248,7 +251,34 @@ export default function PilotSelectPage() {
                     </div>
                   </div>
                 ) : (
-                  <>
+                  <div style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
+                    {/* Портрет зліва, як у ростері COMP/CON; без портрета — заглушка. */}
+                    <div
+                      style={{
+                        width: 112,
+                        minHeight: 112,
+                        flexShrink: 0,
+                        alignSelf: 'flex-start',
+                        aspectRatio: '1 / 1',
+                        background: 'var(--panel-sunken)',
+                        border: '1px solid var(--input-border)',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {portraits[p.id] ? (
+                        <img src={portraits[p.id]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }} />
+                      ) : (
+                        <span style={{ fontSize: 10, letterSpacing: 1, color: 'var(--text-faint)', textAlign: 'center', lineHeight: 1.4 }}>
+                          NO IMAGE
+                          <br />
+                          DATA
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', paddingRight: 90 }}>
                       <span className="title-font" style={{ fontSize: 20, letterSpacing: 1 }}>{p.callsign}</span>
                       <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{p.name}</span>
@@ -259,10 +289,16 @@ export default function PilotSelectPage() {
                     <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1, marginTop: 4 }}>
                       ТІР {llTier(p.ll)} · ЛЛ {p.ll}
                     </div>
+                    {p.mechs.length > 0 && (
+                      <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>
+                        ▮ {p.mechs.map((m) => m.name).join(' // ')}
+                      </div>
+                    )}
                     <div style={{ fontSize: 12, color: 'var(--text-dimmer)', marginTop: 6, lineHeight: 1.5, textAlign: 'left' }}>
                       {p.background}
                     </div>
-                  </>
+                    </div>
+                  </div>
                 )}
                 {!isEditing && (
                   <div style={{ position: 'absolute', top: 14, right: 16, display: 'flex', gap: 6 }}>

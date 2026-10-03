@@ -188,6 +188,23 @@ export const api = {
     return result;
   },
 
+  // Портрети кількох пілотів одним запитом — для списку на сторінці вибору: { [pilotId]: url }.
+  listPortraits: async (pilotIds) => {
+    if (!pilotIds.length) return {};
+    const { data, error } = await supabase
+      .from('art_uploads')
+      .select('pilot_id, storage_path')
+      .eq('kind', 'portrait')
+      .in('pilot_id', pilotIds)
+      .is('deleted_at', null);
+    if (error || !data.length) return {};
+    const { data: signed } = await supabase.storage
+      .from('pilot-art')
+      .createSignedUrls(data.map((a) => a.storage_path), 3600);
+    const url = new Map((signed || []).map((s) => [s.path, s.signedUrl]));
+    return Object.fromEntries(data.map((a) => [a.pilot_id, url.get(a.storage_path) || null]));
+  },
+
   // kind: 'portrait' | 'mech'; mechId — лише для меха.
   uploadPilotArt: async ({ userId, pilotId, kind, mechId = null, file }) => {
     const ext = (file.name.split('.').pop() || 'png').toLowerCase();
