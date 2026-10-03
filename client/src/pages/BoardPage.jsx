@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { llTier } from '../pilot/logic';
 import NavDrawer from '../components/NavDrawer.jsx';
-import { DIFFICULTY_GROUPS, difficultyLabel } from '../difficulty';
+import { DIFFICULTY_GROUPS, difficultyByKey, difficultyLabel } from '../difficulty';
 import DateTimeField from '../components/DateTimeField.jsx';
 
 // Gold as *text on a card*, so it stays legible on the light themes; --gm itself is
@@ -45,43 +45,29 @@ function statusBadge(slot) {
   return { text: 'НАБІР ВІДКРИТО', strong: false };
 }
 
-// Швидкий вибір складності: три рядки по три, у кожній кнопці видно нагороду,
-// яку вона проставить, і рекомендований ЛЛ. Обрана кнопка підсвічена; повторний клік
-// знімає вибір, бо складність необов'язкова.
-function DifficultyPicker({ value, onPick, compact }) {
+// Вибір складності випадаючим меню: у кожному пункті видно нагороду, яку він проставить,
+// і рекомендований ЛЛ; пункти згруповані за рівнем. Перший пункт — «без складності»,
+// бо вона необов'язкова. onPick отримує пресет або null.
+const DIFFICULTY_TIERS = ['Легка', 'Середня', 'Важка'];
+
+function DifficultyPicker({ value, onPick }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+    <select
+      value={value || ''}
+      onChange={(e) => onPick(difficultyByKey(e.target.value))}
+      style={{ width: '100%', padding: '9px 10px', fontSize: 13 }}
+    >
+      <option value="">— без складності —</option>
       {DIFFICULTY_GROUPS.map((group, i) => (
-        <div key={i} style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-          {group.map((d) => {
-            const active = value === d.key;
-            return (
-              <button
-                key={d.key}
-                type="button"
-                onClick={() => onPick(d)}
-                style={{
-                  flex: '1 1 140px',
-                  textAlign: 'left',
-                  padding: compact ? '5px 8px' : '7px 10px',
-                  fontSize: compact ? 10 : 11,
-                  lineHeight: 1.4,
-                  background: active ? 'var(--header)' : 'var(--input-bg)',
-                  color: active ? 'var(--text-bright)' : 'var(--text-dim)',
-                  border: `1px solid ${active ? GOLD_DIM : 'var(--input-border)'}`,
-                  cursor: 'pointer',
-                }}
-              >
-                <div style={{ color: active ? GOLD : 'var(--text-soft)' }}>{d.label}</div>
-                <div style={{ fontSize: compact ? 9 : 10, color: 'var(--text-dimmer)' }}>
-                  {d.mana} М · {d.pr} PR · {d.ll}
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <optgroup key={i} label={DIFFICULTY_TIERS[i]}>
+          {group.map((d) => (
+            <option key={d.key} value={d.key}>
+              {d.label} — {d.mana} М · {d.pr} PR · {d.ll}
+            </option>
+          ))}
+        </optgroup>
       ))}
-    </div>
+    </select>
   );
 }
 
@@ -233,9 +219,9 @@ function CreateSlotForm({ onCreated }) {
           <DifficultyPicker
             value={difficulty}
             onPick={(d) => {
-              // Пресет заповнює обидва поля нагороди; повторний клік знімає вибір,
+              // Пресет заповнює обидва поля нагороди; «без складності» знімає вибір,
               // але вже проставлені числа лишає — їх правлять руками нижче.
-              if (d.key === difficulty) return setDifficulty('');
+              if (!d) return setDifficulty('');
               setDifficulty(d.key);
               setRewardMana(d.mana);
               setRewardPr(d.pr);
@@ -621,10 +607,9 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                 <div style={{ width: '100%' }}>
                   <div className="field-label">СКЛАДНІСТЬ</div>
                   <DifficultyPicker
-                    compact
                     value={rDiff}
                     onPick={(d) => {
-                      if (d.key === rDiff) return setRDiff('');
+                      if (!d) return setRDiff('');
                       setRDiff(d.key);
                       setRMana(d.mana);
                       setRPr(d.pr);
