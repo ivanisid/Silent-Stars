@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { derivePilotView } from '../derive';
 import ArtSlot from './ArtSlot.jsx';
+import PilotGames from './PilotGames.jsx';
 
 export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus, portrait, canEditArt, onUploadPortrait, onRemoveArt }) {
   const view = derivePilotView(state);
@@ -149,6 +150,8 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus,
           </div>
         </div>
       )}
+
+      <PilotGames pilotId={pilot.id} />
       </div>
         <ArtSlot
           art={portrait}

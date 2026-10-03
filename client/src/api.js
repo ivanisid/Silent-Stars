@@ -292,9 +292,20 @@ export const api = {
   },
 
   // Будь-яка зміна слотів чи записів (зокрема з Discord) → onChange. Повертає відписку.
-  subscribeBoard: (onChange) => {
+  // Ігри одного пілота для шапки профілю: його записи разом зі слотом.
+  listPilotGames: async (pilotId) => {
+    const { data, error } = await supabase
+      .from('game_signups')
+      .select('id, approved, released_at, roll, roll_bonus, guaranteed, game_slots(id, title, game_at, status)')
+      .eq('pilot_id', pilotId);
+    if (error) throw new Error(error.message);
+    return (data || []).filter((g) => g.game_slots);
+  },
+
+  // channelName — щоб дошка і профіль пілота не ділили один канал, коли обидва відкриті.
+  subscribeBoard: (onChange, channelName = 'board') => {
     const channel = supabase
-      .channel('board')
+      .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'game_slots' }, onChange)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'game_signups' }, onChange)
       .subscribe();
