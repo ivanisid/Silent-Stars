@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { RESERVES, RESERVE_CATEGORIES, RESERVE_RANK_PR } from '../pilot/reserves';
 import { RARE_RESERVES, RARE_RANKS, VAULT_CAP_BASE, VAULT_CAP_STORAGE } from '../pilot/rareReserves';
 import NavDrawer from '../components/NavDrawer.jsx';
+import ReserveIcon, { ReserveGlyph, hasReserveIcon } from '../pilot/components/ReserveIcon.jsx';
 
 // Довідник резервів — тільки перегляд, нічого не купується. Дві категорії:
 //
@@ -136,7 +137,12 @@ function CommonList({ q }) {
         <Chip small active={category === 'all'} onClick={() => setCategory('all')}>УСІ</Chip>
         {cats.map((c) => (
           <Chip key={c.key} small active={category === c.key} onClick={() => setCategory(c.key)}>
-            {c.label}
+            {hasReserveIcon(c.key) ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <ReserveGlyph kind={c.key} size={14} />
+                {c.label}
+              </span>
+            ) : c.label}
           </Chip>
         ))}
       </div>
@@ -145,7 +151,9 @@ function CommonList({ q }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {list.map((r) => (
-          <div key={r.key} style={cardStyle}>
+          <div key={r.key} style={{ ...cardStyle, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+            <ReserveIcon kind={r.category} title={RESERVE_CATEGORIES.find((c) => c.key === r.category)?.label} />
+            <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
               <div style={{ fontSize: 14, color: 'var(--text-bright)' }}>{r.name}</div>
               <div style={{ fontSize: 10, color: 'var(--text-info)', letterSpacing: 1 }}>
@@ -156,6 +164,7 @@ function CommonList({ q }) {
               </div>
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.6, marginTop: 8 }}>{r.desc}</div>
+            </div>
           </div>
         ))}
         {list.length === 0 && <Empty />}
