@@ -64,7 +64,6 @@ export default function NavDrawer() {
     { label: 'ВИБІР ПІЛОТА', desc: 'Ваші персонажі', to: '/pilots' },
     { label: 'ЗАПИС НА ГРУ', desc: 'Слоти ігор та запис на них', to: '/board' },
     { label: 'РЕЗЕРВИ', desc: 'Довідник: звичайні та рідкісні', to: '/reserves' },
-    { label: 'АРТИ ДЛЯ FOUNDRY', desc: 'Портрети й токени — самі потрапляють у Foundry', to: '/art' },
     ...(isGm ? [{ label: 'ГМ-ПАНЕЛЬ', desc: 'Персонажі всіх гравців', to: '/gm', gold: true }] : []),
   ];
 

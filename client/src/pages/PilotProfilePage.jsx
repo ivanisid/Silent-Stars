@@ -52,6 +52,9 @@ export default function PilotProfilePage() {
   // Bumped after every successful save so the history panels know to re-read.
   const [savedTick, setSavedTick] = useState(0);
 
+  // Портрет і арти мехів: окремо від state пілота, бо живуть у сховищі, а не в JSON.
+  const [art, setArt] = useState({ portrait: null, mechs: {} });
+
   const saveTimer = useRef(null);
   const isFirstStateSet = useRef(true);
 
@@ -70,6 +73,28 @@ export default function PilotProfilePage() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => api.listPilotArt(id).then((a) => !cancelled && setArt(a)).catch(() => {});
+    load();
+    // Статус «у Foundry» проставляє синхронізатор на сервері — підхоплюємо його наживо.
+    const unsubscribe = api.subscribePilotArt(id, load);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [id]);
+
+  const own = pilot?.user_id === user?.id;
+  async function uploadArt(kind, mechId, file) {
+    await api.uploadPilotArt({ userId: user.id, pilotId: id, kind, mechId, file });
+    setArt(await api.listPilotArt(id));
+  }
+  async function removeArt(artId) {
+    await api.deleteArt(artId);
+    setArt(await api.listPilotArt(id));
+  }
 
   // After a server-side revert the in-memory state is stale, and the autosave below
   // would write it straight back over the restored one. Re-read and re-seed instead,
@@ -141,7 +166,17 @@ export default function PilotProfilePage() {
 
   return (
     <div style={containerStyle}>
-      <Header pilot={pilot} state={state} dispatch={dispatch} onSaveMeta={saveMeta} saveStatus={saveStatus} />
+      <Header
+        pilot={pilot}
+        state={state}
+        dispatch={dispatch}
+        onSaveMeta={saveMeta}
+        saveStatus={saveStatus}
+        portrait={art.portrait}
+        canEditArt={own}
+        onUploadPortrait={(file) => uploadArt('portrait', null, file)}
+        onRemoveArt={removeArt}
+      />
 
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px 0 24px', display: 'flex', flexDirection: 'column', gap: 26 }}>
         <SyncTools dispatch={dispatch} />
@@ -156,7 +191,14 @@ export default function PilotProfilePage() {
         </div>
 
         <BondMenu state={state} dispatch={dispatch} />
-        <MechsPanel state={state} dispatch={dispatch} />
+        <MechsPanel
+          state={state}
+          dispatch={dispatch}
+          mechArt={art.mechs}
+          canEditArt={own}
+          onUploadMechArt={(mechId, file) => uploadArt('mech', mechId, file)}
+          onRemoveArt={removeArt}
+        />
         <VaultPanel state={state} dispatch={dispatch} />
         <SkillTriggers state={state} dispatch={dispatch} />
         {/* <ContactsPanel state={state} dispatch={dispatch} /> — схована, див. імпорт вище */}

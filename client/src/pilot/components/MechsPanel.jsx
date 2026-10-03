@@ -1,7 +1,8 @@
 import { Card, SegRow, StepButton } from './ui';
 import { OC_STEPS } from '../constants';
+import ArtSlot from './ArtSlot.jsx';
 
-export default function MechsPanel({ state, dispatch }) {
+export default function MechsPanel({ state, dispatch, mechArt = {}, canEditArt, onUploadMechArt, onRemoveArt }) {
   const d = state.mechDraft;
 
   return (
@@ -12,7 +13,8 @@ export default function MechsPanel({ state, dispatch }) {
           const ocIdx = Math.min(m.overcharge, 3);
 
           return (
-            <div key={m.id} style={{ background: 'var(--input-bg)', border: '1px solid var(--panel-border)', padding: 16 }}>
+            <div key={m.id} style={{ background: 'var(--input-bg)', border: '1px solid var(--panel-border)', padding: 16, display: 'flex', gap: 20, flexWrap: 'wrap-reverse', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, minWidth: 300 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                   <div className="title-font" style={{ fontSize: 20 }}>{m.name}</div>
@@ -181,6 +183,18 @@ export default function MechsPanel({ state, dispatch }) {
                   <button className="btn" type="button" onClick={() => dispatch({ type: 'ADD_LIMITED', id: m.id })}>+</button>
                 </div>
               </div>
+              </div>
+              {/* Арт меха праворуч, як у COMP/CON. */}
+              <ArtSlot
+                art={mechArt[m.id]}
+                label="ЗОБРАЖЕННЯ МЕХА"
+                emptyText={canEditArt ? 'Натисніть, щоб встановити зображення меха' : 'Зображення немає'}
+                canEdit={canEditArt}
+                onUpload={(file) => onUploadMechArt(m.id, file)}
+                onRemove={onRemoveArt}
+                width={240}
+                height={260}
+              />
             </div>
           );
         })}

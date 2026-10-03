@@ -160,29 +160,38 @@ export const api = {
     return { ok: true };
   },
 
-  // ----- Арти для Foundry -----
-  // Файл іде в приватний бакет pilot-art у папку гравця, рядок — в art_uploads.
-  // Далі синхронізатор на сервері Foundry кладе його в Data/pilots/<нік>/.
+  // ----- Арти пілота й мехів (для апки і Foundry) -----
+  // Портрет пілота і арт кожного меха. Файл іде в приватний бакет pilot-art у папку
+  // гравця, рядок — в art_uploads; новий арт тієї ж ролі замінює попередній (тригер у базі).
+  // Синхронізатор на сервері Foundry кладе його в Data/pilots/<нік>/<позивний>/.
 
-  listArt: async () => {
+  // { portrait: art | null, mechs: { [mechId]: art } }, у кожного art є previewUrl.
+  listPilotArt: async (pilotId) => {
     const { data, error } = await supabase
       .from('art_uploads')
-      .select('id, storage_path, file_name, size_bytes, created_at, synced_at, foundry_path')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
+      .select('id, kind, mech_id, storage_path, file_name, synced_at, foundry_path')
+      .eq('pilot_id', pilotId)
+      .is('deleted_at', null);
     if (error) throw new Error(error.message);
-    if (!data.length) return [];
-    // Бакет приватний — прев'ю через тимчасові посилання.
+    const result = { portrait: null, mechs: {} };
+    if (!data.length) return result;
+    // Бакет приватний — показуємо через тимчасові посилання.
     const { data: signed } = await supabase.storage
       .from('pilot-art')
       .createSignedUrls(data.map((a) => a.storage_path), 3600);
     const url = new Map((signed || []).map((s) => [s.path, s.signedUrl]));
-    return data.map((a) => ({ ...a, previewUrl: url.get(a.storage_path) || null }));
+    for (const a of data) {
+      const art = { ...a, previewUrl: url.get(a.storage_path) || null };
+      if (a.kind === 'portrait') result.portrait = art;
+      else if (a.kind === 'mech') result.mechs[a.mech_id] = art;
+    }
+    return result;
   },
 
-  uploadArt: async (userId, file) => {
+  // kind: 'portrait' | 'mech'; mechId — лише для меха.
+  uploadPilotArt: async ({ userId, pilotId, kind, mechId = null, file }) => {
     const ext = (file.name.split('.').pop() || 'png').toLowerCase();
-    const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+    const path = `${userId}/${pilotId}/${kind}-${crypto.randomUUID()}.${ext}`;
     const { error: upErr } = await supabase.storage.from('pilot-art').upload(path, file, { contentType: file.type });
     if (upErr) {
       if (/exceeded|too large|maximum/i.test(upErr.message)) throw new Error(`«${file.name}» більший за 10 МБ.`);
@@ -193,6 +202,9 @@ export const api = {
       storage_path: path,
       file_name: file.name,
       size_bytes: file.size,
+      pilot_id: pilotId,
+      kind,
+      mech_id: kind === 'mech' ? mechId : null,
     });
     if (error) {
       // Без рядка синхронізатор файл не побачить — прибираємо його, щоб не лишався сиротою.
@@ -207,10 +219,10 @@ export const api = {
     if (error) throw new Error(error.message);
   },
 
-  subscribeArt: (onChange) => {
+  subscribePilotArt: (pilotId, onChange) => {
     const channel = supabase
-      .channel('art')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'art_uploads' }, onChange)
+      .channel(`art-${pilotId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'art_uploads', filter: `pilot_id=eq.${pilotId}` }, onChange)
       .subscribe();
     return () => supabase.removeChannel(channel);
   },

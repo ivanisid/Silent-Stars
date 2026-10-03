@@ -1,12 +1,16 @@
 // Синхронізатор артів: апка (Supabase) → файлова система Foundry VTT.
 //
 // Працює на сервері Foundry. Кожні POLL_SECONDS:
-//   1. нові рядки art_uploads → файл із бакета pilot-art лягає в
-//      <FOUNDRY_DATA>/<ART_ROOT>/<папка гравця>/<ім'я файлу>; рядку проставляються
-//      synced_at і foundry_path (шлях відносно Data — саме його вставляють у Foundry);
-//   2. рядки з deleted_at (гравець видалив арт в апці) → файл прибирається з Foundry
-//      і зі сховища, рядок видаляється.
-// Папка гравця — його нік латиницею; створюється при першому арті.
+//   1. арти мехів, яких уже немає в пілота, позначаються видаленими;
+//   2. рядки з deleted_at (арт замінено чи прибрано в апці, пілота видалено) → файл
+//      прибирається з Foundry і зі сховища, рядок видаляється;
+//   3. нові рядки art_uploads → файл із бакета pilot-art лягає в
+//      <FOUNDRY_DATA>/<ART_ROOT>/<нік>/<позивний>/portrait.<ext> або mech-<мех>.<ext>;
+//      рядку проставляються synced_at і foundry_path (шлях відносно Data — саме його
+//      вставляють у Foundry).
+// Папки гравця й пілота — латиницею; створюються при першому арті. Видалення йде перед
+// записом, тож новий портрет лягає під тим самим ім'ям, що й старий, — посилання в
+// токенах Foundry лишаються робочими.
 
 import { createClient } from '@supabase/supabase-js';
 import { mkdir, writeFile, unlink, access } from 'node:fs/promises';
@@ -104,9 +108,20 @@ async function folderFor(userId) {
 
 // ----- Синхронізація -----
 
+// Ім'я файлу за роллю арту: стабільне, щоб заміна арту не ламала посилання у Foundry.
+function roleFileName(row, pilot) {
+  const ext = path.extname(row.file_name).toLowerCase() || '.png';
+  if (row.kind === 'portrait') return `portrait${ext}`;
+  if (row.kind === 'mech') {
+    const mech = (pilot?.state?.mechs || []).find((m) => m.id === row.mech_id);
+    return `mech-${slug(mech?.name) || row.mech_id}${ext}`;
+  }
+  return safeFileName(row.file_name);
+}
+
 async function syncNew() {
   const { data: rows, error } = await db.from('art_uploads')
-    .select('id, user_id, storage_path, file_name')
+    .select('id, user_id, pilot_id, kind, mech_id, storage_path, file_name')
     .is('synced_at', null).is('deleted_at', null)
     .order('created_at').limit(50);
   if (error) throw new Error(error.message);
@@ -114,11 +129,17 @@ async function syncNew() {
   for (const row of rows) {
     try {
       const folder = await folderFor(row.user_id);
-      const dirRel = `${ART_ROOT}/${folder}`;
+      let pilot = null;
+      if (row.pilot_id) {
+        ({ data: pilot } = await db.from('pilots').select('callsign, state').eq('id', row.pilot_id).maybeSingle());
+      }
+      // Окрема папка на кожного пілота гравця: pilots/<нік>/<позивний>/.
+      const pilotDir = pilot ? `/${slug(pilot.callsign) || row.pilot_id.slice(0, 8)}` : '';
+      const dirRel = `${ART_ROOT}/${folder}${pilotDir}`;
       await mkdir(insideData(dirRel), { recursive: true });
 
-      // Не перезаписуємо: однакові імена отримують -2, -3…
-      const base = safeFileName(row.file_name);
+      // Не перезаписуємо чужий файл: якщо ім'я ще зайняте, отримуємо -2, -3…
+      const base = roleFileName(row, pilot);
       const ext = path.extname(base);
       let name = base;
       for (let n = 2; await exists(insideData(`${dirRel}/${name}`)); n++) {
@@ -137,6 +158,21 @@ async function syncNew() {
     } catch (err) {
       console.error(`! ${row.file_name} (${row.id}):`, err.message);
     }
+  }
+}
+
+// Мех прибрали з пілота в апці — його арт більше нікому не належить.
+async function cleanupRemovedMechs() {
+  const { data: rows, error } = await db.from('art_uploads')
+    .select('id, pilot_id, mech_id').eq('kind', 'mech').is('deleted_at', null).not('pilot_id', 'is', null);
+  if (error) throw new Error(error.message);
+  const pilotIds = [...new Set(rows.map((r) => r.pilot_id))];
+  if (!pilotIds.length) return;
+  const { data: pilots } = await db.from('pilots').select('id, state').in('id', pilotIds);
+  const mechIds = new Map((pilots || []).map((p) => [p.id, new Set((p.state?.mechs || []).map((m) => m.id))]));
+  const orphans = rows.filter((r) => !mechIds.get(r.pilot_id)?.has(r.mech_id)).map((r) => r.id);
+  if (orphans.length) {
+    await db.from('art_uploads').update({ deleted_at: new Date().toISOString() }).in('id', orphans);
   }
 }
 
@@ -162,6 +198,7 @@ async function syncDeleted() {
 
 async function tick() {
   try {
+    await cleanupRemovedMechs();
     await syncDeleted();
     await syncNew();
   } catch (err) {

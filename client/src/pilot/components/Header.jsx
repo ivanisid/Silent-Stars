@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { derivePilotView } from '../derive';
+import ArtSlot from './ArtSlot.jsx';
 
-export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus }) {
+export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus, portrait, canEditArt, onUploadPortrait, onRemoveArt }) {
   const view = derivePilotView(state);
   const [editingMeta, setEditingMeta] = useState(false);
   const [name, setName] = useState(pilot.name);
@@ -24,6 +25,9 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus 
         borderBottom: '2px solid var(--header-border)',
       }}
     >
+      {/* Портрет праворуч, як у COMP/CON; решта шапки — ліворуч від нього. */}
+      <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start', flexWrap: 'wrap-reverse' }}>
+      <div style={{ flex: 1, minWidth: 300 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 16 }}>
         <div style={{ flex: 1, minWidth: 260 }}>
           {!editingMeta ? (
@@ -144,6 +148,18 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, saveStatus 
           </div>
         </div>
       )}
+      </div>
+        <ArtSlot
+          art={portrait}
+          label="ПОРТРЕТ"
+          emptyText={canEditArt ? 'Натисніть, щоб встановити портрет пілота' : 'Портрета немає'}
+          canEdit={canEditArt}
+          onUpload={onUploadPortrait}
+          onRemove={onRemoveArt}
+          width={190}
+          height={230}
+        />
+      </div>
     </div>
   );
 }
