@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Card } from './ui';
 import { RARE_RESERVES, rareReserveByKey, anyReserveByKey } from '../rareReserves';
 import { derivePilotView } from '../derive';
+import ReserveIcon from './ReserveIcon.jsx';
+import { reserveByKey } from '../reserves';
 
 // Склад рідкісних резервів. Не магазин: тут нічого не купується й не витрачається —
 // гравець записує те, що видали як частину нагороди за місію. На складі резерв лежить
@@ -9,7 +11,7 @@ import { derivePilotView } from '../derive';
 export default function VaultPanel({ state, dispatch }) {
   const [picking, setPicking] = useState(false);
   const vault = state.vault || [];
-  // Кап приходить із derive, бо залежить від покращення ангару «Місце на складі».
+  // Кап приходить із derive — там же, де й решта похідних величин пілота.
   const cap = derivePilotView(state).vaultCap;
   const full = vault.length >= cap;
 
@@ -40,8 +42,13 @@ export default function VaultPanel({ state, dispatch }) {
                   background: 'var(--input-bg)',
                   border: '1px solid var(--panel-border)',
                   padding: '10px 12px',
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'flex-start',
                 }}
               >
+                <ReserveIcon kind="rare" title="Рідкісний резерв" size={36} />
+                <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 13, color: 'var(--text-bright)' }}>
                     {def?.name || v.key}
@@ -73,6 +80,7 @@ export default function VaultPanel({ state, dispatch }) {
                   >
                     СПИСАТИ
                   </button>
+                </div>
                 </div>
               </div>
             );
@@ -124,6 +132,7 @@ function OnHand({ state, dispatch }) {
           const def = anyReserveByKey(r.key);
           return (
             <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+              <ReserveIcon kind={reserveByKey(r.key)?.category || 'rare'} size={24} />
               <span style={{ flex: 1, color: 'var(--text-soft)' }}>{def?.name || r.key}</span>
               <span style={{ fontSize: 10, color: 'var(--text-dimmer)', whiteSpace: 'nowrap' }}>
                 {r.gamesLeft == null ? 'не згорає' : `${r.gamesLeft} ігор`}
@@ -211,8 +220,13 @@ function PickModal({ onClose, onPick }) {
                   border: '1px solid var(--input-border)',
                   color: 'var(--text)',
                   cursor: 'pointer',
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'flex-start',
                 }}
               >
+                <ReserveIcon kind="rare" size={36} />
+                <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, color: 'var(--text-bright)' }}>{r.name}</div>
                 <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginTop: 3 }}>
                   {r.action}
@@ -220,6 +234,7 @@ function PickModal({ onClose, onPick }) {
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-soft-dim)', lineHeight: 1.5, marginTop: 5 }}>
                   {r.desc}
+                </div>
                 </div>
               </button>
             ))}

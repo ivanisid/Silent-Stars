@@ -15,15 +15,12 @@ import { RESERVES } from './reserves';
 
 export const RARE_RANKS = [1, 2];
 
-// Скільки рідкісних резервів вміщує склад пілота. Покращення ангару «Місце на складі»
-// піднімає кап до VAULT_CAP_STORAGE — так само, як «Ресурсний буфер» піднімає кап PR.
-// Сам ангар зараз схований, тож купити покращення поки неможливо, але механіка готова.
+// Скільки рідкісних резервів вміщує склад пілота. Покращення ангару «Місце на складі»,
+// що його розширювало, прибрано з ангару — склад завжди базовий.
 export const VAULT_CAP_BASE = 5;
-export const VAULT_CAP_STORAGE = 10;
 
-// Кап складу за наявними покращеннями ангару. Дзеркалить prCap() з reducer.js.
-export function vaultCap(hangarOwned) {
-  return ((hangarOwned || {}).storage || 0) >= 1 ? VAULT_CAP_STORAGE : VAULT_CAP_BASE;
+export function vaultCap() {
+  return VAULT_CAP_BASE;
 }
 
 export const RARE_RESERVES = [

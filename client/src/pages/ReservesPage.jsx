@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { RESERVES, RESERVE_CATEGORIES, RESERVE_RANK_PR } from '../pilot/reserves';
-import { RARE_RESERVES, RARE_RANKS, VAULT_CAP_BASE, VAULT_CAP_STORAGE } from '../pilot/rareReserves';
+import { RARE_RESERVES, RARE_RANKS, VAULT_CAP_BASE } from '../pilot/rareReserves';
 import NavDrawer from '../components/NavDrawer.jsx';
 import ReserveIcon, { ReserveGlyph, hasReserveIcon } from '../pilot/components/ReserveIcon.jsx';
 
@@ -196,8 +196,7 @@ function RareList({ q }) {
       <Note>
         Не купуються й не знаходяться за даунтайм — їх видають як частину нагороди за
         місію. Отриманий резерв записують на склад у чарнику: він вміщує {VAULT_CAP_BASE}{' '}
-        ({VAULT_CAP_STORAGE} з покращенням ангару «Місце на складі») і нічого не
-        витрачає, доки резерв лежить. Згорає лише те, що взяли на місію.
+        і нічого не витрачає, доки резерв лежить. Згорає лише те, що взяли на місію.
       </Note>
 
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

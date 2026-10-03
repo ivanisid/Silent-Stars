@@ -24,10 +24,7 @@ import SkillTriggers from '../pilot/components/SkillTriggers.jsx';
 // component and its reducer state are untouched, so bringing it back is an import
 // and a line. The projects panel is gone entirely: its slot is now the Get Creative
 // tracker inside the weekly downtime card.
-// Панель покращень ангару тимчасово схована, поки не задані нові правила для неї.
-// Компонент, модалка підтвердження, дані HANGAR_DATA та екшени редюсера лишаються
-// на місці — повернути панель це рядок імпорту й рядок рендера нижче.
-// import HangarPanel from '../pilot/components/HangarPanel.jsx';
+import HangarPanel from '../pilot/components/HangarPanel.jsx';
 import MechsPanel from '../pilot/components/MechsPanel.jsx';
 import VaultPanel from '../pilot/components/VaultPanel.jsx';
 import OperationsLogPanel from '../pilot/components/OperationsLogPanel.jsx';
@@ -204,7 +201,7 @@ export default function PilotProfilePage() {
         {/* <ContactsPanel state={state} dispatch={dispatch} /> — схована, див. імпорт вище */}
         {/* Даунтайм прибраний з чарника цілком: передмісійний — раніше, щотижневий
             «ЧАС ПРОСТОЮ» — тепер. Ці дії живуть у правилах і заявках, не тут. */}
-        {/* <HangarPanel state={state} dispatch={dispatch} /> — схована, див. імпорт вище */}
+        <HangarPanel state={state} dispatch={dispatch} />
         <NarrativeEditor state={state} dispatch={dispatch} />
         {/* Один журнал для обох ролей: свої операції гравець відкочує сам, чужі —
             ГМ. Що видно, вирішує сервер, а не ця сторінка. */}

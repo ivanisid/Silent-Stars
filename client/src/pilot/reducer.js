@@ -54,7 +54,7 @@ function prCap(state) {
   return (state.hangar.owned.buffer || 0) >= 1 ? PR_CAP_BUFFER : PR_CAP_BASE;
 }
 
-// Кап складу рідкісних резервів: 5, або 10 з покращенням ангару «Місце на складі».
+// Кап складу рідкісних резервів — завжди базовий (див. vaultCap у rareReserves.js).
 function vCap(state) {
   return vaultCap(state.hangar.owned);
 }
@@ -614,20 +614,26 @@ export function pilotReducer(state, action) {
         return { ...state, hangar: { ...state.hangar, confirm: null } };
       }
       const price = item.prices[owned];
+      const prPrice = item.pr?.[owned] || 0;
       if (price > state.mana.balance) {
         return { ...state, hangar: { ...state.hangar, error: 'Недостатньо мани.' } };
       }
+      if (prPrice > state.pr) {
+        return { ...state, hangar: { ...state.hangar, error: 'Недостатньо PR.' } };
+      }
+      const lvl = item.prices.length > 1 ? ' рів.' + (owned + 1) : '';
       const mana = pushManaHistory(
         { ...state.mana, balance: state.mana.balance - price },
-        `−${price} · ${item.title}${item.prices.length > 1 ? ' рів.' + (owned + 1) : ''}`,
+        `−${price} · ${item.title}${lvl}`,
       );
       return log(
         {
           ...state,
           mana,
+          pr: state.pr - prPrice,
           hangar: { ...state.hangar, owned: { ...state.hangar.owned, [key]: owned + 1 }, confirm: null, error: '' },
         },
-        `Ангар: придбано «${item.title}»${item.prices.length > 1 ? ' рів.' + (owned + 1) : ''} за ${price} мани`,
+        `Ангар: придбано «${item.title}»${lvl} за ${price} мани${prPrice ? ` і ${prPrice} PR` : ''}`,
       );
     }
 
@@ -805,7 +811,7 @@ export function pilotReducer(state, action) {
       if (!entry) return state;
       const def = rareReserveByKey(entry.key);
       if (!def) return state;
-      // Рідкісні резерви не входять до «Адаптованих запчастин», тож завжди одна гра.
+      // Рідкісний резерв, взятий на місію, живе одну гру.
       const taken = { id: newId(state.reserves), key: def.key, source: 'vault', gamesLeft: 1 };
       return log(
         {

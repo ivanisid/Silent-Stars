@@ -1,6 +1,6 @@
 import { Card } from './ui';
 import { HANGAR_DATA } from '../constants';
-import { hangarBuyLabel } from '../derive';
+import { hangarBuyLabel, hangarPriceText } from '../derive';
 
 export default function HangarPanel({ state, dispatch }) {
   return (
@@ -62,7 +62,7 @@ export default function HangarPanel({ state, dispatch }) {
                 {item.levelTexts.map((text, i) => (
                   <div key={i} style={{ marginTop: 10, paddingLeft: 12, borderLeft: `2px solid ${i < owned ? 'var(--success)' : 'var(--header-border)'}` }}>
                     <div style={{ fontSize: 11, color: i < owned ? 'var(--success)' : 'var(--text-dim)', letterSpacing: 1 }}>
-                      РІВЕНЬ {i + 1}{i < owned ? ' · ПРИДБАНО' : ''} · {item.prices[i]} М
+                      РІВЕНЬ {i + 1}{i < owned ? ' · ПРИДБАНО' : ''} · {hangarPriceText(item, i)}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-soft-dim)', lineHeight: 1.6, marginTop: 3, whiteSpace: 'pre-line' }}>{text}</div>
                   </div>

@@ -15,22 +15,9 @@ export const RESERVE_CATEGORIES = [
 // Ціна за рангом.
 export const RESERVE_RANK_PR = { 1: 10, 2: 20, 3: 40 };
 
-// Резерви з переліку «Адаптовані запчастини»: з цим покращенням ангару вони живуть
-// не одну гру, а дві (рівень 1) чи три (рівень 2).
-export const ADAPTED_PARTS_KEYS = [
-  'oba-liquidmetal-cloak',
-  'up-armoring',
-  'leg-enhancements',
-  'weathering',
-  'rented-gear',
-  'boosted-servos',
-];
-
-// Скільки ігор проживе куплений резерв. Звичайний згорає після місії; резерв із
-// переліку «Адаптованих запчастин» — довше, залежно від рівня покращення.
-export function reserveGamesLeft(key, hangarOwned) {
-  const parts = (hangarOwned || {}).parts || 0;
-  if (parts > 0 && ADAPTED_PARTS_KEYS.includes(key)) return 1 + parts;
+// Скільки ігор проживе куплений резерв: згорає після місії. (Покращення ангару
+// «Адаптовані запчастини», що подовжувало це, прибрано.)
+export function reserveGamesLeft() {
   return 1;
 }
 

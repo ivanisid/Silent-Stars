@@ -24,7 +24,7 @@ export function derivePilotView(state) {
   // «Ресурсний буфер» більше не відкриває склад, а лише піднімає кап.
   const prCap = (state.hangar.owned.buffer || 0) >= 1 ? PR_CAP_BUFFER : PR_CAP_BASE;
 
-  // Склад рідкісних резервів: 5, або 10 з покращенням ангару «Місце на складі».
+  // Склад рідкісних резервів — завжди базовий (див. vaultCap у rareReserves.js).
   const vCap = vaultCap(state.hangar.owned);
 
   const capMax = skillCapMax(ll, state.skillCapBonus);
@@ -44,10 +44,16 @@ export function derivePilotView(state) {
   };
 }
 
+// «500 М + 75 PR» — ціна рівня в обох валютах (PR лише якщо він є).
+export function hangarPriceText(item, level) {
+  const i = Math.min(level, item.prices.length - 1);
+  const pr = item.pr?.[i] || 0;
+  return `${item.prices[i]} М${pr ? ` + ${pr} PR` : ''}`;
+}
+
 export function hangarBuyLabel(item, owned) {
   const max = item.prices.length;
-  const price = item.prices[Math.min(owned, max - 1)];
-  return `ПРИДБАТИ${max > 1 ? ' РІВ. ' + (owned + 1) : ''} — ${price} М`;
+  return `ПРИДБАТИ${max > 1 ? ' РІВ. ' + (owned + 1) : ''} — ${hangarPriceText(item, owned)}`;
 }
 
 export function hangarPrice(item, owned) {
