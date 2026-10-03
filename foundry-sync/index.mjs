@@ -113,7 +113,7 @@ function roleFileName(row, pilot) {
   const ext = path.extname(row.file_name).toLowerCase() || '.png';
   if (row.kind === 'portrait') return `portrait${ext}`;
   if (row.kind === 'mech') {
-    const mech = (pilot?.state?.mechs || []).find((m) => m.id === row.mech_id);
+    const mech = (pilot?.state?.mechs || []).find((m) => String(m.id) === row.mech_id);
     return `mech-${slug(mech?.name) || row.mech_id}${ext}`;
   }
   return safeFileName(row.file_name);
@@ -169,7 +169,8 @@ async function cleanupRemovedMechs() {
   const pilotIds = [...new Set(rows.map((r) => r.pilot_id))];
   if (!pilotIds.length) return;
   const { data: pilots } = await db.from('pilots').select('id, state').in('id', pilotIds);
-  const mechIds = new Map((pilots || []).map((p) => [p.id, new Set((p.state?.mechs || []).map((m) => m.id))]));
+  const mechIds = new Map((pilots || []).map((p) => [p.id, new Set((p.state?.mechs || []).map((m) => String(m.id)))]));
+  // ID мехів у state — числа, mech_id у таблиці — текст; Set вище вже з рядків.
   const orphans = rows.filter((r) => !mechIds.get(r.pilot_id)?.has(r.mech_id)).map((r) => r.id);
   if (orphans.length) {
     await db.from('art_uploads').update({ deleted_at: new Date().toISOString() }).in('id', orphans);
