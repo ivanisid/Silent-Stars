@@ -196,12 +196,13 @@ export default function PilotProfilePage() {
           onUploadMechArt={(mechId, file) => uploadArt('mech', mechId, file)}
           onRemoveArt={removeArt}
         />
+        {/* Ангар — одразу під мехами: стоянка й ліцензування стосуються саме їх. */}
+        <HangarPanel state={state} dispatch={dispatch} />
         <VaultPanel state={state} dispatch={dispatch} />
         <SkillTriggers state={state} dispatch={dispatch} />
         {/* <ContactsPanel state={state} dispatch={dispatch} /> — схована, див. імпорт вище */}
         {/* Даунтайм прибраний з чарника цілком: передмісійний — раніше, щотижневий
             «ЧАС ПРОСТОЮ» — тепер. Ці дії живуть у правилах і заявках, не тут. */}
-        <HangarPanel state={state} dispatch={dispatch} />
         <NarrativeEditor state={state} dispatch={dispatch} />
         {/* Один журнал для обох ролей: свої операції гравець відкочує сам, чужі —
             ГМ. Що видно, вирішує сервер, а не ця сторінка. */}

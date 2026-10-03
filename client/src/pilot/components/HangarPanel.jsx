@@ -3,33 +3,10 @@ import { HANGAR_DATA } from '../constants';
 import { hangarBuyLabel, hangarPriceText } from '../derive';
 
 export default function HangarPanel({ state, dispatch }) {
+  // Завжди розгорнута, як решта панелей чарника: згорнута смужка губилась серед них.
   return (
-    <div className="card">
-      <button
-        type="button"
-        onClick={() => dispatch({ type: 'TOGGLE_HANGAR_OPEN' })}
-        style={{
-          width: '100%',
-          boxSizing: 'border-box',
-          background: 'var(--header)',
-          clipPath: 'polygon(0 0,100% 0,calc(100% - 20px) 100%,0 100%)',
-          padding: '12px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          border: 'none',
-          color: 'var(--text)',
-          cursor: 'pointer',
-        }}
-      >
-        <div className="dot" />
-        <div className="title">ОСОБИСТИЙ АНГАР</div>
-        <div style={{ fontSize: 11, color: 'var(--text-info)', marginLeft: 'auto' }}>ПОКУПНІ БОНУСИ</div>
-        <div style={{ fontSize: 18, color: 'var(--accent)', marginRight: 14 }}>{state.hangar.open ? '−' : '+'}</div>
-      </button>
-
-      {state.hangar.open && (
-        <div>
+    <Card title="ОСОБИСТИЙ АНГАР" right={<span style={{ fontSize: 11, color: 'var(--text-info)' }}>ПОКУПНІ БОНУСИ</span>}>
+      <div>
           {HANGAR_DATA.map((item) => {
             const owned = state.hangar.owned[item.key] || 0;
             const max = item.prices.length;
@@ -71,7 +48,6 @@ export default function HangarPanel({ state, dispatch }) {
             );
           })}
         </div>
-      )}
-    </div>
+    </Card>
   );
 }
