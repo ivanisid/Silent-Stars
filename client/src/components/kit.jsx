@@ -37,6 +37,11 @@ export function PageHeader({ section, sectionTo, title, tag, right }) {
         {right}
         <div className="nick">{user?.nick}</div>
       </div>
+      {/* Та сама шухляда — ще й з вкладки на лівому краї, яка не прокручується разом зі сторінкою. */}
+      <button type="button" className="ss-side-tab" aria-label="Меню" onClick={() => setNav(true)}>
+        <span aria-hidden="true">≡</span>
+        <span className="lbl">МЕНЮ</span>
+      </button>
       <NavDrawer open={nav} onClose={() => setNav(false)} />
     </div>
   );

@@ -1294,3 +1294,26 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 /* ГМ-панель: рядок таблиці — посилання на профіль */
 .gm-row { color: inherit; }
 .gm-row:hover { background: var(--panel-inset); color: inherit; }
+
+/* Бокова вкладка меню: завжди на екрані, по центру лівого краю */
+.ss-side-tab {
+  position: fixed;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 40;
+  width: 26px;
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background: var(--header);
+  color: var(--header-text);
+  border: 1px solid var(--header-border);
+  border-left: none;
+  font-size: 13px;
+  line-height: 1;
+}
+.ss-side-tab:hover { background: var(--btn-hover); }
+.ss-side-tab .lbl { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; letter-spacing: 3px; }
