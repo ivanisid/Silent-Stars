@@ -245,6 +245,16 @@ export const api = {
     return () => supabase.removeChannel(channel);
   },
 
+  // Оновлення рядка пілота (зокрема зміни з Foundry через foundry-sync). RLS діє і тут.
+  subscribePilot: (pilotId, onChange) => {
+    const channel = supabase
+      .channel(`pilot-${pilotId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pilots', filter: `id=eq.${pilotId}` },
+        (payload) => onChange(payload.new))
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  },
+
   // ----- Discord -----
   // Запис через Discord іде в ті ж game_signups; тут лише прив'язка акаунта.
 

@@ -86,6 +86,12 @@ export default function PilotProfilePage() {
     };
   }, [id]);
 
+  // Бій у Foundry (ХП, структура, заряди…) записує функція foundry-sync. Вливаємо ці
+  // поля в стан у пам'яті, щоб автозбереження не затерло їх старими значеннями.
+  useEffect(() => api.subscribePilot(id, (row) => {
+    if (row?.state) dispatch({ type: '__FOUNDRY__', state: row.state });
+  }), [id]);
+
   const own = pilot?.user_id === user?.id;
   async function uploadArt(kind, mechId, file) {
     await api.uploadPilotArt({ userId: user.id, pilotId: id, kind, mechId, file });

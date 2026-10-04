@@ -24,7 +24,7 @@ const files = walk(srcDir).filter((f) => /\.(jsx?|mjs)$/.test(f) && !f.endsWith(
 
 // Що обробляє редюсер.
 const reducer = readFileSync(join(srcDir, 'pilot/reducer.js'), 'utf8');
-const handled = new Set([...reducer.matchAll(/case '([A-Z_]+)'/g)].map((m) => m[1]));
+const handled = new Set([...reducer.matchAll(/(?:case |action\.type === )'([A-Z_]+)'/g)].map((m) => m[1]));
 
 // Що диспатчать компоненти.
 const dispatched = new Map();
