@@ -26,16 +26,17 @@ function statusOf(g) {
     if (g.released_at) return { text: '↩ ЗВІЛЬНИВ МІСЦЕ', color: 'var(--text-dimmer)' };
     return { text: '✗ НЕ ЦЬОГО РАЗУ', color: 'var(--danger)' };
   }
-  if (g.guaranteed) return { text: '🛡 ГАРАНТОВАНЕ МІСЦЕ', color: 'var(--accent)' };
+  if (g.guaranteed) return { text: '◆ ГАРАНТОВАНЕ МІСЦЕ', color: 'var(--accent)' };
   const priority = g.roll == null ? null : g.roll + (g.roll_bonus || 0);
   return { text: priority == null ? 'ЗАПИСАНО' : `ЗАПИСАНО · ПРІОРИТЕТ ${priority}`, color: 'var(--accent)' };
 }
 
 const ts = (g) => (g.game_slots.game_at ? new Date(g.game_slots.game_at).getTime() : null);
 
-export default function PilotGames({ pilotId }) {
+// Ігри пілота з живим оновленням — потрібні і шапці профілю, і записнику (прив'язка
+// нотатки до гри), тож завантажуються один раз на сторінці.
+export function usePilotGames(pilotId) {
   const [games, setGames] = useState(null);
-
   useEffect(() => {
     let cancelled = false;
     let timer;
@@ -51,7 +52,17 @@ export default function PilotGames({ pilotId }) {
       unsubscribe();
     };
   }, [pilotId]);
+  return games;
+}
 
+export function gameShortLabel(g) {
+  const at = g.game_slots.game_at ? new Date(g.game_slots.game_at) : null;
+  const pad = (n) => String(n).padStart(2, '0');
+  const date = at && !Number.isNaN(at.getTime()) ? ` · ${pad(at.getDate())}.${pad(at.getMonth() + 1)}` : '';
+  return `${g.game_slots.title || 'Гра без назви'}${date}`;
+}
+
+export default function PilotGames({ games }) {
   if (games === null) return null;
 
   // Попереду: набір чи затверджений склад; без дати — нагорі (ще не заплановані), далі за датою.
@@ -73,32 +84,30 @@ export default function PilotGames({ pilotId }) {
   const rows = [...ahead, ...played];
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 8 }}>
-        <div style={{ fontSize: 11, letterSpacing: 2, color: 'var(--text-info)' }}>ІГРИ ПІЛОТА</div>
-        <Link to="/board" style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 'auto' }}>запис на гру →</Link>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+        <div className="ss-label">ІГРИ ПІЛОТА</div>
+        <Link to="/board" style={{ fontSize: 11, marginLeft: 'auto' }}>запис на гру →</Link>
       </div>
 
       {rows.length === 0 ? (
-        <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>
-          Пілот ще не записаний на жодну гру.
-        </div>
+        <div className="ss-note">&gt; Пілот ще не записаний на жодну гру.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', border: '1px solid var(--input-border)' }}>
+        <div className="ss-list">
           {rows.map((g, i) => {
             const st = statusOf(g);
             const past = g.game_slots.status === 'closed';
             return (
               <div
                 key={g.id}
+                className="m-game"
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '130px 1fr auto',
+                  gridTemplateColumns: '120px minmax(0,1fr) auto',
                   gap: 14,
                   alignItems: 'center',
                   padding: '8px 12px',
-                  fontSize: 12,
-                  background: past ? 'transparent' : 'var(--panel-inset)',
+                  background: past ? 'transparent' : 'var(--panel-sunken)',
                   borderTop: i ? '1px solid var(--input-border)' : 'none',
                   opacity: past ? 0.7 : 1,
                 }}

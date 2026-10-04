@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useConfirm } from '../../components/kit.jsx';
 
 // Місце під арт — портрет пілота чи зображення меха, як у COMP/CON. Клік по картинці (або
 // по порожній рамці) відкриває вибір файлу; при наведенні власник бачить «змінити».
@@ -14,8 +15,9 @@ function shortPath(p) {
   return parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : p;
 }
 
-export default function ArtSlot({ art, label, emptyText, canEdit, onUpload, onRemove, width = 220, height = 260, fit = 'contain' }) {
+export default function ArtSlot({ art, label, emptyText, compact = false, className = '', canEdit, onUpload, onRemove, width = 220, height = 260, fit = 'contain' }) {
   const inputRef = useRef(null);
+  const [ask, dialog] = useConfirm();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
@@ -36,7 +38,13 @@ export default function ArtSlot({ art, label, emptyText, canEdit, onUpload, onRe
 
   async function remove(e) {
     e.stopPropagation();
-    if (!window.confirm('Прибрати це зображення? Файл зникне і з Foundry.')) return;
+    const ok = await ask({
+      title: 'ПРИБРАТИ ЗОБРАЖЕННЯ?',
+      tone: 'danger',
+      lines: [label, 'файл зникне і з Foundry', 'відновлення: лише повторним завантаженням'],
+      yesLabel: 'ПРИБРАТИ',
+    });
+    if (!ok) return;
     setBusy(true);
     setError('');
     try {
@@ -57,7 +65,8 @@ export default function ArtSlot({ art, label, emptyText, canEdit, onUpload, onRe
   const showOverlay = canEdit && (hover || busy);
 
   return (
-    <div style={{ width, maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+    <div className={className} style={{ width, maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+      {dialog}
       <div
         role={canEdit ? 'button' : undefined}
         tabIndex={canEdit ? 0 : undefined}
@@ -84,16 +93,22 @@ export default function ArtSlot({ art, label, emptyText, canEdit, onUpload, onRe
             style={{ width: '100%', height: '100%', objectFit: fit, objectPosition: fit === 'cover' ? 'center top' : 'center', display: 'block' }}
           />
         ) : (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, textAlign: 'center' }}>
-            {canEdit && <div style={{ fontSize: 28, lineHeight: 1, color: 'var(--text-dimmer)' }}>+</div>}
-            <div style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.4 }}>{emptyText}</div>
+          <div className="ss-hatch" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 14, textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>{label}</div>
+            {compact ? (
+              canEdit && <div style={{ fontSize: 18, lineHeight: 1, color: 'var(--text-dimmer)' }}>+</div>
+            ) : (
+              <div style={{ fontSize: 10, color: 'var(--text-dimmer)', lineHeight: 1.5 }}>
+                {emptyText || (canEdit ? 'Натисніть, щоб встановити' : 'Зображення немає')}
+              </div>
+            )}
           </div>
         )}
 
         {/* Затемнення з підписом поверх картинки — лише для власника, при наведенні. */}
         {showOverlay && art?.previewUrl && (
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 11, letterSpacing: 2, color: '#fff' }}>{busy ? 'ЗАВАНТАЖЕННЯ…' : `✎ ${label}`}</span>
+          <div style={{ position: 'absolute', inset: 0, background: 'var(--overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 11, letterSpacing: 2, color: 'var(--text-bright)' }}>{busy ? 'ЗАВАНТАЖЕННЯ…' : `✎ ${label}`}</span>
           </div>
         )}
 
@@ -102,7 +117,7 @@ export default function ArtSlot({ art, label, emptyText, canEdit, onUpload, onRe
             type="button"
             onClick={remove}
             title="Прибрати зображення"
-            style={{ position: 'absolute', top: 6, right: 6, width: 24, height: 24, padding: 0, fontSize: 12, lineHeight: '22px', background: 'rgba(0,0,0,0.65)', color: '#fff', border: '1px solid rgba(255,255,255,0.35)', cursor: 'pointer' }}
+            style={{ position: 'absolute', top: 6, right: 6, width: 24, height: 24, padding: 0, fontSize: 12, lineHeight: '22px', background: 'var(--overlay)', color: 'var(--text-bright)', border: '1px solid var(--input-border)', cursor: 'pointer' }}
           >
             ✕
           </button>

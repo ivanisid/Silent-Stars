@@ -1,18 +1,19 @@
-import { PR_SERVICES, limitedRefillPr } from '../../constants';
+import { PR_SERVICES } from '../../constants';
+import { isLimited, itemRefillPr } from '../../repair';
 import { MechSelect } from './shared';
 
 // Вибір однієї системи для поповнення зарядів. Ціна показується біля кожної,
 // бо залежить від базового запасу саме цієї системи (1 заряд — найдорожче).
 function SystemPick({ mech, pick, onPick }) {
   if (!mech) return null;
-  if (mech.limited.length === 0) {
+  if (!(mech.items || []).some(isLimited)) {
     return <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>У цього меха немає лімітних систем.</div>;
   }
   return (
     <div>
       <div className="field-label">ОБЕРІТЬ СИСТЕМУ</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {mech.limited.map((li, idx) => (
+        {mech.items.map((li, idx) => isLimited(li) && (
           <button
             key={idx}
             type="button"
@@ -30,7 +31,7 @@ function SystemPick({ mech, pick, onPick }) {
             }}
           >
             <span>{li.name} ({li.current}/{li.max})</span>
-            <span style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>{limitedRefillPr(li.max)} PR</span>
+            <span style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>{itemRefillPr(li)} PR</span>
           </button>
         ))}
       </div>
@@ -48,7 +49,7 @@ export default function PrSpendModal({ state, dispatch }) {
     key === 'refillone'
       ? pick == null
         ? null
-        : limitedRefillPr(mech?.limited[pick]?.max)
+        : itemRefillPr(mech?.items?.[pick] || {})
       : svc?.cost;
 
   return (

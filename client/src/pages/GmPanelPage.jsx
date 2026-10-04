@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { llTier } from '../pilot/logic';
-import NavDrawer from '../components/NavDrawer.jsx';
+import { Msg, PageHeader, PageShell, Panel } from '../components/kit.jsx';
 
 function formatDate(iso) {
   if (!iso) return '—';
@@ -13,17 +13,19 @@ function formatDate(iso) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function Stat({ label, value, color }) {
-  return (
-    <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1, whiteSpace: 'nowrap' }}>
-      {label} <span style={{ color: color || 'var(--text-bright)' }}>{value}</span>
-    </div>
-  );
+const COLS = 'minmax(140px,1.4fr) repeat(8, minmax(44px,.5fr)) 120px';
+
+function plural(n) {
+  const a = n % 10;
+  const b = n % 100;
+  if (a === 1 && b !== 11) return 'ПЕРСОНАЖ';
+  if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return 'ПЕРСОНАЖІ';
+  return 'ПЕРСОНАЖІВ';
 }
 
 export default function GmPanelPage() {
   const { user, role, isGm } = useAuth();
-  const navigate = useNavigate();
+  const [q, setQ] = useState('');
 
   const [pilots, setPilots] = useState([]);
   const [profiles, setProfiles] = useState([]);
@@ -80,114 +82,93 @@ export default function GmPanelPage() {
       });
   }, [pilots, profiles, user?.id]);
 
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return groups;
+    return groups
+      .map((g) =>
+        g.nick.toLowerCase().includes(needle)
+          ? g
+          : { ...g, pilots: g.pilots.filter((p) => p.callsign.toLowerCase().includes(needle) || p.name.toLowerCase().includes(needle)) },
+      )
+      .filter((g) => g.pilots.length > 0 || g.nick.toLowerCase().includes(needle));
+  }, [groups, q]);
+
   // Role still resolving — don't flash a redirect for an actual GM on refresh.
   if (role === null) {
-    return <div style={{ padding: 40, color: 'var(--text-dimmer)' }}>Завантаження…</div>;
+    return (
+      <PageShell>
+        <div className="ss-note">&gt; Завантаження…</div>
+      </PageShell>
+    );
   }
   if (!isGm) {
     return <Navigate to="/pilots" replace />;
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        padding: '40px 24px',
-        boxSizing: 'border-box',
-        background: 'radial-gradient(ellipse at 50% 0%, var(--gm-page-grad) 0%, var(--gm-page-bg) 70%)',
-        display: 'flex',
-        justifyContent: 'center',
-      }}
-    >
-      <div style={{ width: 860, maxWidth: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
-          <img src="/logo-ferum-vox.webp" alt="" width={28} height={28} style={{ display: 'block' }} />
-          <div className="title-font" style={{ fontSize: 26, letterSpacing: 3, color: 'var(--gm)' }}>
-            ГМ-ПАНЕЛЬ
-          </div>
-          <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-dim)' }}>{user?.nick}</div>
-        </div>
+    <PageShell>
+      <PageHeader
+        section="OVERSIGHT"
+        title={<span style={{ color: 'var(--gm-ink)' }}>ГМ-ПАНЕЛЬ</span>}
+        tag={<span className="ss-tag gm">ГМ</span>}
+      />
 
-        <div style={{ fontSize: 11, color: 'var(--text-dimmer)', letterSpacing: 1, marginBottom: 24 }}>
-          ГРАВЦІВ: {groups.length} · ПЕРСОНАЖІВ: {pilots.length}
-        </div>
-
-        {loadError && <div className="error-box" style={{ marginBottom: 16 }}>{loadError}</div>}
-        {loading && <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>Завантаження…</div>}
-
-        {!loading &&
-          groups.map((group) => (
-            <div key={group.userId} style={{ marginBottom: 28 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-                <span className="title-font" style={{ fontSize: 16, letterSpacing: 2, color: 'var(--text-bright)' }}>
-                  {group.nick}
-                </span>
-                {group.role === 'gm' && (
-                  <span style={{ fontSize: 10, color: 'var(--gm)', letterSpacing: 1, border: '1px solid var(--gm-dim)', padding: '2px 6px' }}>
-                    ГМ
-                  </span>
-                )}
-                <span style={{ fontSize: 11, color: 'var(--text-dimmer)' }}>
-                  {group.pilots.length ? `персонажів: ${group.pilots.length}` : 'персонажів немає'}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {group.pilots.map((p) => {
-                  const ll = p.ll;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => navigate(`/pilots/${p.id}`)}
-                      style={{
-                        display: 'block',
-                        width: '100%',
-                        boxSizing: 'border-box',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        padding: '14px 18px',
-                        background: 'var(--gm-card)',
-                        color: 'var(--text)',
-                        border: '1px solid var(--gm-card-border)',
-                        fontFamily: "'Share Tech Mono',monospace",
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-                        <span className="title-font" style={{ fontSize: 18, letterSpacing: 1 }}>{p.callsign}</span>
-                        <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{p.name}</span>
-                        {p.status === 'archive' && (
-                          <span style={{ fontSize: 10, color: 'var(--danger)', letterSpacing: 1 }}>АРХІВ</span>
-                        )}
-                        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-dimmer)', whiteSpace: 'nowrap' }}>
-                          {formatDate(p.updatedAt)}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', gap: 18, marginTop: 8, flexWrap: 'wrap' }}>
-                        <Stat label="ТІР" value={llTier(ll)} />
-                        <Stat label="ЛЛ" value={ll} />
-                        <Stat label="ІГОР" value={p.games} />
-                        <Stat
-                          label="ХП"
-                          value={p.hp ? `${p.hp.current}/${p.hp.max}` : '—'}
-                          color={p.hp && p.hp.current <= Math.ceil(p.hp.max / 3) ? 'var(--danger)' : undefined}
-                        />
-                        <Stat label="СТРЕС" value={p.stress} color={p.stress >= 6 ? 'var(--danger)' : undefined} />
-                        <Stat label="МАНА" value={p.mana} />
-                        <Stat label="МЕХІВ" value={p.mechCount} />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-
-        <div style={{ marginTop: 14, fontSize: 10, color: 'var(--gm-foot)', letterSpacing: 1, textAlign: 'center' }}>
-          UNION ADMINISTRATIVE // GM OVERSIGHT
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>ГРАВЦІВ <span style={{ color: 'var(--text-bright)' }}>{groups.length}</span></div>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>ПЕРСОНАЖІВ <span style={{ color: 'var(--text-bright)' }}>{pilots.length}</span></div>
+        <input className="ss-input sm m-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ гравець або позивний" style={{ marginLeft: 'auto', width: 220 }} />
       </div>
-      <NavDrawer />
-    </div>
+
+      {loadError && <Msg kind="err">{loadError}</Msg>}
+      {loading && <div className="ss-note">&gt; Завантаження…</div>}
+
+      {!loading &&
+        shown.map((group) => (
+          <Panel
+            key={group.userId}
+            tone="gm"
+            title={
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                {group.nick}
+                {group.role === 'gm' && <span className="ss-tag gm" style={{ padding: '1px 6px' }}>ГМ</span>}
+              </span>
+            }
+            sub={group.pilots.length ? `${group.pilots.length} ${plural(group.pilots.length)}` : 'ПЕРСОНАЖІВ НЕМАЄ'}
+          >
+            {group.pilots.length > 0 && (
+              <div className="gm-thead" style={{ display: 'grid', gridTemplateColumns: COLS, gap: 10, padding: '6px 14px', fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1, borderBottom: '1px solid var(--panel-border)' }}>
+                <span>ПІЛОТ</span><span>МАНА</span><span>PR</span><span>ЛЛ</span><span>ІГОР</span><span>ХП</span><span>СТРЕС</span><span>ТІР</span><span>МЕХІВ</span><span style={{ textAlign: 'right' }}>ОНОВЛЕНО</span>
+              </div>
+            )}
+            {group.pilots.map((p, i) => (
+              <Link
+                key={p.id}
+                to={`/pilots/${p.id}`}
+                className="gm-row num"
+                style={{ display: 'grid', gridTemplateColumns: COLS, gap: 10, alignItems: 'center', padding: '8px 14px', borderTop: i ? '1px solid var(--panel-border)' : 'none', fontSize: 12, opacity: p.status === 'archive' ? 0.6 : 1 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+                  <span className="title-font" style={{ fontSize: 16, letterSpacing: 1, color: 'var(--text-bright)' }}>{p.callsign}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                  {p.status === 'archive' && <span className="ss-tag bad">АРХІВ</span>}
+                </div>
+                <span data-l="МАНА">{p.mana}</span>
+                <span data-l="PR">{p.pr}</span>
+                <span data-l="ЛЛ">{p.ll}</span>
+                <span data-l="ІГОР">{p.games}</span>
+                <span data-l="ХП">{p.hp ? `${p.hp.current}/${p.hp.max}` : '—'}</span>
+                <span data-l="СТРЕС">{p.stress}</span>
+                <span data-l="ТІР">{llTier(p.ll)}</span>
+                <span data-l="МЕХІВ">{p.mechCount}</span>
+                <span className="gm-upd" style={{ color: 'var(--text-dimmer)', fontSize: 11, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatDate(p.updatedAt)}</span>
+              </Link>
+            ))}
+            {group.pilots.length === 0 && <div className="ss-note" style={{ padding: '10px 14px', fontSize: 12 }}>&gt; Персонажів немає.</div>}
+          </Panel>
+        ))}
+
+      <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>FERUM VOX // GM OVERSIGHT</div>
+    </PageShell>
   );
 }

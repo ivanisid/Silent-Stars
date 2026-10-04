@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card } from './ui';
+import { Panel } from '../../components/kit.jsx';
 import { derivePilotView } from '../derive';
 
 // Лічильник PR. Самі покупки за PR — і ремонт, і резерви — живуть у магазині,
@@ -10,44 +10,33 @@ export default function PrPanel({ state, dispatch }) {
   const [tx, setTx] = useState(null);
 
   return (
-    <Card title="PRINTER REQUISITION" right={<span style={{ fontSize: 11, color: 'var(--text-info)' }}>PR</span>}>
-      <div style={{ padding: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <div className="title-font" style={{ fontSize: 36, color: 'var(--text-bright)' }}>{state.pr}</div>
-          <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>/ {view.prCap} PR</div>
-        </div>
-
-        {/* Кап — 100 (200 з буфером), тож посегментна шкала зі старого складу DC тут
-            не читається; смуга показує заповнення одним рухом. */}
-        <div style={{ height: 10, marginTop: 10, background: 'var(--input-bg)', border: '1px solid var(--accent-dim)' }}>
-          <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }} />
+    <Panel title="PRINTER REQUISITION" sub="PR">
+      <div className="ss-body">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div className="title-font num" style={{ fontSize: 32, color: 'var(--text-bright)', lineHeight: 1 }}>
+            {state.pr}
+            <span style={{ fontSize: 14, color: 'var(--text-soft-dim)', fontFamily: "'Share Tech Mono',monospace" }}> /{view.prCap}</span>
+          </div>
+          {/* Кап — 100 (200 з буфером): смуга показує заповнення одним рухом. */}
+          <div style={{ flex: 1, height: 10, background: 'var(--input-bg)', border: '1px solid var(--accent-dim)' }}>
+            <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }} />
+          </div>
         </div>
 
         {/* Кроки ±1 і ±10 ріжуться по нулю й капу мовчки — це швидка правка лічильника.
             Точну суму з коментарем вписують через транзакцію. */}
-        <div style={{ display: 'flex', gap: 6, marginTop: 14, flexWrap: 'wrap' }}>
-          {[-10, -1, 1, 10].map((d) => (
-            <button key={d} className="btn" type="button" onClick={() => dispatch({ type: 'PR_SHIFT', dir: d })}>
-              {d > 0 ? `+${d}` : `−${Math.abs(d)}`}
-            </button>
-          ))}
-          <button
-            className="btn"
-            type="button"
-            style={{ fontSize: 11 }}
-            onClick={() => setTx({ mode: 'deposit', amount: '', comment: '' })}
-          >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div className="ss-stepper" style={{ background: 'transparent' }}>
+            <button type="button" onClick={() => dispatch({ type: 'PR_SHIFT', dir: -10 })}>−10</button>
+            <button type="button" onClick={() => dispatch({ type: 'PR_SHIFT', dir: -1 })}>−1</button>
+            <div className="v sunk num" style={{ padding: '0 14px', fontSize: 12 }}>{state.pr}</div>
+            <button type="button" onClick={() => dispatch({ type: 'PR_SHIFT', dir: 1 })}>+1</button>
+            <button type="button" onClick={() => dispatch({ type: 'PR_SHIFT', dir: 10 })}>+10</button>
+          </div>
+          <button className="btn" type="button" onClick={() => setTx({ mode: 'deposit', amount: '', comment: '' })}>
             ТРАНЗАКЦІЯ
           </button>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-          <button
-            className="btn-ghost"
-            type="button"
-            style={{ fontSize: 11 }}
-            onClick={() => dispatch({ type: 'OPEN_SHOP_TAB', tab: 'repair' })}
-          >
+          <button className="btn-ghost" type="button" style={{ marginLeft: 'auto' }} onClick={() => dispatch({ type: 'OPEN_SHOP_TAB', tab: 'repair' })}>
             РЕМОНТ ЗА PR →
           </button>
         </div>
@@ -65,7 +54,7 @@ export default function PrPanel({ state, dispatch }) {
           }}
         />
       )}
-    </Card>
+    </Panel>
   );
 }
 
@@ -96,24 +85,12 @@ function PrTxModal({ tx, setTx, pr, cap, onSubmit }) {
 
   return (
     <div className="modal-backdrop" onClick={() => setTx(null)}>
-      <div className="modal-box" style={{ width: 380, maxWidth: '90vw' }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal-box" style={{ width: 400 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">ТРАНЗАКЦІЯ PR</div>
         <div className="modal-body">
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="ss-seg" style={{ display: 'flex' }}>
             {modes.map((m) => (
-              <button
-                key={m.value}
-                type="button"
-                onClick={() => setTx({ ...tx, mode: m.value })}
-                style={{
-                  flex: 1,
-                  padding: '9px 0',
-                  fontSize: 12,
-                  background: tx.mode === m.value ? 'var(--header)' : 'transparent',
-                  color: tx.mode === m.value ? 'var(--text)' : 'var(--text-dimmer)',
-                  border: '1px solid var(--input-border)',
-                }}
-              >
+              <button key={m.value} type="button" className={tx.mode === m.value ? 'on' : ''} style={{ flex: 1 }} onClick={() => setTx({ ...tx, mode: m.value })}>
                 {m.label}
               </button>
             ))}
@@ -130,7 +107,7 @@ function PrTxModal({ tx, setTx, pr, cap, onSubmit }) {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && valid) onSubmit({ mode: tx.mode, amount, comment: tx.comment });
               }}
-              style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: 14 }}
+              className="ss-input" style={{ width: '100%' }}
             />
           </div>
 
@@ -141,7 +118,7 @@ function PrTxModal({ tx, setTx, pr, cap, onSubmit }) {
               value={tx.comment}
               onChange={(e) => setTx({ ...tx, comment: e.target.value })}
               placeholder="За що саме"
-              style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: 14 }}
+              className="ss-input" style={{ width: '100%' }}
             />
           </div>
 
@@ -149,7 +126,7 @@ function PrTxModal({ tx, setTx, pr, cap, onSubmit }) {
             {preview == null ? `Баланс ${pr} / ${cap} PR` : `${pr} → ${preview} / ${cap} PR`}
           </div>
 
-          {error && <div className="error-box">{error}</div>}
+          {error && <div className="error-box">!! {error}</div>}
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <button className="btn-ghost" type="button" onClick={() => setTx(null)}>СКАСУВАТИ</button>
@@ -157,7 +134,6 @@ function PrTxModal({ tx, setTx, pr, cap, onSubmit }) {
               className="btn"
               type="button"
               disabled={!valid}
-              style={{ opacity: valid ? 1 : 0.55, cursor: valid ? 'pointer' : 'not-allowed' }}
               onClick={() => onSubmit({ mode: tx.mode, amount, comment: tx.comment })}
             >
               ПІДТВЕРДИТИ

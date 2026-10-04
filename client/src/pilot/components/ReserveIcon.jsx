@@ -65,9 +65,10 @@ export default function ReserveIcon({ kind, title, size = 44 }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: 'var(--accent)',
-        border: '1px solid var(--accent-dim)',
-        background: 'var(--panel-sunken)',
+        // Рідкісні — золоті, як у дизайні 2a: видно здалеку, що це не звичайний резерв.
+        color: kind === 'rare' ? 'var(--gm)' : 'var(--accent)',
+        border: `1px solid ${kind === 'rare' ? 'var(--gm-dim)' : 'var(--accent-dim)'}`,
+        background: kind === 'rare' ? 'var(--gm-panel-border)' : 'var(--panel-sunken)',
       }}
     >
       <ReserveGlyph kind={kind} size={Math.round(size * 0.68)} />

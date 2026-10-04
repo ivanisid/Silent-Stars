@@ -1,53 +1,74 @@
-import { Card } from './ui';
+import { Panel } from '../../components/kit.jsx';
 import { HANGAR_DATA } from '../constants';
-import { hangarBuyLabel, hangarPriceText } from '../derive';
 
+// Покращення ангару. Ціна — мана плюс PR; червоним лише та валюта, якої бракує.
+// Купівля підтверджується у HangarConfirmModal.
 export default function HangarPanel({ state, dispatch }) {
-  // Завжди розгорнута, як решта панелей чарника: згорнута смужка губилась серед них.
+  const boughtCount = HANGAR_DATA.filter((it) => (state.hangar.owned[it.key] || 0) >= it.prices.length).length;
+
   return (
-    <Card title="ОСОБИСТИЙ АНГАР" right={<span style={{ fontSize: 11, color: 'var(--text-info)' }}>ПОКУПНІ БОНУСИ</span>}>
-      <div>
-          {HANGAR_DATA.map((item) => {
-            const owned = state.hangar.owned[item.key] || 0;
-            const max = item.prices.length;
-            const done = owned >= max;
-            return (
-              <div key={item.key} style={{ borderBottom: '1px solid var(--rule)', padding: '18px 20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', gap: 5 }}>
-                    {Array.from({ length: max }, (_, i) => (
-                      <svg key={i} width="16" height="18" viewBox="0 0 20 23" style={{ display: 'block' }}>
-                        <polygon points="10,1 19,6.5 19,16.5 10,22 1,16.5 1,6.5" fill={i < owned ? 'var(--accent)' : 'var(--input-bg)'} stroke="var(--accent-dim)" strokeWidth="1.5" />
-                      </svg>
-                    ))}
-                  </div>
-                  <div className="title-font" style={{ fontSize: 17 }}>{item.title}</div>
-                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    {done && (
-                      <div style={{ fontSize: 11, color: 'var(--success)', letterSpacing: 1, border: '1px solid var(--success-border)', padding: '6px 12px' }}>ПРИДБАНО</div>
-                    )}
-                    {!done && (
-                      <button className="btn" type="button" style={{ fontSize: 11 }} onClick={() => dispatch({ type: 'OPEN_HANGAR_CONFIRM', key: item.key })}>
-                        {hangarBuyLabel(item, owned)}
-                      </button>
-                    )}
-                  </div>
+    <Panel title="ОСОБИСТИЙ АНГАР" sub={`${boughtCount} / ${HANGAR_DATA.length}`}>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {HANGAR_DATA.map((item, i) => {
+          const owned = state.hangar.owned[item.key] || 0;
+          const done = owned >= item.prices.length;
+          const lvl = Math.min(owned, item.prices.length - 1);
+          const mana = item.prices[lvl];
+          const pr = item.pr?.[lvl] || 0;
+          const req = item.requires && !state.hangar.owned[item.requires] ? HANGAR_DATA.find((h) => h.key === item.requires) : null;
+          const manaShort = !done && mana > state.mana.balance;
+          const prShort = !done && pr > state.pr;
+          const canBuy = !done && !req && !manaShort && !prShort;
+          const texts = [item.desc, ...item.levelTexts].filter(Boolean).join('\n');
+          return (
+            <div
+              key={item.key}
+              className="m-hangar"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0,1fr) auto 96px',
+                gap: 16,
+                alignItems: 'center',
+                padding: '10px 14px',
+                borderLeft: `3px solid ${done ? 'var(--success)' : 'transparent'}`,
+                borderTop: i ? '1px solid var(--panel-border)' : 'none',
+                opacity: req ? 0.55 : 1,
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-bright)' }}>{item.title}</span>
+                  {req && <span style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>ПІСЛЯ «{req.title.toUpperCase()}»</span>}
                 </div>
-                {item.desc && (
-                  <div style={{ fontSize: 12, color: 'var(--text-soft-dim)', lineHeight: 1.6, marginTop: 8, whiteSpace: 'pre-line' }}>{item.desc}</div>
-                )}
-                {item.levelTexts.map((text, i) => (
-                  <div key={i} style={{ marginTop: 10, paddingLeft: 12, borderLeft: `2px solid ${i < owned ? 'var(--success)' : 'var(--header-border)'}` }}>
-                    <div style={{ fontSize: 11, color: i < owned ? 'var(--success)' : 'var(--text-dim)', letterSpacing: 1 }}>
-                      РІВЕНЬ {i + 1}{i < owned ? ' · ПРИДБАНО' : ''} · {hangarPriceText(item, i)}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-soft-dim)', lineHeight: 1.6, marginTop: 3, whiteSpace: 'pre-line' }}>{text}</div>
-                  </div>
-                ))}
+                {texts && <div className="ss-note" style={{ whiteSpace: 'pre-line', textWrap: 'pretty' }}>{texts}</div>}
               </div>
-            );
-          })}
-        </div>
-    </Card>
+              <div className="num" style={{ fontSize: 12, whiteSpace: 'nowrap', textAlign: 'right' }}>
+                <span style={{ color: manaShort ? 'var(--danger)' : 'var(--text)' }}>{mana} М</span>
+                {pr > 0 && (
+                  <>
+                    <span style={{ color: 'var(--text-faint)' }}> + </span>
+                    <span style={{ color: prShort ? 'var(--danger)' : 'var(--text)' }}>{pr} PR</span>
+                  </>
+                )}
+              </div>
+              {done ? (
+                <div className="ss-tag ok" style={{ height: 26, width: 96, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>ПРИДБАНО</div>
+              ) : (
+                <button
+                  className={canBuy ? 'btn md' : 'btn-ghost md'}
+                  type="button"
+                  style={{ width: 96 }}
+                  disabled={!canBuy}
+                  title={req ? `Спершу «${req.title}»` : !canBuy ? 'Недостатньо коштів' : undefined}
+                  onClick={() => dispatch({ type: 'OPEN_HANGAR_CONFIRM', key: item.key })}
+                >
+                  ПРИДБАТИ
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Panel>
   );
 }
