@@ -196,7 +196,9 @@ class LinksApp extends ApplicationV2 {
     id: `${MODULE}-links`,
     tag: 'form',
     window: { title: "Silent Stars: зв'язки з апкою", resizable: true },
-    position: { width: 720, height: 'auto' },
+    // Фіксована висота (а не auto): з десятками акторів вікно інакше виростає за екран і
+    // не прокручується. Список прокручується всередині, кнопки лишаються внизу.
+    position: { width: 720, height: 700 },
     form: { handler: LinksApp.#onSubmit, closeOnSubmit: false },
     actions: { syncNow: LinksApp.#onSyncNow },
   };
@@ -218,7 +220,7 @@ class LinksApp extends ApplicationV2 {
   async _renderHTML() {
     const esc = foundry.utils.escapeHTML ?? ((s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`));
     const div = document.createElement('div');
-    div.style.padding = '8px';
+    div.style.cssText = 'display:flex;flex-direction:column;flex:1;height:100%;min-height:0;padding:8px;gap:6px';
     if (this.error) {
       div.innerHTML = `<p style="color:var(--color-level-error,#c00)">${esc(this.error)}</p>`;
       return div;
@@ -238,12 +240,14 @@ class LinksApp extends ApplicationV2 {
       `<tr><td style="padding:2px 6px"><img src="${esc(actor.img)}" width="28" height="28" style="vertical-align:middle;border:none"> ${esc(actor.name)}</td><td>${select}</td></tr>`;
 
     div.innerHTML = `
-      <p>Статус: ${esc(lastStatus)}</p>
+      <p style="margin:0">Статус: ${esc(lastStatus)}</p>
+      <div style="flex:1;min-height:0;overflow-y:auto;padding-right:4px">
       <h3>Пілоти</h3>
       <table>${pilotActors().map((a) => row(a, `<select name="pilot.${a.id}">${pilotOpts(flag(a, 'pilotId'))}</select>`)).join('') || '<tr><td>Немає акторів-пілотів</td></tr>'}</table>
       <h3>Мехи</h3>
       <table>${mechActors().map((a) => row(a, `<select name="mech.${a.id}">${mechOpts(flag(a, 'mechId') ? `${flag(a, 'pilotId')}|${flag(a, 'mechId')}` : '')}</select>`)).join('') || '<tr><td>Немає акторів-мехів</td></tr>'}</table>
-      <p style="font-size:12px;opacity:.8">Після зміни зв'язку перша синхронізація бере значення з апки.</p>
+      </div>
+      <p style="font-size:12px;opacity:.8;margin:0">Після зміни зв'язку перша синхронізація бере значення з апки.</p>
       <footer class="form-footer" style="display:flex;gap:8px">
         <button type="submit"><i class="fas fa-save"></i> Зберегти зв'язки</button>
         <button type="button" data-action="syncNow"><i class="fas fa-sync"></i> Синхронізувати зараз</button>
