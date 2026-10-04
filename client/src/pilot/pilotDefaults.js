@@ -75,6 +75,16 @@ export function createDefaultPilotState() {
       confirmed: false,
       // Сили, на які гравець має право, але ще не назвав їх.
       powersOwed: 0,
+      // Ідеали з імпорту COMP/CON: три major (перший — свій у кожного бонду) і варіанти
+      // minor для select. Без імпорту пункти 2–3 беруться з SHARED_MAJOR_IDEALS.
+      majorIdeals: [],
+      minorIdeals: [],
+      // Чекліст на гру (5 пунктів) і вибраний мінорний ідеал; TALLY XP перетворює
+      // відмітки на XP.
+      checks: [false, false, false, false, false],
+      pick: 0,
+      // «СКИНУТИ» Bond powers: скільки циклів XP уже не рахуються в лічильнику сил.
+      powerOffset: 0,
     },
     hp: { current: 6, max: 6 },
     downtime: { open: null, modifiers: {}, rolls: {} },
@@ -100,9 +110,31 @@ export function createDefaultPilotState() {
     levelUp: { open: false, mechId: null, allTalents: false, allLicenses: false, error: '' },
     mechEditId: null,
     mechEdit: { hpMax: '', repairMax: '', frame: '' },
-    limitedDraft: {},
     actionLog: [{ ts: nowTs(), msg: 'Пілота створено.' }],
     narrative: '',
+    // Записник: окремі нотатки з тегом і прив'язкою до гри замість одного textarea.
+    notes: [],
+    notesMigrated: true,
+  };
+}
+
+// Мех: список «limited» (лише лімітні системи) став повним списком зброї та систем
+// «items». Старі записи не знають, зброя це чи система, — вони стають системами;
+// повторний імпорт з COMP/CON розкладе їх правильно.
+function normalizeMech(m) {
+  if (Array.isArray(m.items)) return m;
+  const { limited, ...rest } = m;
+  return {
+    ...rest,
+    items: (limited || []).map((li) => ({
+      name: li.name,
+      type: 'system',
+      mount: '',
+      current: li.current,
+      max: li.max,
+      base: li.max,
+      destroyed: !!li.destroyed,
+    })),
   };
 }
 
@@ -183,7 +215,21 @@ export function normalizePilotState(raw) {
   const { alloc: _a, picked: _p, qty: _q, ...shop } = raw.shop || {};
   next.shop = { ...base.shop, ...shop };
   next.hangar = { ...base.hangar, ...(raw.hangar || {}) };
-  next.mechs = (raw.mechs || []).map(({ dc, ...m }) => m);
+  next.mechs = (raw.mechs || []).map(({ dc, ...m }) => normalizeMech(m));
+
+  // Записник: старий єдиний текст стає першою (закріпленою) нотаткою — один раз.
+  if (!raw.notesMigrated) {
+    const text = (raw.narrative || '').trim();
+    next.notes = Array.isArray(raw.notes) ? raw.notes : [];
+    if (text) {
+      next.notes = [
+        { id: Date.now(), date: new Date().toISOString(), tag: null, gameId: null, gameLabel: '', text, pinned: true },
+        ...next.notes,
+      ];
+    }
+    next.notesMigrated = true;
+  }
+  delete next.limitedDraft;
 
   // Поля, яких у новій формі більше немає.
   delete next.dcStore;
