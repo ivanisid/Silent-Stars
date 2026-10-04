@@ -15,6 +15,7 @@ import {
   BOND_POWERS_FOR_MASTER,
   limitedRefillPr,
 } from './constants';
+import { mergeFoundryState } from './foundrySync';
 import {
   clamp,
   manaLevelCost,
@@ -76,6 +77,8 @@ function pushManaHistory(mana, label) {
 
 export function pilotReducer(state, action) {
   if (action.type === '__INIT__') return action.state;
+  // Зміни з Foundry, що прийшли realtime-подією, поки профіль відкритий.
+  if (action.type === '__FOUNDRY__') return mergeFoundryState(state, action.state);
 
   switch (action.type) {
     // ---------- Header / status / LL ----------
