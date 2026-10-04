@@ -810,8 +810,14 @@ button {
   color: var(--text);
 }
 .ss-grid {
+  /* Шар на одну клітинку (96px) більший за екран і зсувається трансформацією, а не
+     mask-position: transform рухається субпіксельно й на GPU, без перемальовування
+     кожного кадру, тому дрейф плавний. Зсув рівно на клітинку — шов непомітний. */
   position: fixed;
-  inset: 0;
+  top: -96px;
+  left: -96px;
+  right: 0;
+  bottom: 0;
   z-index: -1;
   pointer-events: none;
   background: var(--dot);
@@ -819,18 +825,22 @@ button {
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96'%3E%3Cg stroke='%23000' stroke-opacity='.55' stroke-width='1' stroke-dasharray='1 5'%3E%3Cpath d='M48 0V96M0 48H96'/%3E%3C/g%3E%3Cg stroke='%23000' stroke-width='1'%3E%3Cpath d='M48 42V54M42 48H54'/%3E%3C/g%3E%3C/svg%3E");
   -webkit-mask-size: 96px 96px;
   mask-size: 96px 96px;
-  animation: ss-grid-mask 90s linear infinite;
+  will-change: transform;
+  animation: ss-grid-drift 45s linear infinite;
 }
-.ss-grid::after {
+/* Ледь світліша пляма в центрі — окремим шаром, щоб не їхала разом із сіткою. */
+.ss-page::before {
   content: '';
   position: fixed;
   inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background: radial-gradient(ellipse 60% 50% at 50% 50%, color-mix(in srgb, var(--bg) 85%, var(--text-bright)) 0%, transparent 70%);
   opacity: .15;
 }
-@keyframes ss-grid-mask {
-  from { -webkit-mask-position: 0 0; mask-position: 0 0; }
-  to { -webkit-mask-position: 96px 96px; mask-position: 96px 96px; }
+@keyframes ss-grid-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(96px, 96px, 0); }
 }
 @media (prefers-reduced-motion: reduce) {
   .ss-grid { animation: none; }
