@@ -220,3 +220,36 @@ export function findAppMechFor(actor, appPilot, taken) {
   const name = norm(actor.name);
   return (appPilot?.mechs || []).find((m) => !taken.has(m.id) && norm(m.name) === name);
 }
+
+// ----- Вікно зв'язків -----
+
+// Порядок en: імена акторів здебільшого латинські, кирилиця йде після них; numeric — «Mech 2» перед «Mech 10».
+const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'en', { sensitivity: 'base', numeric: true });
+
+// Актори для вікна зв'язків: пілоти за алфавітом, під кожним — його мехи (за system.pilot
+// у Foundry), теж за алфавітом. Мехи без пілота (або з пілотом, якого немає серед
+// акторів) — окремою групою в кінці.
+export function groupActors(pilots, mechs) {
+  const groups = [...pilots].sort(byName).map((pilot) => ({ pilot, mechs: [] }));
+  const byId = new Map(groups.map((g) => [g.pilot.id, g]));
+  const orphans = [];
+  for (const mech of mechs) {
+    const owner = get(mech, 'system.pilot.value');
+    const g = owner && byId.get(owner.id);
+    (g ? g.mechs : orphans).push(mech);
+  }
+  for (const g of groups) g.mechs.sort(byName);
+  return { groups, orphans: orphans.sort(byName) };
+}
+
+// Пошук у вікні зв'язків: група видима, якщо запит є в імені пілота, імені будь-якого його
+// меха або в підписах вибраних зв'язків. Збіг з пілотом показує всю групу, збіг лише з
+// мехом — пілота і цей мех.
+export function matchGroup(texts, query) {
+  const q = norm(query);
+  if (!q) return { visible: true, rows: texts.map(() => true) };
+  const hit = texts.map((t) => norm(t).includes(q));
+  if (hit[0]) return { visible: true, rows: texts.map(() => true) };
+  const rows = hit.map((h, i) => i === 0 || h);
+  return { visible: hit.some(Boolean), rows };
+}

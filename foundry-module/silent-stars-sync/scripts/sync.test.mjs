@@ -1,7 +1,7 @@
 // Перевірка логіки злиття без Foundry. Запуск: node foundry-module/silent-stars-sync/scripts/sync.test.mjs
 
 import assert from 'node:assert/strict';
-import { decide, mergeFields, mergeLimited, mechMaxPatch, MECH_FIELDS, PILOT_FIELDS, MODULE } from './sync.js';
+import { decide, mergeFields, mergeLimited, mechMaxPatch, groupActors, matchGroup, MECH_FIELDS, PILOT_FIELDS, MODULE } from './sync.js';
 
 let n = 0;
 const test = (name, fn) => {
@@ -86,6 +86,28 @@ test('лімітні заряди: поповнення в апці', () => {
 test('максимуми ХП/ремкомплектів беруться з Foundry', () => {
   assert.deepEqual(mechMaxPatch(appMech({ hpMax: 10 }), mechActor()), { hpMax: 12 });
   assert.deepEqual(mechMaxPatch(appMech(), mechActor()), {});
+});
+
+test('групування: пілоти за алфавітом, мехи під своїм пілотом', () => {
+  const zed = { id: 'p1', name: 'Zed' }, amon = { id: 'p2', name: 'Amon' }, bao = { id: 'p3', name: 'Бао' };
+  const mechs = [
+    { id: 'm1', name: 'Tortuga', system: { pilot: { value: zed } } },
+    { id: 'm2', name: 'Atlas', system: { pilot: { value: zed } } },
+    { id: 'm3', name: 'Lonely', system: { pilot: null } },
+    { id: 'm4', name: 'Ghost', system: { pilot: { value: { id: 'gone' } } } },
+  ];
+  const { groups, orphans } = groupActors([zed, bao, amon], mechs);
+  assert.deepEqual(groups.map((g) => g.pilot.name), ['Amon', 'Zed', 'Бао']);
+  assert.deepEqual(groups[1].mechs.map((m) => m.name), ['Atlas', 'Tortuga']);
+  assert.deepEqual(orphans.map((m) => m.name), ['Ghost', 'Lonely']);
+});
+
+test('пошук: збіг з пілотом показує всю групу, з мехом — пілота і мех', () => {
+  const texts = ['Amon MASTIFF', 'Tortuga', 'Atlas'];
+  assert.deepEqual(matchGroup(texts, ''), { visible: true, rows: [true, true, true] });
+  assert.deepEqual(matchGroup(texts, 'mast'), { visible: true, rows: [true, true, true] });
+  assert.deepEqual(matchGroup(texts, 'atl'), { visible: true, rows: [true, false, true] });
+  assert.equal(matchGroup(texts, 'xyz').visible, false);
 });
 
 console.log(`\n${n} тестів пройдено`);

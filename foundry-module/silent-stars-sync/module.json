@@ -2,7 +2,7 @@
   "id": "silent-stars-sync",
   "title": "Silent Stars Sync",
   "description": "Двостороння синхронізація пілотів і мехів між апкою Silent Stars (Supabase) та акторами системи Lancer.",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "authors": [
     {
       "name": "Silent Stars"
