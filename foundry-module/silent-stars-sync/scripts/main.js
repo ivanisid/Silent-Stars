@@ -196,9 +196,7 @@ class LinksApp extends ApplicationV2 {
     id: `${MODULE}-links`,
     tag: 'form',
     window: { title: "Silent Stars: зв'язки з апкою", resizable: true },
-    // Фіксована висота (а не auto): з десятками акторів вікно інакше виростає за екран і
-    // не прокручується. Список прокручується всередині, кнопки лишаються внизу.
-    position: { width: 720, height: 700 },
+    position: { width: 720, height: 'auto' },
     form: { handler: LinksApp.#onSubmit, closeOnSubmit: false },
     actions: { syncNow: LinksApp.#onSyncNow },
   };
@@ -220,7 +218,7 @@ class LinksApp extends ApplicationV2 {
   async _renderHTML() {
     const esc = foundry.utils.escapeHTML ?? ((s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`));
     const div = document.createElement('div');
-    div.style.cssText = 'display:flex;flex-direction:column;flex:1;height:100%;min-height:0;padding:8px;gap:6px';
+    div.style.cssText = 'display:flex;flex-direction:column;padding:8px;gap:6px';
     if (this.error) {
       div.innerHTML = `<p style="color:var(--color-level-error,#c00)">${esc(this.error)}</p>`;
       return div;
@@ -239,9 +237,11 @@ class LinksApp extends ApplicationV2 {
     const row = (actor, select) =>
       `<tr><td style="padding:2px 6px"><img src="${esc(actor.img)}" width="28" height="28" style="vertical-align:middle;border:none"> ${esc(actor.name)}</td><td>${select}</td></tr>`;
 
+    // Список акторів має власну межу висоти (60% екрана) і прокручується сам: з десятками
+    // акторів вікно інакше виростає за екран, а висоту вікна Foundry рахує по-своєму.
     div.innerHTML = `
       <p style="margin:0">Статус: ${esc(lastStatus)}</p>
-      <div style="flex:1;min-height:0;overflow-y:auto;padding-right:4px">
+      <div style="max-height:60vh;overflow-y:auto;padding-right:4px">
       <h3>Пілоти</h3>
       <table>${pilotActors().map((a) => row(a, `<select name="pilot.${a.id}">${pilotOpts(flag(a, 'pilotId'))}</select>`)).join('') || '<tr><td>Немає акторів-пілотів</td></tr>'}</table>
       <h3>Мехи</h3>
