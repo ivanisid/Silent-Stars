@@ -100,7 +100,9 @@ function BondXp({ state, dispatch }) {
               <span className="ss-tag accent" style={{ marginLeft: 'auto', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.archetype.toUpperCase()}</span>
             )}
           </div>
-          <Track value={inCycle} max={BOND_XP_PER_POWER} onSeg={(idx) => dispatch({ type: 'SET_BOND_XP', idx })} label="Bond XP" />
+          {/* Лише показ: XP додається тільки через TALLY XP. Клікабельна шкала давала
+              випадкові зміни — клік по останній поділці закривав цикл і додавав Bond power. */}
+          <Track value={inCycle} max={BOND_XP_PER_POWER} label="Bond XP" />
           <div style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>УСЬОГО {xp} XP</div>
         </div>
         <div style={{ position: 'relative', border: '1px solid var(--accent-dim)', marginTop: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '14px 10px 6px' }}>
