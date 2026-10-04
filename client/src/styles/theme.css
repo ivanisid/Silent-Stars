@@ -1297,23 +1297,26 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 
 /* Бокова вкладка меню: завжди на екрані, по центру лівого краю */
 .ss-side-tab {
+  /* Розмір — як у вкладки «МАГАЗИН» праворуч (30 × ~125). */
   position: fixed;
   left: 0;
   top: 50%;
   transform: translateY(-50%);
   z-index: 40;
-  width: 26px;
-  padding: 10px 0;
+  width: 30px;
+  min-height: 125px;
+  padding: 16px 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 8px;
   background: var(--header);
   color: var(--header-text);
   border: 1px solid var(--header-border);
   border-left: none;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1;
 }
 .ss-side-tab:hover { background: var(--btn-hover); }
-.ss-side-tab .lbl { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; letter-spacing: 3px; }
+.ss-side-tab .lbl { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; letter-spacing: 3px; }
