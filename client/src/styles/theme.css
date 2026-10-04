@@ -1261,3 +1261,7 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
   .m-cards > .m-row > .m-upd { grid-column: 1 / -1; }
   .m-cards > .m-row > [data-l]::before { content: attr(data-l); display: block; font-size: 9px; color: var(--text-dimmer); letter-spacing: 1px; }
 }
+
+/* Рядок реєстру пілотів: ліва смуга на hover */
+.ss-roster-row { border-left: 3px solid transparent; }
+.ss-roster-row:hover { border-left-color: var(--accent-dim); background: var(--panel-inset); }

@@ -1,14 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { mapCompconPilot, mergeMechsByName } from '../pilot/compconImport';
 import { pushLog, llTier } from '../pilot/logic';
-import NavDrawer from '../components/NavDrawer.jsx';
+import { Menu, Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
 
 export default function PilotSelectPage() {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const [ask, dialog] = useConfirm();
+  const [formOpen, setFormOpen] = useState(false);
+  const [view, setView] = useState('active');
+  const [q, setQ] = useState('');
 
   const [pilots, setPilots] = useState([]);
   // Портрети окремо від списку: якщо їх не вдалося підтягнути, список однаково працює.
@@ -63,6 +66,7 @@ export default function PilotSelectPage() {
       setName('');
       setCallsign('');
       setBackground('');
+      setFormOpen(false);
       await reload();
     } catch (err) {
       setError(err.message);
@@ -71,29 +75,52 @@ export default function PilotSelectPage() {
     }
   }
 
-  async function remove(id, e) {
-    e.stopPropagation();
-    if (!window.confirm('Видалити цього пілота назавжди?')) return;
-    await api.deletePilot(id);
-    reload();
+  // Статус живе в state пілота, як і в профілі (TOGGLE_STATUS) — пишемо туди ж із записом у журнал.
+  async function setArchived(p, archived) {
+    const full = await api.getPilot(p.id);
+    const next = archived ? 'archive' : 'active';
+    if ((full.state?.status || 'active') === next) return;
+    await api.updatePilot(p.id, {
+      state: { ...full.state, status: next, actionLog: pushLog(full.state?.actionLog || [], `Статус: ${full.state?.status || 'active'} → ${next}`) },
+    });
+    await reload();
   }
 
-  function startEdit(p, e) {
-    e.stopPropagation();
+  // Видалення — з альтернативою «в архів»: здебільшого пілот просто не грає.
+  async function remove(p) {
+    const res = await ask({
+      title: 'ВИДАЛИТИ ПІЛОТА?',
+      tone: 'danger',
+      lines: [`«${p.callsign}»`, 'історія операцій і мехи зникнуть', 'відновлення: неможливе'],
+      note: p.status === 'archive' ? null : 'Якщо пілот просто не грає — краще перенести в архів.',
+      altLabel: p.status === 'archive' ? null : 'В АРХІВ',
+      yesLabel: 'ВИДАЛИТИ',
+    });
+    try {
+      if (res === true) {
+        await api.deletePilot(p.id);
+        await reload();
+      } else if (res === 'alt') {
+        await setArchived(p, true);
+      }
+    } catch (err) {
+      setLoadError(err.message);
+    }
+  }
+
+  function startEdit(p) {
     setEditingId(p.id);
     setEditName(p.name);
     setEditCallsign(p.callsign);
     setEditError('');
   }
 
-  function cancelEdit(e) {
-    e.stopPropagation();
+  function cancelEdit() {
     setEditingId(null);
     setEditError('');
   }
 
-  async function saveEdit(id, e) {
-    e.stopPropagation();
+  async function saveEdit(id) {
     if (!editName.trim()) return setEditError("Введіть ім'я");
     if (!editCallsign.trim()) return setEditError('Введіть позивний');
 
@@ -149,243 +176,158 @@ export default function PilotSelectPage() {
     }
   }
 
+  const activeCount = pilots.filter((p) => p.status !== 'archive').length;
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return pilots
+      .filter((p) => view === 'all' || p.status !== 'archive')
+      .filter(
+        (p) =>
+          !needle ||
+          p.callsign.toLowerCase().includes(needle) ||
+          p.name.toLowerCase().includes(needle) ||
+          p.mechs.some((m) => m.name.toLowerCase().includes(needle)),
+      )
+      // Архівні — унизу.
+      .sort((a, b) => (a.status === 'archive') - (b.status === 'archive'));
+  }, [pilots, view, q]);
+
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        padding: '40px 24px',
-        boxSizing: 'border-box',
-        background: 'radial-gradient(ellipse at 50% 0%, var(--page-grad) 0%, var(--bg) 70%)',
-        display: 'flex',
-        justifyContent: 'center',
-      }}
-    >
-      <div style={{ width: 720, maxWidth: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
-          <img src="/logo-ferum-vox.webp" alt="" width={28} height={28} style={{ display: 'block' }} />
-          <div className="title-font" style={{ fontSize: 26, letterSpacing: 3 }}>
-            ВИБІР ПІЛОТА
+    <PageShell>
+      {dialog}
+      <PageHeader
+        section="FERUM VOX"
+        title="ВИБІР ПІЛОТА"
+        tag={<span style={{ fontSize: 11, color: 'var(--text-info)', letterSpacing: 1 }}>{pilots.length}</span>}
+      />
+
+      {loadError && <Msg kind="err">{loadError}</Msg>}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <button className="btn" type="button" onClick={() => setFormOpen((v) => !v)}>+ НОВИЙ ПІЛОТ</button>
+        <button className="btn-ghost" type="button" disabled={importBusy} onClick={() => fileInputRef.current?.click()}>
+          {importBusy ? 'ІМПОРТУЄТЬСЯ…' : 'ІМПОРТ З COMP/CON'}
+        </button>
+        <div className="ss-note">JSON «Export Pilot». Пілот з тим самим позивним оновиться.</div>
+        <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={handleImportFile} style={{ display: 'none' }} />
+      </div>
+      {importError && <Msg kind="err">{importError}</Msg>}
+
+      {formOpen && (
+        <Panel title="НОВИЙ ПІЛОТ">
+          <form onSubmit={create} className="ss-body" style={{ padding: '16px 14px' }}>
+            <div className="ss-field">
+              <div className="lbl">ІМ'Я</div>
+              <input className="ss-input" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ім'я персонажа" autoFocus />
+            </div>
+            <div className="ss-field">
+              <div className="lbl">ПОЗИВНИЙ</div>
+              <input className="ss-input" type="text" value={callsign} onChange={(e) => setCallsign(e.target.value)} placeholder="Callsign" />
+            </div>
+            <div className="ss-field top">
+              <div className="lbl">БЕКГРАУНД</div>
+              <textarea className="ss-input" value={background} onChange={(e) => setBackground(e.target.value)} placeholder="Коротка історія пілота…" rows={3} style={{ fontSize: 12 }} />
+            </div>
+            {error && <Msg kind="err">{error}</Msg>}
+            <div className="ss-field">
+              <div />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn" type="submit" disabled={busy}>СТВОРИТИ</button>
+                <button className="btn-ghost" type="button" onClick={() => setFormOpen(false)}>СКАСУВАТИ</button>
+              </div>
+            </div>
+          </form>
+        </Panel>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div className="ss-seg">
+          <button type="button" className={view === 'active' ? 'on' : ''} style={{ height: 24, fontSize: 10 }} onClick={() => setView('active')}>АКТИВНІ · {activeCount}</button>
+          <button type="button" className={view === 'all' ? 'on' : ''} style={{ height: 24, fontSize: 10 }} onClick={() => setView('all')}>УСІ · {pilots.length}</button>
+        </div>
+        <input className="ss-input sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ пошук за позивним або мехом" style={{ marginLeft: 'auto', width: 260, maxWidth: '100%' }} />
+      </div>
+
+      <div className="ss-panel" style={{ display: 'flex', flexDirection: 'column' }}>
+        {loading && <div className="ss-note" style={{ padding: 14 }}>&gt; Завантаження…</div>}
+        {!loading && shown.length === 0 && (
+          <div className="ss-slot" style={{ margin: 10, padding: 18, justifyContent: 'flex-start', gap: 10, flexWrap: 'wrap', fontSize: 12, color: 'var(--text-dimmer)' }}>
+            <span style={{ flex: 1 }}>&gt; {pilots.length === 0 ? 'Пілотів ще немає.' : 'Нічого не знайдено.'}</span>
+            {pilots.length === 0 && <button className="btn" type="button" onClick={() => setFormOpen(true)}>+ НОВИЙ ПІЛОТ</button>}
           </div>
-          <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-dim)' }}>{user?.nick}</div>
-        </div>
-
-        {loadError && <div className="error-box" style={{ marginBottom: 16 }}>{loadError}</div>}
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-          <button className="btn-ghost" type="button" disabled={importBusy} onClick={() => fileInputRef.current?.click()}>
-            {importBusy ? 'ІМПОРТУЄТЬСЯ…' : 'ІМПОРТУВАТИ З COMP/CON'}
-          </button>
-          <span style={{ fontSize: 11, color: 'var(--text-dimmer)' }}>
-            JSON-файл «Export Pilot» з COMP/CON
-          </span>
-          <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={handleImportFile} style={{ display: 'none' }} />
-        </div>
-        {importError && <div className="error-box" style={{ marginBottom: 16 }}>{importError}</div>}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
-          {loading && (
-            <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>Завантаження…</div>
-          )}
-          {!loading && pilots.length === 0 && (
+        )}
+        {shown.map((p, i) => {
+          const archived = p.status === 'archive';
+          if (editingId === p.id) {
+            return (
+              <div key={p.id} style={{ padding: '10px 12px', borderTop: i ? '1px solid var(--panel-border)' : 'none', borderLeft: '3px solid var(--accent)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <input className="ss-input" type="text" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Ім'я" style={{ flex: 1, minWidth: 140 }} />
+                  <input className="ss-input" type="text" value={editCallsign} onChange={(e) => setEditCallsign(e.target.value)} placeholder="Позивний" style={{ flex: 1, minWidth: 140 }} />
+                </div>
+                {editError && <Msg kind="err">{editError}</Msg>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn" type="button" disabled={editBusy} onClick={() => saveEdit(p.id)}>ЗБЕРЕГТИ</button>
+                  <button className="btn-ghost" type="button" onClick={cancelEdit}>СКАСУВАТИ</button>
+                </div>
+              </div>
+            );
+          }
+          return (
             <div
+              key={p.id}
+              className="ss-roster-row"
               style={{
-                border: '1px dashed var(--input-border)',
-                padding: 22,
-                textAlign: 'center',
-                fontSize: 12,
-                color: 'var(--text-dimmer)',
+                position: 'relative',
+                display: 'grid',
+                gridTemplateColumns: '72px minmax(0,1fr) auto 30px',
+                gap: 14,
+                alignItems: 'center',
+                padding: '10px 12px',
+                borderTop: i ? '1px solid var(--panel-border)' : 'none',
+                opacity: archived ? 0.6 : 1,
               }}
             >
-              Пілотів ще немає — створіть першого нижче.
-            </div>
-          )}
-          {pilots.map((p) => {
-            const isEditing = editingId === p.id;
-            return (
-              <button
-                key={p.id}
-                onClick={() => !isEditing && navigate(`/pilots/${p.id}`)}
-                type="button"
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  textAlign: 'left',
-                  cursor: isEditing ? 'default' : 'pointer',
-                  padding: '16px 20px',
-                  background: 'var(--panel)',
-                  color: 'var(--text)',
-                  border: '1px solid var(--panel-border)',
-                  fontFamily: "'Share Tech Mono',monospace",
-                  position: 'relative',
-                }}
-              >
-                {isEditing ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 90 }}>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <input
-                        type="text"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        placeholder="Ім'я"
-                        style={{ flex: 1, minWidth: 140, padding: '7px 9px', fontSize: 14 }}
-                      />
-                      <input
-                        type="text"
-                        value={editCallsign}
-                        onChange={(e) => setEditCallsign(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        placeholder="Позивний"
-                        style={{ flex: 1, minWidth: 140, padding: '7px 9px', fontSize: 14 }}
-                      />
-                    </div>
-                    {editError && <div className="error-box">{editError}</div>}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn" type="button" disabled={editBusy} onClick={(e) => saveEdit(p.id, e)}>
-                        ЗБЕРЕГТИ
-                      </button>
-                      <button className="btn-ghost" type="button" onClick={cancelEdit}>
-                        СКАСУВАТИ
-                      </button>
-                    </div>
-                  </div>
+              {/* Увесь рядок — посилання на профіль; меню «⋯» — окрема кнопка поверх. */}
+              <Link to={`/pilots/${p.id}`} aria-label={`Профіль ${p.callsign}`} style={{ position: 'absolute', inset: 0 }} />
+              <div className={portraits[p.id] ? '' : 'ss-hatch'} style={{ width: 72, height: 72, border: '1px solid var(--input-border)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: 'var(--text-faint)', textAlign: 'center', lineHeight: 1.4 }}>
+                {portraits[p.id] ? (
+                  <img src={portraits[p.id]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }} />
                 ) : (
-                  <div style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
-                    {/* Портрет зліва, як у ростері COMP/CON; без портрета — заглушка. */}
-                    <div
-                      style={{
-                        width: 112,
-                        minHeight: 112,
-                        flexShrink: 0,
-                        alignSelf: 'flex-start',
-                        aspectRatio: '1 / 1',
-                        background: 'var(--panel-sunken)',
-                        border: '1px solid var(--input-border)',
-                        overflow: 'hidden',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      {portraits[p.id] ? (
-                        <img src={portraits[p.id]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }} />
-                      ) : (
-                        <span style={{ fontSize: 10, letterSpacing: 1, color: 'var(--text-faint)', textAlign: 'center', lineHeight: 1.4 }}>
-                          NO IMAGE
-                          <br />
-                          DATA
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', paddingRight: 90 }}>
-                      <span className="title-font" style={{ fontSize: 20, letterSpacing: 1 }}>{p.callsign}</span>
-                      <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{p.name}</span>
-                      {p.status === 'archive' && (
-                        <span style={{ fontSize: 10, color: 'var(--danger)', letterSpacing: 1 }}>АРХІВ</span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1, marginTop: 4 }}>
-                      ТІР {llTier(p.ll)} · ЛЛ {p.ll}
-                    </div>
-                    {p.mechs.length > 0 && (
-                      <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>
-                        ▮ {p.mechs.map((m) => m.name).join(' // ')}
-                      </div>
-                    )}
-                    <div style={{ fontSize: 12, color: 'var(--text-dimmer)', marginTop: 6, lineHeight: 1.5, textAlign: 'left' }}>
-                      {p.background}
-                    </div>
-                    </div>
-                  </div>
+                  <span>NO IMAGE<br />DATA</span>
                 )}
-                {!isEditing && (
-                  <div style={{ position: 'absolute', top: 14, right: 16, display: 'flex', gap: 6 }}>
-                    <span
-                      onClick={(e) => startEdit(p, e)}
-                      role="button"
-                      tabIndex={-1}
-                      style={{
-                        fontSize: 11,
-                        color: 'var(--text-dimmer)',
-                        letterSpacing: 1,
-                        padding: '4px 8px',
-                        border: '1px solid var(--input-border)',
-                      }}
-                    >
-                      РЕДАГУВАТИ
-                    </span>
-                    <span
-                      onClick={(e) => remove(p.id, e)}
-                      role="button"
-                      tabIndex={-1}
-                      style={{
-                        fontSize: 11,
-                        color: 'var(--text-dimmer)',
-                        letterSpacing: 1,
-                        padding: '4px 8px',
-                        border: '1px solid var(--input-border)',
-                      }}
-                    >
-                      ВИДАЛИТИ
-                    </span>
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="card">
-          <div className="card-header">
-            <div className="title">НОВИЙ ПІЛОТ</div>
-          </div>
-          <form onSubmit={create} style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <div className="field-label">ІМ'Я</div>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ім'я персонажа"
-                  style={{ width: '100%', padding: '10px 12px', fontSize: 14 }}
-                />
               </div>
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <div className="field-label">ПОЗИВНИЙ</div>
-                <input
-                  type="text"
-                  value={callsign}
-                  onChange={(e) => setCallsign(e.target.value)}
-                  placeholder="Callsign"
-                  style={{ width: '100%', padding: '10px 12px', fontSize: 14 }}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                  <span className="title-font" style={{ fontSize: 20, letterSpacing: 1, color: 'var(--text-bright)' }}>{p.callsign}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{p.name}</span>
+                  {archived && <span className="ss-tag bad">АРХІВ</span>}
+                </div>
+                {p.mechs.length > 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--text-dimmer)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    ▮ {p.mechs.map((m) => m.name.toUpperCase()).join(' // ')}
+                  </div>
+                )}
+                {p.background && p.background !== 'Бекграунд не вказано.' && (
+                  <div style={{ fontSize: 11, color: 'var(--text-grey)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.background}</div>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-info)', letterSpacing: 1, whiteSpace: 'nowrap' }}>T{llTier(p.ll)} · LL{p.ll}</div>
+              <div>
+                <Menu
+                  items={[
+                    { label: 'РЕДАГУВАТИ', onClick: () => startEdit(p) },
+                    { label: archived ? 'З АРХІВУ' : 'В АРХІВ', onClick: () => setArchived(p, !archived).catch((err) => setLoadError(err.message)) },
+                    { label: 'ВИДАЛИТИ…', danger: true, onClick: () => remove(p) },
+                  ]}
                 />
               </div>
             </div>
-            <div>
-              <div className="field-label">БЕКГРАУНД</div>
-              <textarea
-                value={background}
-                onChange={(e) => setBackground(e.target.value)}
-                placeholder="Коротка історія пілота…"
-                rows={4}
-                style={{ width: '100%', padding: '10px 12px', fontSize: 13, lineHeight: 1.6, resize: 'vertical', color: 'var(--text-grey)' }}
-              />
-            </div>
-            {error && <div className="error-box">{error}</div>}
-            <button className="btn" type="submit" disabled={busy} style={{ alignSelf: 'flex-start' }}>
-              СТВОРИТИ ПІЛОТА
-            </button>
-          </form>
-        </div>
-
-        <div style={{ marginTop: 14, fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>
-          UNION ADMINISTRATIVE // PILOT ROSTER
-        </div>
+          );
+        })}
       </div>
-      <NavDrawer />
-    </div>
+
+      <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>FERUM VOX // PILOT ROSTER</div>
+    </PageShell>
   );
 }
