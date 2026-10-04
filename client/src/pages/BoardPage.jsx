@@ -3,14 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { llTier } from '../pilot/logic';
-import NavDrawer from '../components/NavDrawer.jsx';
+import { Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
 import { DIFFICULTY_GROUPS, difficultyByKey, difficultyLabel } from '../difficulty';
 import DateTimeField from '../components/DateTimeField.jsx';
 
 // Gold as *text on a card*, so it stays legible on the light themes; --gm itself is
 // the bright gold meant for the GM's own dark surfaces.
 const GOLD = 'var(--gm-ink)';
-const GOLD_DIM = 'var(--gm-dim)';
 
 // Дати слоту необов'язкові, тож null сюди приходить штатно. Перевірка на null окрема
 // від перевірки на Invalid Date: new Date(null) — це не помилка, а 1970 рік, і без
@@ -55,7 +54,8 @@ function DifficultyPicker({ value, onPick }) {
     <select
       value={value || ''}
       onChange={(e) => onPick(difficultyByKey(e.target.value))}
-      style={{ width: '100%', padding: '9px 10px', fontSize: 13 }}
+      className="ss-select"
+      style={{ width: '100%', fontSize: 12 }}
     >
       <option value="">— без складності —</option>
       {DIFFICULTY_GROUPS.map((group, i) => (
@@ -109,32 +109,38 @@ function Description({ text }) {
   const long = text.length > 200 || text.split('\n').length > 3;
 
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' }}>
       <div
         style={{
           fontSize: 12,
-          color: 'var(--text-soft-dim)',
+          color: 'var(--text-soft)',
           lineHeight: 1.6,
           whiteSpace: 'pre-wrap',
           overflowWrap: 'anywhere',
-          ...(long && !open
-            ? { display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
-            : null),
+          ...(long && !open ? { maxHeight: '4.8em', overflow: 'hidden' } : null),
         }}
       >
         {linkify(text)}
       </div>
       {long && (
         <button
-          className="btn-ghost"
           type="button"
           onClick={() => setOpen((v) => !v)}
-          style={{ fontSize: 11, padding: '3px 10px', marginTop: 6 }}
+          style={{ background: 'transparent', border: 'none', padding: 0, fontSize: 10, letterSpacing: 1, color: 'var(--accent)' }}
         >
-          {open ? 'ЗГОРНУТИ ОПИС' : 'РОЗГОРНУТИ ОПИС'}
+          {open ? 'ЗГОРНУТИ ОПИС ▴' : 'РОЗГОРНУТИ ОПИС ▾'}
         </button>
       )}
     </div>
+  );
+}
+
+function Field({ label, children, style }) {
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 5, ...style }}>
+      <span style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: 1 }}>{label}</span>
+      {children}
+    </label>
   );
 }
 
@@ -194,68 +200,59 @@ function CreateSlotForm({ onCreated }) {
 
   if (!open) {
     return (
-      <button className="btn" type="button" onClick={() => setOpen(true)} style={{ alignSelf: 'flex-start' }}>
+      <button className="btn-gm" type="button" onClick={() => setOpen(true)} style={{ alignSelf: 'flex-start' }}>
         + СТВОРИТИ СЛОТ ГРИ
       </button>
     );
   }
 
   return (
-    <div className="card" style={{ borderColor: GOLD_DIM }}>
-      <div className="card-header">
-        <div className="title" style={{ color: GOLD }}>НОВИЙ СЛОТ ГРИ</div>
-      </div>
-      <form onSubmit={submit} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <div className="field-label">НАЗВА (ОПЦІОНАЛЬНО)</div>
-          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Назва місії" style={{ width: '100%', padding: '9px 12px', fontSize: 14 }} />
+    <Panel title="НОВИЙ СЛОТ ГРИ" tone="gm">
+      <form onSubmit={submit} className="ss-body">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 12 }}>
+          <Field label="НАЗВА">
+            <input className="ss-input" type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Назва місії" />
+          </Field>
+          <Field label="СКЛАДНІСТЬ · ЗАПОВНЮЄ НАГОРОДУ">
+            <DifficultyPicker
+              value={difficulty}
+              onPick={(d) => {
+                // Пресет заповнює обидва поля нагороди; «без складності» знімає вибір,
+                // але вже проставлені числа лишає — їх правлять руками нижче.
+                if (!d) return setDifficulty('');
+                setDifficulty(d.key);
+                setRewardMana(d.mana);
+                setRewardPr(d.pr);
+              }}
+            />
+          </Field>
         </div>
-        <div>
-          <div className="field-label">ОПИС (ОПЦІОНАЛЬНО)</div>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Короткий опис гри…" style={{ width: '100%', padding: '9px 12px', fontSize: 13, lineHeight: 1.6, resize: 'vertical' }} />
+        <Field label="ОПИС">
+          <textarea className="ss-input" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Короткий опис гри…" style={{ fontSize: 12 }} />
+        </Field>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <DateTimeField label="ДАТА ГРИ" value={gameAt} onChange={setGameAt} />
+          <DateTimeField label="КІНЕЦЬ НАБОРУ" value={deadline} onChange={setDeadline} />
+          <Field label="МІСЦЬ">
+            <input className="ss-input" type="number" min={1} max={20} value={seats} onChange={(e) => setSeats(e.target.value)} style={{ width: 80 }} />
+          </Field>
+          <Field label="НАГОРОДА · М">
+            <input className="ss-input" type="number" min={0} value={rewardMana} onChange={(e) => setRewardMana(e.target.value)} style={{ width: 100 }} />
+          </Field>
+          <Field label="НАГОРОДА · PR">
+            <input className="ss-input" type="number" min={0} value={rewardPr} onChange={(e) => setRewardPr(e.target.value)} style={{ width: 80 }} />
+          </Field>
         </div>
-        <div>
-          <div className="field-label">СКЛАДНІСТЬ (ОПЦІОНАЛЬНО) — ЗАПОВНЮЄ НАГОРОДУ</div>
-          <DifficultyPicker
-            value={difficulty}
-            onPick={(d) => {
-              // Пресет заповнює обидва поля нагороди; «без складності» знімає вибір,
-              // але вже проставлені числа лишає — їх правлять руками нижче.
-              if (!d) return setDifficulty('');
-              setDifficulty(d.key);
-              setRewardMana(d.mana);
-              setRewardPr(d.pr);
-            }}
-          />
+        <div className="ss-note">
+          Дати необов'язкові. Нагороду можна змінити до завершення гри — тоді її отримають затверджені пілоти разом з однією зіграною грою.
         </div>
-
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-          <DateTimeField label="ДАТА ПРОВЕДЕННЯ (ОПЦІОНАЛЬНО)" value={gameAt} onChange={setGameAt} />
-          <DateTimeField label="КІНЕЦЬ НАБОРУ (ОПЦІОНАЛЬНО)" value={deadline} onChange={setDeadline} />
-          <div>
-            <div className="field-label">МІСЦЬ</div>
-            <input type="number" min={1} max={20} value={seats} onChange={(e) => setSeats(e.target.value)} style={{ width: 70, padding: '8px 10px', fontSize: 13 }} />
-          </div>
-          <div>
-            <div className="field-label">НАГОРОДА · МАНА</div>
-            <input type="number" min={0} value={rewardMana} onChange={(e) => setRewardMana(e.target.value)} style={{ width: 90, padding: '8px 10px', fontSize: 13 }} />
-          </div>
-          <div>
-            <div className="field-label">НАГОРОДА · PR</div>
-            <input type="number" min={0} value={rewardPr} onChange={(e) => setRewardPr(e.target.value)} style={{ width: 70, padding: '8px 10px', fontSize: 13 }} />
-          </div>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.6 }}>
-          Нагороду можна змінити будь-коли до завершення гри. Під час завершення вона нараховується
-          затвердженим пілотам автоматично, разом із однією зіграною грою.
-        </div>
-        {error && <div className="error-box">{error}</div>}
+        {error && <Msg kind="err">{error}</Msg>}
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn" type="submit" disabled={busy}>СТВОРИТИ</button>
           <button className="btn-ghost" type="button" onClick={() => setOpen(false)}>СКАСУВАТИ</button>
         </div>
       </form>
-    </div>
+    </Panel>
   );
 }
 
@@ -276,6 +273,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   const [savedNote, setSavedNote] = useState('');
   // Підтвердження «теги скопійовано» — без нього кнопка нічим не показує, що спрацювала.
   const [tagsNote, setTagsNote] = useState('');
+  const [ask, dialog] = useConfirm();
 
   const badge = statusBadge(slot);
   const isOpen = slot.status === 'open';
@@ -360,31 +358,32 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
     });
   }
 
+  async function confirmThen(opts, fn) {
+    if (await ask(opts)) run(fn);
+  }
+
+  const meta = [
+    { k: 'ВЕДЕ', v: `${slot.createdByNick || '—'}${ownsSlot ? ' (ви)' : ''}`, ink: ownsSlot ? GOLD : undefined },
+    { k: 'ГРА', v: formatDT(slot.gameAt) },
+    { k: 'НАБІР ДО', v: formatDT(slot.signupDeadline), ink: deadlinePassed && isOpen ? 'var(--warn)' : undefined },
+    { k: 'МІСЦЬ / ЗАПИСАЛОСЬ', v: `${slot.seats} / ${slot.signups.length}`, ink: contest ? 'var(--warn)' : undefined },
+    difficultyLabel(slot.difficulty) && { k: 'СКЛАДНІСТЬ', v: difficultyLabel(slot.difficulty) },
+    { k: 'НАГОРОДА', v: `${slot.rewardMana} М · ${slot.rewardPr} PR`, ink: slot.rewardMana || slot.rewardPr ? GOLD : 'var(--text-dimmer)' },
+  ].filter(Boolean);
+
   return (
-    <div className="card" style={slot.status === 'cancelled' ? { opacity: 0.55 } : undefined}>
-      <div className="card-header">
-        <div className="title">{slot.title || 'ГРА БЕЗ НАЗВИ'}</div>
-        <div style={{ fontSize: 10, color: 'var(--header-text)', opacity: badge.strong ? 1 : 0.72, letterSpacing: 1 }}>
-          {badge.text}
-        </div>
-      </div>
-      <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <Panel
+      title={slot.title || 'ГРА БЕЗ НАЗВИ'}
+      sub={<span style={{ opacity: badge.strong ? 1 : 0.72, fontSize: 10 }}>{badge.text}</span>}
+      tone={isDone ? 'done' : undefined}
+      style={slot.status === 'cancelled' ? { opacity: 0.55 } : undefined}
+    >
+      {dialog}
+      <div className="ss-body">
         {isDone && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'baseline',
-              gap: 10,
-              flexWrap: 'wrap',
-              padding: '9px 12px',
-              background: 'var(--success-bg)',
-              border: '1px solid var(--success-border)',
-            }}
-          >
-            <span className="title-font" style={{ fontSize: 13, letterSpacing: 2, color: 'var(--success)' }}>
-              ✓ ГРА ЗАВЕРШЕНА
-            </span>
-            <span style={{ fontSize: 11, color: 'var(--text-soft-dim)', lineHeight: 1.6 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', padding: '8px 12px', background: 'var(--success-bg)', border: '1px solid var(--success-border)' }}>
+            <span className="title-font" style={{ fontSize: 14, letterSpacing: 2, color: 'var(--success)' }}>✓ ГРА ЗАВЕРШЕНА</span>
+            <span style={{ fontSize: 11, color: 'var(--text-soft)', lineHeight: 1.6 }}>
               {awarded > 0
                 ? `Нагороди нараховано · ${awarded} ${pluralPilots(awarded)} · ${slot.rewardMana} М кожному` +
                   `${slot.rewardPr > 0 ? ` · ${slot.rewardPr} PR` : ''}`
@@ -394,21 +393,9 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
         )}
 
         {isApproved && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'baseline',
-              gap: 10,
-              flexWrap: 'wrap',
-              padding: '9px 12px',
-              background: 'var(--panel-inset)',
-              border: '1px solid var(--input-border)',
-            }}
-          >
-            <span className="title-font" style={{ fontSize: 13, letterSpacing: 2, color: 'var(--text-bright)' }}>
-              СКЛАД ЗАТВЕРДЖЕНО
-            </span>
-            <span style={{ fontSize: 11, color: 'var(--text-soft-dim)', lineHeight: 1.6 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', padding: '8px 12px', background: 'var(--panel-sunken)', border: '1px solid var(--input-border)' }}>
+            <span className="title-font" style={{ fontSize: 14, letterSpacing: 2, color: 'var(--text-bright)' }}>СКЛАД ЗАТВЕРДЖЕНО</span>
+            <span style={{ fontSize: 11, color: 'var(--text-soft)', lineHeight: 1.6 }}>
               {awarded > 0
                 ? `Грає ${awarded} ${pluralPilots(awarded)} · запис закрито · нагороду буде нараховано, коли ГМ завершить гру`
                 : 'Нікого не затверджено · запис закрито'}
@@ -416,43 +403,26 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 12, color: 'var(--text-dim)' }}>
-          <span>
-            ВЕДЕ:{' '}
-            <span style={{ color: ownsSlot ? GOLD : 'var(--text-bright)' }}>
-              {slot.createdByNick || '—'}{ownsSlot ? ' (ви)' : ''}
-            </span>
-          </span>
-          <span>ГРА: <span style={{ color: 'var(--text-bright)' }}>{formatDT(slot.gameAt)}</span></span>
-          <span>НАБІР ДО: <span style={{ color: deadlinePassed && isOpen ? 'var(--warn)' : 'var(--text-bright)' }}>{formatDT(slot.signupDeadline)}</span></span>
-          <span>МІСЦЬ: <span style={{ color: 'var(--text-bright)' }}>{slot.seats}</span></span>
-          <span>ЗАПИСАЛОСЬ: <span style={{ color: contest ? 'var(--warn)' : 'var(--text-bright)' }}>{slot.signups.length}</span></span>
-          {difficultyLabel(slot.difficulty) && (
-            <span>
-              СКЛАДНІСТЬ:{' '}
-              <span style={{ color: 'var(--text-bright)' }}>{difficultyLabel(slot.difficulty)}</span>
-            </span>
-          )}
-          <span>
-            НАГОРОДА:{' '}
-            <span style={{ color: slot.rewardMana || slot.rewardPr ? GOLD : 'var(--text-dimmer)' }}>
-              {slot.rewardMana} М · {slot.rewardPr} PR
-            </span>
-          </span>
+        <div className="ss-cells">
+          {meta.map((m) => (
+            <div key={m.k}>
+              <span className="k">{m.k}</span>
+              <span className="v" style={{ color: m.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={m.v}>{m.v}</span>
+            </div>
+          ))}
         </div>
 
         {slot.description && <Description text={slot.description} />}
 
         {contest && isOpen && (
-          <div style={{ fontSize: 11, color: 'var(--warn)', letterSpacing: 1 }}>
-            УЧАСНИКІВ БІЛЬШЕ, НІЖ МІСЦЬ — СКЛАД ВИЗНАЧАЄ ПРІОРИТЕТ
-          </div>
+          <div style={{ fontSize: 11, color: 'var(--warn)', letterSpacing: 1 }}>:: Учасників більше, ніж місць — склад визначає пріоритет.</div>
         )}
 
         {slot.signups.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {ranked.map((g) => {
+          <div className="ss-list">
+            {ranked.map((g, i) => {
               const mine = g.userId === user.id;
+              const checked = g.guaranteed || picked.has(g.id);
               return (
                 <div
                   key={g.id}
@@ -461,55 +431,67 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                     alignItems: 'center',
                     gap: 12,
                     flexWrap: 'wrap',
-                    fontSize: 12,
-                    padding: '7px 10px',
-                    background: mine ? 'var(--panel-inset)' : 'var(--panel-sunken)',
-                    border: `1px solid ${mine ? 'var(--input-border)' : 'var(--rule)'}`,
+                    padding: '8px 10px',
+                    borderTop: i ? '1px solid var(--input-border)' : 'none',
+                    background: mine ? 'var(--panel-inset)' : 'transparent',
+                    borderLeft: `3px solid ${mine ? 'var(--accent)' : 'transparent'}`,
                   }}
                 >
                   {ownsSlot && isOpen && (
-                    <input
-                      type="checkbox"
-                      checked={g.guaranteed || picked.has(g.id)}
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={checked}
                       disabled={g.guaranteed}
-                      title={g.guaranteed ? 'Гарантоване місце — входить у склад автоматично' : undefined}
-                      onChange={() => togglePick(g.id)}
-                      style={{ accentColor: GOLD }}
-                    />
+                      title={g.guaranteed ? 'Гарантоване місце — входить у склад автоматично' : 'У склад'}
+                      onClick={() => togglePick(g.id)}
+                      style={{
+                        flex: 'none',
+                        width: 18,
+                        height: 18,
+                        padding: 0,
+                        border: `1px solid ${checked ? 'var(--gm)' : 'var(--gm-dim)'}`,
+                        background: checked ? 'var(--gm)' : 'var(--input-bg)',
+                        color: 'var(--bg)',
+                        fontSize: 12,
+                        lineHeight: '16px',
+                        opacity: g.guaranteed ? 0.6 : 1,
+                        cursor: g.guaranteed ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {checked ? '✓' : ''}
+                    </button>
                   )}
-                  <span className="title-font" style={{ fontSize: 14, letterSpacing: 1 }}>{g.callsign || '—'}</span>
-                  <span style={{ color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
-                    ЛЛ {g.ll} · Т{llTier(g.ll)}
-                  </span>
-                  {g.mech && (
-                    <span style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>▮ {g.mech}</span>
-                  )}
-                  <span style={{ color: 'var(--text-dimmer)' }}>{g.nick || 'невідомо'}</span>
+                  <span className="title-font" style={{ fontSize: 16, letterSpacing: 1, color: 'var(--text-bright)' }}>{g.callsign || '—'}</span>
+                  <span style={{ color: 'var(--text-dimmer)', whiteSpace: 'nowrap' }}>ЛЛ {g.ll} · T{llTier(g.ll)}</span>
+                  {g.mech && <span style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>▮ {g.mech}</span>}
+                  <span style={{ color: 'var(--text-faint)' }}>{g.nick || 'невідомо'}</span>
                   {/* Only a GM can read someone else's pilot (RLS), so the link is theirs
                       alone — for anyone else it would land on "пілота не знайдено". */}
                   {isGm && g.pilotId && (
                     <button
-                      className="btn-ghost"
+                      className="btn-ghost sm"
                       type="button"
                       onClick={() => navigate(`/pilots/${g.pilotId}`)}
-                      style={{ fontSize: 10, padding: '3px 8px', letterSpacing: 1 }}
+                      style={{ height: 22, padding: '0 8px' }}
                       title={`Відкрити профіль ${g.callsign || 'пілота'}`}
                     >
                       ПРОФІЛЬ
                     </button>
                   )}
-                  <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                     {g.guaranteed && (
-                      <span style={{ color: GOLD, whiteSpace: 'nowrap', letterSpacing: 1 }} title={`Бонус +${g.rollBonus}`}>
-                        🛡 ГАРАНТОВАНЕ МІСЦЕ
-                      </span>
+                      <span style={{ color: GOLD, whiteSpace: 'nowrap', letterSpacing: 1 }} title={`Бонус +${g.rollBonus}`}>◆ ГАРАНТОВАНЕ МІСЦЕ</span>
                     )}
                     {!g.guaranteed && g.roll !== null && (
                       <span
-                        style={{ color: 'var(--text-bright)', whiteSpace: 'nowrap' }}
+                        style={{ display: 'flex', alignItems: 'baseline', gap: 6, whiteSpace: 'nowrap' }}
                         title={`d20: ${g.roll}${g.rollBonus > 0 ? ` + бонус ${g.rollBonus}` : ''}`}
                       >
-                        ПРІОРИТЕТ <span style={{ fontSize: 14, color: g.rollBonus > 0 ? GOLD : undefined }}>{g.roll + (g.rollBonus || 0)}</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>ПРІОРИТЕТ</span>
+                        <span className="title-font" style={{ fontSize: 17, lineHeight: 1, color: g.rollBonus > 0 ? GOLD : 'var(--text-bright)' }}>
+                          {g.roll + (g.rollBonus || 0)}
+                        </span>
                       </span>
                     )}
                     {g.approved === true && <span style={{ color: 'var(--success)', letterSpacing: 1 }}>✓ УЧАСТЬ</span>}
@@ -521,27 +503,24 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
             })}
           </div>
         )}
-        {slot.signups.length === 0 && (
-          <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>Ще ніхто не записався.</div>
-        )}
+        {slot.signups.length === 0 && <div className="ss-note" style={{ fontSize: 12 }}>&gt; Ще ніхто не записався.</div>}
 
-        {error && <div className="error-box">{error}</div>}
+        {error && <Msg kind="err">{error}</Msg>}
 
         {/* Player actions — the GM running this game does not play in it */}
         {ownsSlot && isOpen && (
-          <div style={{ fontSize: 11, color: 'var(--text-dimmer)', letterSpacing: 1 }}>
-            ВИ ВЕДЕТЕ ЦЮ ГРУ — ЗАПИС ВЛАСНИМ ПЕРСОНАЖЕМ НЕДОСТУПНИЙ
-          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-grey)', letterSpacing: 1 }}>&gt; Ви ведете цю гру — запис власним персонажем недоступний.</div>
         )}
         {isOpen && !mySignup && !ownsSlot && (
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <select
+              className="ss-select"
               value={pilotId}
               onChange={(e) => {
                 setPilotId(e.target.value);
                 setMechId('');
               }}
-              style={{ padding: '8px 10px', fontSize: 13 }}
+              style={{ flex: '0 1 240px', height: 30, fontSize: 12 }}
             >
               <option value="">— оберіть персонажа —</option>
               {myPilots.map((p) => (
@@ -549,7 +528,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
               ))}
             </select>
             {needsMechChoice && (
-              <select value={mechId} onChange={(e) => setMechId(e.target.value)} style={{ padding: '8px 10px', fontSize: 13 }}>
+              <select className="ss-select" value={mechId} onChange={(e) => setMechId(e.target.value)} style={{ flex: '0 1 200px', height: 30, fontSize: 12 }}>
                 <option value="">— оберіть меха —</option>
                 {mechs.map((m) => (
                   <option key={m.id} value={m.id}>{m.name}</option>
@@ -567,45 +546,46 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                 run(() => api.boardSignup(slot.id, pilotId, mech));
               }}
             >
-              ЗАПИСАТИСЬ
+              ЗАПИСАТИСЬ · d20
             </button>
           </div>
         )}
         {isApproved && mySignup?.approved === true && (
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              className="btn-ghost"
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                const msg =
-                  'Звільнити своє місце в складі?\n\n' +
-                  'Його одразу отримає наступний за пріоритетом із тих, хто не потрапив. ' +
-                  'Повернутися в склад після цього не вийде.';
-                if (!window.confirm(msg)) return;
-                run(() => api.boardReleaseSeat(slot.id));
-              }}
-            >
-              ↩ ЗВІЛЬНИТИ МІСЦЕ
-            </button>
-          </div>
+          <button
+            className="btn-ghost"
+            type="button"
+            disabled={busy}
+            style={{ alignSelf: 'flex-start' }}
+            onClick={() =>
+              confirmThen(
+                {
+                  title: 'ЗВІЛЬНИТИ МІСЦЕ?',
+                  lines: [
+                    'місце одразу отримає наступний за пріоритетом із тих, хто не потрапив',
+                    'повернутися в склад після цього не вийде',
+                  ],
+                  yesLabel: 'ЗВІЛЬНИТИ',
+                },
+                () => api.boardReleaseSeat(slot.id),
+              )
+            }
+          >
+            ↩ ЗВІЛЬНИТИ МІСЦЕ
+          </button>
         )}
         {isOpen && mySignup && (
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="btn-ghost" type="button" disabled={busy} onClick={() => run(() => api.boardWithdraw(mySignup.id))}>
-              ВИЙТИ ЗІ СЛОТА
-            </button>
-          </div>
+          <button className="btn-ghost" type="button" disabled={busy} style={{ alignSelf: 'flex-start' }} onClick={() => run(() => api.boardWithdraw(mySignup.id))}>
+            ВИЙТИ ЗІ СЛОТА
+          </button>
         )}
 
         {/* GM actions. The reward stays editable right up to the payout, which is why the
             roster is locked one step before the game is closed. */}
         {ownsSlot && (isOpen || isApproved) && (
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', borderTop: `1px solid var(--gm-rule)`, paddingTop: 12 }}>
-            {editReward ? (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', width: '100%' }}>
-                <div style={{ width: '100%' }}>
-                  <div className="field-label">СКЛАДНІСТЬ</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--gm-dim)', paddingTop: 12 }}>
+            {editReward && (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <Field label="СКЛАДНІСТЬ" style={{ flex: '1 1 220px' }}>
                   <DifficultyPicker
                     value={rDiff}
                     onPick={(d) => {
@@ -615,24 +595,21 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                       setRPr(d.pr);
                     }}
                   />
-                </div>
-                <div>
-                  <div className="field-label">МАНА</div>
-                  <input type="number" min={0} autoFocus value={rMana} onChange={(e) => setRMana(e.target.value)} onKeyDown={onRewardKey} style={{ width: 90, padding: '7px 10px', fontSize: 13 }} />
-                </div>
-                <div>
-                  <div className="field-label">PR</div>
-                  <input type="number" min={0} value={rPr} onChange={(e) => setRPr(e.target.value)} onKeyDown={onRewardKey} style={{ width: 70, padding: '7px 10px', fontSize: 13 }} />
-                </div>
+                </Field>
+                <Field label="МАНА">
+                  <input className="ss-input" type="number" min={0} autoFocus value={rMana} onChange={(e) => setRMana(e.target.value)} onKeyDown={onRewardKey} style={{ width: 90, height: 30 }} />
+                </Field>
+                <Field label="PR">
+                  <input className="ss-input" type="number" min={0} value={rPr} onChange={(e) => setRPr(e.target.value)} onKeyDown={onRewardKey} style={{ width: 70, height: 30 }} />
+                </Field>
                 <button className="btn" type="button" disabled={busy} onClick={saveReward}>
-                  {busy ? 'ЗБЕРІГАЮ…' : 'ЗБЕРЕГТИ НАГОРОДУ'}
+                  {busy ? 'ЗБЕРІГАЮ…' : 'ЗБЕРЕГТИ'}
                 </button>
-                <button className="btn-ghost" type="button" onClick={() => setEditReward(false)}>
-                  СКАСУВАТИ
-                </button>
+                <button className="btn-ghost" type="button" onClick={() => setEditReward(false)}>СКАСУВАТИ</button>
               </div>
-            ) : (
-              <>
+            )}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {!editReward && (
                 <button
                   className="btn-ghost"
                   type="button"
@@ -647,100 +624,126 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                 >
                   ЗМІНИТИ НАГОРОДУ
                 </button>
-                {savedNote && (
-                  <span style={{ fontSize: 11, color: GOLD }}>✓ {savedNote}</span>
-                )}
-              </>
-            )}
-            {isOpen && (
+              )}
+              {isOpen && (
+                <button
+                  className="btn-gm"
+                  type="button"
+                  disabled={busy || slot.signups.length === 0}
+                  onClick={() =>
+                    confirmThen(
+                      {
+                        title: 'ЗАТВЕРДИТИ СКЛАД?',
+                        tone: 'gm',
+                        lines: [
+                          `у складі: ${rosterSize} з ${slot.signups.length}`,
+                          'запис на гру закриється',
+                          'хто потрапив у склад, витрачає бонус',
+                          'якщо був контест, ті, хто не потрапив, зберігають бонус і отримують ще +3',
+                          'нагорода поки НЕ нараховується — це станеться, коли ви завершите гру',
+                        ],
+                        yesLabel: 'ЗАТВЕРДИТИ',
+                      },
+                      () => api.gmApproveRoster(slot.id, Array.from(picked)),
+                    )
+                  }
+                >
+                  ЗАТВЕРДИТИ СКЛАД · {rosterSize}
+                </button>
+              )}
+              {isApproved && (
+                <button
+                  className="btn-gm"
+                  type="button"
+                  disabled={busy || editReward}
+                  title={editReward ? 'Спершу збережіть або скасуйте зміну нагороди' : undefined}
+                  onClick={() =>
+                    confirmThen(
+                      {
+                        title: 'ЗАВЕРШИТИ ГРУ?',
+                        tone: 'gm',
+                        question: `Видати нагороду ${awarded} ${pluralPilots(awarded)}?`,
+                        lines: [
+                          `кожен отримає ${slot.rewardMana} М`,
+                          `${slot.rewardPr} PR — у його пул PR (надлишок понад кап згорить)`,
+                          'лічильник зіграних ігор оновиться сам — це не нагорода',
+                          'діє одразу й не скасовується',
+                        ],
+                        yesLabel: 'ЗАВЕРШИТИ',
+                      },
+                      () => api.gmCloseGame(slot.id),
+                    )
+                  }
+                >
+                  ЗАВЕРШИТИ ГРУ І ВИДАТИ НАГОРОДУ
+                </button>
+              )}
+              {isApproved && (
+                <button
+                  className="btn-ghost"
+                  type="button"
+                  disabled={busy}
+                  title="Рядок тегів складу для Discord: вставте в гілку, пост чи чат"
+                  onClick={() => run(async () => {
+                    const { text, unlinked } = await api.getRosterTags(slot.id);
+                    await navigator.clipboard.writeText(text);
+                    setTagsNote(
+                      'Теги скопійовано — вставте в Discord.' +
+                      (unlinked.length ? ` Без прив'язаного Discord: ${unlinked.join(', ')}.` : ''),
+                    );
+                  })}
+                >
+                  # КОПІЮВАТИ ТЕГИ
+                </button>
+              )}
               <button
-                className="btn"
-                type="button"
-                disabled={busy || slot.signups.length === 0}
-                onClick={() => {
-                  const msg =
-                    `Затвердити склад: ${rosterSize} з ${slot.signups.length}?\n\n` +
-                    'Запис на гру закриється. Хто потрапив у склад, витрачає бонус; якщо був контест, ' +
-                    'ті, хто не потрапив, зберігають бонус і отримують ще +3. ' +
-                    'Нагорода поки НЕ нараховується — це станеться, коли ви завершите гру.';
-                  if (!window.confirm(msg)) return;
-                  run(() => api.gmApproveRoster(slot.id, Array.from(picked)));
-                }}
-                style={{ borderColor: GOLD_DIM, color: GOLD }}
-              >
-                ЗАТВЕРДИТИ СКЛАД ({rosterSize})
-              </button>
-            )}
-            {isApproved && (
-              <button
-                className="btn"
-                type="button"
-                disabled={busy || editReward}
-                title={editReward ? 'Спершу збережіть або скасуйте зміну нагороди' : undefined}
-                onClick={() => {
-                  const msg =
-                    `Завершити гру і видати нагороду ${awarded} ${pluralPilots(awarded)}?\n\n` +
-                    `Кожен отримає ${slot.rewardMana} М, ` +
-                    `а ${slot.rewardPr} PR — у його пул PR (надлишок понад кап згорить). ` +
-                    'Лічильник зіграних ігор оновиться сам — це не нагорода. ' +
-                    'Це діє одразу й не скасовується.';
-                  if (!window.confirm(msg)) return;
-                  run(() => api.gmCloseGame(slot.id));
-                }}
-                style={{ borderColor: GOLD_DIM, color: GOLD }}
-              >
-                ЗАВЕРШИТИ ГРУ І ВИДАТИ НАГОРОДУ
-              </button>
-            )}
-            {isApproved && (
-              <button
-                className="btn-ghost"
+                className="btn-danger"
                 type="button"
                 disabled={busy}
-                title="Рядок тегів складу для Discord: вставте в гілку, пост чи чат"
-                onClick={() => run(async () => {
-                  const { text, unlinked } = await api.getRosterTags(slot.id);
-                  await navigator.clipboard.writeText(text);
-                  setTagsNote(
-                    'Теги скопійовано — вставте в Discord.' +
-                    (unlinked.length ? ` Без прив'язаного Discord: ${unlinked.join(', ')}.` : ''),
-                  );
-                })}
+                style={{ marginLeft: 'auto' }}
+                onClick={() =>
+                  confirmThen(
+                    {
+                      title: 'СКАСУВАТИ СЛОТ?',
+                      tone: 'danger',
+                      lines: [`«${slot.title || 'Гра без назви'}»`, `записаних: ${slot.signups.length}`, 'запис на гру закриється'],
+                      yesLabel: 'СКАСУВАТИ СЛОТ',
+                    },
+                    () => api.gmCancelSlot(slot.id),
+                  )
+                }
               >
-                🏷 КОПІЮВАТИ ТЕГИ
+                СКАСУВАТИ СЛОТ
               </button>
-            )}
-            {tagsNote && <span style={{ fontSize: 11, color: 'var(--success)', width: '100%' }}>{tagsNote}</span>}
-            <button
-              className="btn-ghost"
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                if (!window.confirm('Скасувати цей слот гри?')) return;
-                run(() => api.gmCancelSlot(slot.id));
-              }}
-            >
-              СКАСУВАТИ СЛОТ
-            </button>
+            </div>
+            {savedNote && <div style={{ fontSize: 11, color: 'var(--success)' }}>&gt;&gt; {savedNote}</div>}
+            {tagsNote && <div style={{ fontSize: 11, color: 'var(--success)' }}>&gt;&gt; {tagsNote}</div>}
           </div>
         )}
         {ownsSlot && !isOpen && !isApproved && (
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', borderTop: `1px solid var(--gm-rule)`, paddingTop: 12 }}>
+          <div style={{ display: 'flex', borderTop: '1px solid var(--gm-dim)', paddingTop: 12 }}>
             <button
-              className="btn-ghost"
+              className="btn-danger"
               type="button"
               disabled={busy}
-              onClick={() => {
-                if (!window.confirm('Видалити цей слот назавжди?')) return;
-                run(() => api.gmDeleteSlot(slot.id));
-              }}
+              onClick={() =>
+                confirmThen(
+                  {
+                    title: 'ВИДАЛИТИ СЛОТ?',
+                    tone: 'danger',
+                    lines: [`«${slot.title || 'Гра без назви'}»`, 'слот зникне з дошки назавжди', 'відновлення: неможливе'],
+                    yesLabel: 'ВИДАЛИТИ',
+                  },
+                  () => api.gmDeleteSlot(slot.id),
+                )
+              }
             >
               ВИДАЛИТИ СЛОТ
             </button>
           </div>
         )}
       </div>
-    </div>
+    </Panel>
   );
 }
 
@@ -783,53 +786,54 @@ function DiscordLink({ user }) {
   if (link === undefined && !error) return null;
 
   return (
-    <div style={{ border: '1px solid var(--input-border)', background: 'var(--panel-inset)', padding: '10px 14px', marginBottom: 18, fontSize: 12, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-      <span style={{ letterSpacing: 1, color: 'var(--text-dim)' }}>DISCORD:</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 12px', border: '1px solid var(--input-border)', background: 'var(--input-bg)', fontSize: 12 }}>
+      <span style={{ color: 'var(--text-dimmer)', letterSpacing: 1 }}>DISCORD</span>
       {link ? (
         <>
-          <span style={{ color: 'var(--text-bright)' }}>прив'язано{link.discord_username ? ` · ${link.discord_username}` : ''}</span>
-          <span style={{ color: 'var(--text-dimmer)' }}>— записуйтесь кнопками під оголошеннями в Discord</span>
-          {!hasLogin && (
-            <button className="btn-ghost" type="button" disabled={busy} style={{ marginLeft: 'auto' }}
-              title="Після цього можна входити в апку кнопкою «Увійти через Discord» — у цей самий акаунт"
-              onClick={() => run(api.linkDiscordLogin)}>
-              УВІМКНУТИ ВХІД ЧЕРЕЗ DISCORD
-            </button>
-          )}
-          {/* Відв'язка кодом не прибирає Discord-вхід, тож для таких акаунтів її не пропонуємо. */}
-          {!hasLogin && (
-            <button className="btn-ghost" type="button" disabled={busy}
-              onClick={() => run(async () => { await api.unlinkDiscord(user.id); setLink(null); setCode(''); })}>
-              ВІДВ'ЯЗАТИ
-            </button>
-          )}
-          {hasLogin && <span style={{ color: 'var(--text-dimmer)', marginLeft: 'auto' }}>вхід через Discord увімкнено</span>}
+          <span style={{ color: 'var(--success)' }}>прив'язано{link.discord_username ? ` · ${link.discord_username}` : ''}</span>
+          <span style={{ color: 'var(--text-dimmer)', fontSize: 11 }}>— записуйтесь кнопками під оголошеннями</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {!hasLogin && (
+              <button className="btn-ghost md" type="button" disabled={busy}
+                title="Після цього можна входити в апку кнопкою «Увійти через Discord» — у цей самий акаунт"
+                onClick={() => run(api.linkDiscordLogin)}>
+                УВІМКНУТИ ВХІД ЧЕРЕЗ DISCORD
+              </button>
+            )}
+            {/* Відв'язка кодом не прибирає Discord-вхід, тож для таких акаунтів її не пропонуємо. */}
+            {!hasLogin && (
+              <button className="btn-ghost md" type="button" disabled={busy}
+                onClick={() => run(async () => { await api.unlinkDiscord(user.id); setLink(null); setCode(''); })}>
+                ВІДВ'ЯЗАТИ
+              </button>
+            )}
+            {hasLogin && <span style={{ color: 'var(--text-dimmer)', fontSize: 11 }}>вхід через Discord увімкнено</span>}
+          </div>
         </>
       ) : code ? (
         <>
-          <span>Код прив'язки:</span>
-          <code style={{ color: 'var(--accent)', fontSize: 14, userSelect: 'all' }}>{code}</code>
-          <span style={{ color: 'var(--text-dimmer)' }}>(введіть у Discord командою /link, діє 15 хв)</span>
-          <button className="btn-ghost" type="button" disabled={busy} style={{ marginLeft: 'auto' }}
-            onClick={() => run(load)}>
-            ПЕРЕВІРИТИ
-          </button>
+          <span style={{ color: 'var(--text-soft)' }}>код прив'язки</span>
+          <code style={{ color: 'var(--accent)', fontSize: 14, letterSpacing: 2, userSelect: 'all' }}>{code}</code>
+          <span style={{ fontSize: 11, color: 'var(--text-dimmer)' }}>/link · 15 хв</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <button className="btn-ghost md" type="button" disabled={busy} onClick={() => run(load)}>ПЕРЕВІРИТИ</button>
+          </div>
         </>
       ) : (
         <>
-          <span style={{ color: 'var(--text-dimmer)' }}>не прив'язано — прив'яжіть, щоб записуватись на ігри прямо з Discord</span>
+          <span style={{ color: 'var(--text-dimmer)' }}>не прив'язано — щоб записуватись прямо з Discord</span>
           {/* Через Discord одним кліком: і прив'язка, і вхід. Код /link — запасний шлях. */}
-          <button className="btn" type="button" disabled={busy} style={{ marginLeft: 'auto' }}
-            onClick={() => run(api.linkDiscordLogin)}>
-            ПРИВ'ЯЗАТИ ЧЕРЕЗ DISCORD
-          </button>
-          <button className="btn-ghost" type="button" disabled={busy}
-            onClick={() => run(async () => setCode(await api.createDiscordLinkCode()))}>
-            КОД ДЛЯ /link
-          </button>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button className="btn md" type="button" disabled={busy} onClick={() => run(api.linkDiscordLogin)}>
+              ПРИВ'ЯЗАТИ ЧЕРЕЗ DISCORD
+            </button>
+            <button className="btn-ghost md" type="button" disabled={busy} onClick={() => run(async () => setCode(await api.createDiscordLinkCode()))}>
+              КОД ДЛЯ /link
+            </button>
+          </div>
         </>
       )}
-      {error && <div className="error-box" style={{ width: '100%' }}>{error}</div>}
+      {error && <Msg kind="err" style={{ width: '100%' }}>{error}</Msg>}
     </div>
   );
 }
@@ -903,65 +907,48 @@ export default function BoardPage() {
     );
   }, [slots]);
 
+  const bonusText =
+    myBonus >= 9
+      ? 'На наступну гру місце гарантоване — кидати не треба.'
+      : myBonus > 0
+        ? 'Бонус додається до d20 при записі: +3 за кожен програний контест, +9 — гарантоване місце. Згорає, коли потрапите в склад.'
+        : 'При записі кидається d20 — це ваш пріоритет. Бонус до нього накопичується за програні контести.';
+
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        padding: '40px 24px',
-        boxSizing: 'border-box',
-        background: 'radial-gradient(ellipse at 50% 0%, var(--page-grad) 0%, var(--bg) 70%)',
-        display: 'flex',
-        justifyContent: 'center',
-      }}
-    >
-      <div style={{ width: 860, maxWidth: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
-          <img src="/logo-ferum-vox.webp" alt="" width={28} height={28} style={{ display: 'block' }} />
-          <div className="title-font" style={{ fontSize: 26, letterSpacing: 3 }}>
-            ЗАПИС НА ГРУ
+    <PageShell narrow>
+      <PageHeader section="MISSION BOARD" title="ЗАПИС НА ГРУ" tag={isGm ? <span className="ss-tag gm">ГМ</span> : null} />
+
+      <div style={{ display: 'flex', alignItems: 'stretch', border: '1px solid var(--input-border)', background: 'var(--panel-sunken)' }}>
+        <div style={{ flex: 'none', width: 64, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, borderRight: '1px solid var(--input-border)', padding: '8px 0' }}>
+          <div className="title-font" style={{ fontSize: 24, lineHeight: 1, color: myBonus > 0 ? GOLD : 'var(--text-dimmer)' }}>
+            {myBonus >= 9 ? '◆' : `+${myBonus}`}
           </div>
-          <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-dim)' }}>{user?.nick}</div>
+          <div style={{ fontSize: 9, color: 'var(--text-dimmer)', letterSpacing: 1 }}>БОНУС</div>
         </div>
-
-        <div style={{ fontSize: 11, color: 'var(--text-dimmer)', letterSpacing: 1, marginBottom: 24 }}>
-          {myBonus >= 9
-            ? <>ВАШ БОНУС: <span style={{ color: GOLD }}>+{myBonus}</span> — 🛡 НА НАСТУПНУ ГРУ МІСЦЕ ГАРАНТОВАНЕ, КИДАТИ НЕ ТРЕБА</>
-            : myBonus > 0
-            ? <>ВАШ БОНУС ДО ПРІОРИТЕТУ: <span style={{ color: GOLD }}>+{myBonus}</span> (додається до d20 при записі; +3 за кожен програний контест, +9 — гарантоване місце; згорає, коли потрапите в склад)</>
-            : 'ПРИ ЗАПИСІ КИДАЄТЬСЯ D20 — ЦЕ ВАШ ПРІОРИТЕТ. БОНУС ДО НЬОГО НАКОПИЧУЄТЬСЯ ЗА ПРОГРАНІ КОНТЕСТИ'}
-        </div>
-
-        {user && <DiscordLink user={user} />}
-
-        {loadError && <div className="error-box" style={{ marginBottom: 16 }}>{loadError}</div>}
-        {loading && <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>Завантаження…</div>}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {isGm && !loading && <CreateSlotForm onCreated={reload} />}
-
-          {!loading && sorted.length === 0 && (
-            <div style={{ border: '1px dashed var(--input-border)', padding: 22, textAlign: 'center', fontSize: 12, color: 'var(--text-dimmer)' }}>
-              Ігор поки немає.
-            </div>
-          )}
-
-          {sorted.map((slot) => (
-            <SlotCard
-              key={slot.id}
-              slot={slot}
-              user={user}
-              isGm={isGm}
-              myPilots={myPilots}
-              onChanged={reload}
-            />
-          ))}
-        </div>
-
-        <div style={{ marginTop: 14, fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>
-          UNION ADMINISTRATIVE // MISSION BOARD
+        <div style={{ flex: 1, minWidth: 0, padding: '10px 14px', fontSize: 11, lineHeight: 1.6, color: 'var(--text-grey)', textWrap: 'pretty' }}>
+          {myBonus >= 9 ? <span style={{ color: GOLD }}>+{myBonus} · </span> : null}
+          {bonusText}
         </div>
       </div>
-      <NavDrawer />
-    </div>
+
+      {user && <DiscordLink user={user} />}
+
+      {loadError && <Msg kind="err">{loadError}</Msg>}
+      {loading && <div className="ss-note">&gt; Завантаження…</div>}
+
+      {isGm && !loading && <CreateSlotForm onCreated={reload} />}
+
+      {!loading && sorted.length === 0 && (
+        <div className="ss-slot" style={{ padding: 22, fontSize: 12, color: 'var(--text-dimmer)' }}>&gt; Ігор поки немає.</div>
+      )}
+
+      {sorted.map((slot) => (
+        <SlotCard key={slot.id} slot={slot} user={user} isGm={isGm} myPilots={myPilots} onChanged={reload} />
+      ))}
+
+      <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>
+        FERUM VOX // MISSION BOARD
+      </div>
+    </PageShell>
   );
 }
