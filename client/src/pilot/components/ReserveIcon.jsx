@@ -66,7 +66,7 @@ export default function ReserveIcon({ kind, title, size = 44 }) {
         alignItems: 'center',
         justifyContent: 'center',
         // Рідкісні — золоті, як у дизайні 2a: видно здалеку, що це не звичайний резерв.
-        color: kind === 'rare' ? 'var(--gm-ink)' : 'var(--accent)',
+        color: kind === 'rare' ? 'var(--gm)' : 'var(--accent)',
         border: `1px solid ${kind === 'rare' ? 'var(--gm-dim)' : 'var(--accent-dim)'}`,
         background: kind === 'rare' ? 'var(--gm-panel-border)' : 'var(--panel-sunken)',
       }}

@@ -11,6 +11,8 @@
    on the GALSIM orange and the SSC gold, and those bars are what make those themes
    recognisable. Body text everywhere else is still clamped for contrast. */
 
+/* Текст на власних ГМ-поверхнях (темна смуга --gm-panel-border однакова в усіх темах) — --gm;
+   золотий текст на звичайних панелях — --gm-ink. */
 /* .ss-login — сторінка входу завжди в GMS Dark, хоч би яку тему обрано. */
 :root, .ss-login {
   /* Chrome on Android force-darkens ("Auto Dark Theme") any page that has not declared
@@ -910,9 +912,9 @@ button {
 }
 .card-header .title, .ss-bar .title { font-size: 12px; letter-spacing: 2px; }
 .ss-bar .sub, .card-header .sub { margin-left: auto; font-size: 11px; color: #ffffffaa; letter-spacing: 1px; }
-.ss-bar.gm { background: var(--gm-panel-border); color: var(--gm-ink); border-bottom: 1px solid var(--gm-dim); }
+.ss-bar.gm { background: var(--gm-panel-border); color: var(--gm); border-bottom: 1px solid var(--gm-dim); }
 .ss-bar.gm .dot { background: var(--gm); }
-.ss-bar.gm .sub { color: var(--gm-ink); opacity: .75; }
+.ss-bar.gm .sub { color: var(--gm); opacity: .75; }
 .ss-bar.done { background: var(--ok-bg); color: var(--success); border-bottom: 1px solid var(--ok-border); }
 .ss-bar.done .dot { background: var(--success); }
 .ss-bar.done .sub { color: var(--success); }
@@ -967,7 +969,7 @@ button {
 .btn-outline:hover:not(:disabled) { border-color: var(--accent); background: var(--panel-inset); }
 .btn-danger { background: var(--danger-bg); border: 1px dashed var(--danger-border); color: var(--danger); }
 .btn-danger:hover:not(:disabled) { border-color: var(--danger); }
-.btn-gm { background: var(--gm-panel-border); border: 1px solid var(--gm-dim); color: var(--gm-ink); }
+.btn-gm { background: var(--gm-panel-border); border: 1px solid var(--gm-dim); color: var(--gm); }
 .btn-gm:hover:not(:disabled) { border-color: var(--gm); }
 .btn:disabled, .btn-ghost:disabled, .btn-danger:disabled, .btn-gm:disabled, .btn-outline:disabled { opacity: .45; cursor: not-allowed; }
 .btn.sm, .btn-ghost.sm, .btn-danger.sm, .btn-gm.sm, .btn-outline.sm { height: 24px; padding: 0 10px; font-size: 10px; }
@@ -1137,7 +1139,7 @@ textarea.ss-input { height: auto; padding: 8px 10px; line-height: 1.6; resize: v
 .modal-box.danger .modal-header { background: var(--danger-bg); color: var(--danger); border-bottom: 1px solid var(--danger-border); }
 .modal-box.danger .modal-header::before { background: var(--danger); }
 .modal-box.gm { border-color: var(--gm-dim); }
-.modal-box.gm .modal-header { background: var(--gm-panel-border); color: var(--gm-ink); border-bottom: 1px solid var(--gm-dim); }
+.modal-box.gm .modal-header { background: var(--gm-panel-border); color: var(--gm); border-bottom: 1px solid var(--gm-dim); }
 .modal-box.gm .modal-header::before { background: var(--gm); }
 .modal-lines { font-size: 12px; color: var(--text-soft); line-height: 1.7; display: flex; flex-direction: column; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
@@ -1256,11 +1258,13 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
   .m-vault > :nth-child(3) { grid-column: 1 / -1; justify-content: flex-end; }
   .m-op { grid-template-columns: minmax(0, 1fr) auto !important; gap: 4px 10px !important; }
   .m-op > :first-child { grid-column: 1 / -1; }
-  .m-cards > .m-thead { display: none !important; }
-  .m-cards > .m-row { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 8px !important; }
-  .m-cards > .m-row > .m-name { grid-column: 1 / -1; }
-  .m-cards > .m-row > .m-upd { grid-column: 1 / -1; }
-  .m-cards > .m-row > [data-l]::before { content: attr(data-l); display: block; font-size: 9px; color: var(--text-dimmer); letter-spacing: 1px; }
+  .gm-thead { display: none !important; }
+  .gm-row { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 8px 10px !important; padding: 10px 12px !important; }
+  .gm-row > :first-child { grid-column: 1 / -1; }
+  .gm-row > [data-l] { display: flex; flex-direction: column; gap: 2px; padding: 4px 6px; background: var(--input-bg); border: 1px solid var(--input-border); }
+  .gm-row > [data-l]::before { content: attr(data-l); font-size: 9px; letter-spacing: 1px; color: var(--text-dimmer); }
+  .gm-row > .gm-upd { grid-column: 1 / -1; text-align: left !important; }
+  .gm-row > .gm-upd::before { content: 'ОНОВЛЕНО '; color: var(--text-faint); letter-spacing: 1px; }
 }
 
 /* Рядок реєстру пілотів: ліва смуга на hover */
@@ -1286,3 +1290,7 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 .ss-login .lg-log.bot { justify-content: flex-start; -webkit-mask-image: linear-gradient(0deg, transparent 0%, #000 70%); mask-image: linear-gradient(0deg, transparent 0%, #000 70%); }
 @keyframes ss-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .ss-login .lg-cursor { animation: none; } }
+
+/* ГМ-панель: рядок таблиці — посилання на профіль */
+.gm-row { color: inherit; }
+.gm-row:hover { background: var(--panel-inset); color: inherit; }
