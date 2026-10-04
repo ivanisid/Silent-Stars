@@ -46,32 +46,51 @@ function limitedBonusFor(pilot, mech) {
   return { fromEngineering, fromCoreBonuses, fromFrame, total: fromEngineering + fromCoreBonuses + fromFrame };
 }
 
-function collectLimited(mech, bonus = 0) {
+// Повний список зброї та систем активного лоадауту. Лімітні отримують лічильник:
+// base — значення тегу LIMITED (за ним рахується ціна поповнення), max — з бонусами.
+function collectItems(mech, bonus = 0) {
   const results = [];
   const loadout = mech.loadouts?.[mech.active_loadout_index ?? 0];
   if (!loadout) return results;
 
-  const push = (name, tagMax) => {
-    const max = tagMax + bonus;
-    results.push({ name, current: max, max, destroyed: false });
+  const push = (type, name, mount, tagMax, destroyed) => {
+    const item = { name, type, mount: (mount || '').toString().toUpperCase(), destroyed: !!destroyed };
+    if (tagMax) {
+      const max = tagMax + bonus;
+      Object.assign(item, { current: max, max, base: tagMax });
+    }
+    results.push(item);
   };
 
   (loadout.mounts || []).forEach((mount) => {
     (mount.slots || []).forEach((slot) => {
       const w = slot.weapon?.data;
       if (!w) return;
-      const max = tagValue(w.tags, 'tg_limited');
-      if (max) push(w.name, max);
+      push('weapon', w.name, w.mount || slot.size, tagValue(w.tags, 'tg_limited'), slot.weapon?.destroyed);
     });
   });
 
   (loadout.systems || []).forEach((sys) => {
     const s = sys.data || sys;
-    const max = tagValue(s.tags, 'tg_limited');
-    if (max) push(s.name, max);
+    if (!s?.name) return;
+    push('system', s.name, '', tagValue(s.tags, 'tg_limited'), sys.destroyed);
   });
 
   return results;
+}
+
+// Бонд із «Save Pilot»: data.bond.data.{name, major_ideals, minor_ideals} і data.bond.xp.
+// null — у файлі бонду немає.
+export function mapCompconBond(json) {
+  const b = json?.data?.bond;
+  const d = b?.data;
+  if (!d || !Array.isArray(d.major_ideals) || !Array.isArray(d.minor_ideals)) return null;
+  return {
+    name: d.name || b.bondId || 'Бонд',
+    major: d.major_ideals.slice(0, 3),
+    minor: d.minor_ideals.slice(),
+    xp: Number.isFinite(b.xp) ? b.xp : null,
+  };
 }
 
 // COMP/CON pilot skills (Lancer's ~24 fixed named skills, each ranked 0–6) don't map 1:1 onto
@@ -128,7 +147,7 @@ function mapMech(m, grit, hull, limitedBonus) {
     reactorFilled: 0,
     corePower: m.corePower ?? true,
     overcharge: 0,
-    limited: collectLimited(m, limitedBonus),
+    items: collectItems(m, limitedBonus),
   };
 }
 
@@ -170,10 +189,13 @@ export function mapCompconPilot(json) {
     stress: clamp(d.bond?.stress || 0, 0, 8),
     stressMax: 8,
     bond: {
+      ...createDefaultPilotState().bond,
       archetype: bondData?.name || '',
-      xp: clamp(d.bond?.xp || 0, 0, 8),
+      confirmed: !!bondData?.name,
+      xp: Math.max(0, d.bond?.xp || 0),
       powers: (d.bond?.bondPowers || []).map((p) => p.name),
-      newPower: '',
+      majorIdeals: (bondData?.major_ideals || []).slice(0, 3),
+      minorIdeals: (bondData?.minor_ideals || []).slice(),
     },
     hp: {
       current: d.stats?.current?.hp || d.stats?.max?.hp || 6,

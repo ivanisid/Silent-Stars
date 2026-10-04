@@ -51,6 +51,7 @@ function toPilotSummary(row) {
     ll: row.state?.ll ?? 2,
     hp: row.state?.hp || null,
     mana: row.state?.mana?.balance ?? 0,
+    pr: row.state?.pr ?? 0,
     stress: row.state?.stress ?? 0,
     mechCount: row.state?.mechs?.length || 0,
     mechs: (row.state?.mechs || []).map((m) => ({ id: String(m.id), name: m.name })),

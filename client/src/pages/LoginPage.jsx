@@ -1,26 +1,86 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api';
+import pkg from '../../package.json';
+
+// Вхід — текстовий режим без вікна: пункти «[1] ВХІД» / «[2] РЕЄСТРАЦІЯ» розгортають
+// дерево полів, згори й знизу біжать декоративні логи. Сторінка завжди в GMS Dark
+// (клас ss-login перевизначає змінні теми).
+
+const SRC = [
+  'PKT RX node-03 → node-07 512b', 'SYNC registry delta +2', 'PING relay/evergreen 41ms', 'AUTH token refresh',
+  'GC heap 63% ok', 'TELEMETRY mech hp sync', 'LOG write ops', 'WARN retry uplink 1/3', 'CACHE miss pilot:portrait',
+  'PR ledger checkpoint', 'SCAN sector 4C clear', 'QUEUE board slots', 'CRC ok 0x9F3A', 'RX beacon UNION-ADM', 'ARCHIVE rotate',
+];
+const pad = (n) => String(n).padStart(2, '0');
+function mkLine() {
+  const d = new Date();
+  return {
+    id: Math.random(),
+    t: `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}`,
+    text: `${SRC[Math.floor(Math.random() * SRC.length)]} · ${Math.random().toString(16).slice(2, 10)}`,
+  };
+}
+const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+function useLog(interval, prepend) {
+  const [lines, setLines] = useState(() => Array.from({ length: 14 }, mkLine));
+  useEffect(() => {
+    if (reducedMotion()) return undefined;
+    const t = setInterval(() => setLines((l) => (prepend ? [mkLine(), ...l.slice(0, 13)] : [...l.slice(-13), mkLine()])), interval);
+    return () => clearInterval(t);
+  }, [interval, prepend]);
+  return lines;
+}
 
 export default function LoginPage() {
   const { login, register } = useAuth();
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState('login');
+  const [mode, setMode] = useState(null); // null | 'login' | 'register'
+  const [rev, setRev] = useState(0); // скільки рядків дерева вже показано
   const [nick, setNick] = useState('');
   const [pass, setPass] = useState('');
   const [pass2, setPass2] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(new Date());
+  const revTimer = useRef(null);
+
+  const logTop = useLog(700, false);
+  const logBot = useLog(950, true);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => {
+      clearInterval(t);
+      clearInterval(revTimer.current);
+    };
+  }, []);
 
   const isRegister = mode === 'register';
 
-  function switchMode(m) {
-    setMode(m);
+  // Клік розгортає дерево під пунктом (рядки по одному, крок 90 мс), другий клік згортає.
+  function toggle(m) {
+    clearInterval(revTimer.current);
+    const next = mode === m ? null : m;
+    setMode(next);
     setError('');
-    setSuccess('');
+    if (next !== 'login') setSuccess('');
+    setRev(0);
+    if (!next) return;
+    if (reducedMotion()) return setRev(9);
+    revTimer.current = setInterval(() => {
+      setRev((r) => {
+        if (r >= 4) {
+          clearInterval(revTimer.current);
+          return r;
+        }
+        return r + 1;
+      });
+    }, 90);
   }
 
   async function submit(e) {
@@ -35,9 +95,10 @@ export default function LoginPage() {
       if (isRegister) {
         await register(nick.trim(), pass);
         setSuccess(`Пілота «${nick.trim()}» зареєстровано. Тепер увійдіть.`);
-        setMode('login');
         setPass('');
         setPass2('');
+        setMode('login');
+        setRev(9);
       } else {
         await login(nick.trim(), pass);
         navigate('/pilots');
@@ -49,129 +110,95 @@ export default function LoginPage() {
     }
   }
 
-  const tabStyle = (on) => ({
-    flex: 1,
-    padding: '11px 0',
-    fontFamily: "'Share Tech Mono',monospace",
-    fontSize: 12,
-    letterSpacing: 2,
-    cursor: 'pointer',
-    border: 'none',
-    borderBottom: `2px solid ${on ? 'var(--accent)' : 'transparent'}`,
-    background: on ? 'var(--panel-inset)' : 'transparent',
-    color: on ? 'var(--text)' : 'var(--text-dimmer)',
-  });
+  async function discord() {
+    setBusy(true);
+    setError('');
+    try {
+      await api.loginWithDiscord(); // далі браузер іде на Discord і повертається вже з сесією
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
+  const item = (m, num, label) => {
+    const on = mode === m;
+    return (
+      <button type="button" className="lg-item" onClick={() => toggle(m)} aria-expanded={on} style={{ color: on ? 'var(--text-bright)' : mode ? 'var(--text-faint)' : 'var(--text)' }}>
+        <span style={{ color: 'var(--accent)', width: 16 }}>{on ? '▾' : '>'}</span>
+        <span style={{ color: 'var(--text-faint)', fontSize: 13, letterSpacing: 1 }}>[{num}]</span>
+        <span>{label}</span>
+      </button>
+    );
+  };
+
+  const field = (show, last, label, input) =>
+    show && (
+      <div className="lg-row">
+        <span className="lg-tree">{last ? '└─' : '├─'}</span>
+        <span className="lg-lbl">{label}</span>
+        {input}
+      </div>
+    );
+
+  const tree = (m) =>
+    mode === m && (
+      <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column' }}>
+        {field(rev >= 1, false, 'НІКНЕЙМ:', <input className="lg-in" type="text" autoFocus autoComplete="username" value={nick} onChange={(e) => setNick(e.target.value)} placeholder="callsign" />)}
+        {field(rev >= 2, false, 'ПАРОЛЬ:', <input className="lg-in" type="password" autoComplete={m === 'register' ? 'new-password' : 'current-password'} value={pass} onChange={(e) => setPass(e.target.value)} placeholder="••••••••" />)}
+        {m === 'register' && field(rev >= 3, false, 'ПОВТОР:', <input className="lg-in" type="password" autoComplete="new-password" value={pass2} onChange={(e) => setPass2(e.target.value)} placeholder="••••••••" />)}
+        {rev >= (m === 'register' ? 4 : 3) && (
+          <div className="lg-row">
+            <span className="lg-tree">└─</span>
+            <button type="submit" className="lg-submit" disabled={busy}>
+              <span style={{ color: 'var(--accent)' }}>&gt;&gt;</span>
+              <span>{busy ? 'ЗАЧЕКАЙТЕ…' : m === 'register' ? 'ЗАРЕЄСТРУВАТИСЬ' : 'УВІЙТИ'}</span>
+              <span className="lg-cursor" />
+            </button>
+          </div>
+        )}
+        {error && <div style={{ fontSize: 12, color: 'var(--danger)', padding: '4px 0 4px 36px', whiteSpace: 'normal' }}>!! {error}</div>}
+      </form>
+    );
 
   return (
     <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-        boxSizing: 'border-box',
-        background: 'radial-gradient(ellipse at 50% 0%, var(--page-grad) 0%, var(--bg) 70%)',
-      }}
+      className="ss-login"
+      style={{ position: 'relative', isolation: 'isolate', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '0 24px 0 max(24px, 12vw)', overflow: 'hidden' }}
     >
-      <div style={{ width: 460, maxWidth: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 18 }}>
-          <img src="/logo-ferum-vox.webp" alt="" width={40} height={40} style={{ display: 'block' }} />
-          <div className="title-font" style={{ fontSize: 26, letterSpacing: 3 }}>
-            FERUM-VOX // MEMBER CARD
-          </div>
+      <div className="ss-grid" aria-hidden="true" />
+      <div className="lg-log top" aria-hidden="true">
+        {logTop.map((l) => (
+          <div key={l.id}><span>{l.t}</span> {l.text}</div>
+        ))}
+      </div>
+      <div style={{ flex: 'none', width: 520, maxWidth: '100%', position: 'relative', padding: '16px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 2 }}>
+          <span style={{ color: 'var(--accent)' }}>■</span>
+          <span>FERUM-VOX // AUTH</span>
+          <span style={{ marginLeft: 'auto' }}>NODE 07 · {pad(now.getHours())}:{pad(now.getMinutes())}:{pad(now.getSeconds())}</span>
         </div>
-
-        <div className="card">
-          <div className="card-header">
-            <div className="title">{isRegister ? 'РЕЄСТРАЦІЯ ПІЛОТА' : 'ВХІД У СИСТЕМУ'}</div>
-          </div>
-          <div style={{ display: 'flex' }}>
-            <button style={tabStyle(!isRegister)} onClick={() => switchMode('login')} type="button">
-              ВХІД
-            </button>
-            <button style={tabStyle(isRegister)} onClick={() => switchMode('register')} type="button">
-              РЕЄСТРАЦІЯ
-            </button>
-          </div>
-
-          <form onSubmit={submit} style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div>
-              <div className="field-label">НІКНЕЙМ</div>
-              <input
-                type="text"
-                value={nick}
-                onChange={(e) => setNick(e.target.value)}
-                placeholder="callsign"
-                style={{ width: '100%', padding: '10px 12px', fontSize: 14 }}
-              />
-            </div>
-            <div>
-              <div className="field-label">ПАРОЛЬ</div>
-              <input
-                type="password"
-                value={pass}
-                onChange={(e) => setPass(e.target.value)}
-                placeholder="••••••••"
-                style={{ width: '100%', padding: '10px 12px', fontSize: 14 }}
-              />
-            </div>
-            {isRegister && (
-              <div>
-                <div className="field-label">ПОВТОРІТЬ ПАРОЛЬ</div>
-                <input
-                  type="password"
-                  value={pass2}
-                  onChange={(e) => setPass2(e.target.value)}
-                  placeholder="••••••••"
-                  style={{ width: '100%', padding: '10px 12px', fontSize: 14 }}
-                />
-              </div>
-            )}
-
-            {error && <div className="error-box">{error}</div>}
-            {success && <div className="success-box">{success}</div>}
-
-            <button className="btn" type="submit" disabled={busy}>
-              {busy ? '…' : isRegister ? 'ЗАРЕЄСТРУВАТИСЬ' : 'УВІЙТИ'}
-            </button>
-
-            <div style={{ width: 12, height: 12, background: 'var(--accent)' }} />
-            <div style={{ fontSize: 11, color: 'var(--text-dimmer)', textAlign: 'center' }}>
-              {isRegister ? 'Вже є акаунт? Перемкніться на вкладку «Вхід».' : 'Тут в перше? Оберіть «Реєстрація».'}
-            </div>
-          </form>
-
-          <div style={{ padding: '0 20px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 11, color: 'var(--text-dimmer)', textAlign: 'center', letterSpacing: 2 }}>— АБО —</div>
-            <button
-              className="btn-ghost"
-              type="button"
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                setError('');
-                try {
-                  await api.loginWithDiscord(); // далі браузер іде на Discord і повертається вже з сесією
-                } catch (err) {
-                  setError(err.message);
-                  setBusy(false);
-                }
-              }}
-            >
-              УВІЙТИ ЧЕРЕЗ DISCORD
-            </button>
-            {/* Інакше нік-акаунт і Discord-акаунт стануть двома різними — з різними пілотами. */}
-            <div style={{ fontSize: 11, color: 'var(--warn)', textAlign: 'center', lineHeight: 1.5 }}>
-              Вже маєте акаунт з ніком? Спершу увійдіть як звичайно і на сторінці «Запис на гру» натисніть
-              «Увімкнути вхід через Discord». Інакше створиться новий, порожній акаунт.
-            </div>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', fontSize: 12, lineHeight: 1.5 }}>
+          {item('login', 1, 'ВХІД')}
+          {success && mode === 'login' && <div style={{ fontSize: 12, color: 'var(--success)', padding: '0 0 4px 36px' }}>&gt;&gt; {success}</div>}
+          {tree('login')}
+          {item('register', 2, 'РЕЄСТРАЦІЯ')}
+          {tree('register')}
+          <div style={{ height: 14 }} />
+          <button type="button" className="lg-item" disabled={busy} onClick={discord} style={{ height: 30, fontSize: 12, letterSpacing: 1, color: 'var(--text-dimmer)' }}>
+            <span style={{ color: 'var(--text-faint)' }}>[D]</span>
+            <span>УВІЙТИ ЧЕРЕЗ DISCORD</span>
+          </button>
+          {error && !mode && <div style={{ fontSize: 12, color: 'var(--danger)' }}>!! {error}</div>}
         </div>
-
-        <div style={{ marginTop: 14, fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>
-          UNION ADMINISTRATIVE // AUTHORIZED PERSONNEL ONLY
+        <div style={{ display: 'flex', paddingTop: 14, fontSize: 10, color: 'var(--text-grey)', letterSpacing: 1 }}>
+          <span style={{ marginLeft: 'auto' }}>v{pkg.version}</span>
         </div>
+      </div>
+      <div className="lg-log bot" aria-hidden="true">
+        {logBot.map((l) => (
+          <div key={l.id}><span>{l.t}</span> {l.text}</div>
+        ))}
       </div>
     </div>
   );

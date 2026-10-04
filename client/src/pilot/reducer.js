@@ -13,7 +13,6 @@ import {
   BOND_POWERS_ON_CHOOSE,
   BOND_POWERS_FOR_VETERAN,
   BOND_POWERS_FOR_MASTER,
-  limitedRefillPr,
 } from './constants';
 import { mergeFoundryState } from './foundrySync';
 import {
@@ -31,14 +30,27 @@ import {
   skillCapUsed,
 } from './logic';
 import { mergeMechsByName } from './compconImport';
+import { repairPlan, repairCost, spentText, isLimited, itemRefillPr, KIT_PR, KITS_FULL_PR, MECH_STRUCTURE, MECH_REACTOR } from './repair';
 import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft } from './reserves';
 import { RARE_RESERVES, rareReserveByKey, anyReserveByKey, vaultCap } from './rareReserves';
 
 const ALL_DOWNTIME_DATA = WEEKLY_DOWNTIME_DATA;
 
-function log(state, msg) {
-  return { ...state, actionLog: pushLog(state.actionLog, msg) };
+function log(state, msg, op = false) {
+  return { ...state, actionLog: pushLog(state.actionLog, msg, op) };
 }
+
+// Повний ремонт зброї/систем: знищене відновлюється, лімітні заряди — до максимуму.
+function restoreItems(items) {
+  return (items || []).map((it) => (isLimited(it) ? { ...it, current: it.max, destroyed: false } : { ...it, destroyed: false }));
+}
+
+function updateItem(state, id, idx, fn) {
+  return updateMech(state, id, (m) => ({ ...m, items: m.items.map((it, i) => (i === idx ? fn(it) : it)) }));
+}
+
+const NOTE_TAGS = ['session', 'npc', 'loot', 'goals'];
+const BOND_CHECKS = 5;
 
 function updateMech(state, id, updater) {
   return {
@@ -67,8 +79,8 @@ function prServiceCost(key, mech, alloc) {
   if (!svc) return null;
   if (key !== 'refillone') return svc.cost;
   const idx = Object.keys(alloc || {})[0];
-  const li = idx == null ? null : mech?.limited[idx];
-  return li ? limitedRefillPr(li.max) : null;
+  const it = idx == null ? null : mech?.items?.[idx];
+  return isLimited(it) ? itemRefillPr(it) : null;
 }
 
 function pushManaHistory(mana, label) {
@@ -150,7 +162,7 @@ export function pilotReducer(state, action) {
           reactorFilled: 0,
           overcharge: 0,
           corePower: true,
-          limited: m.limited.map((li) => ({ ...li, current: li.max, destroyed: false })),
+          items: restoreItems(m.items),
         }));
       }
 
@@ -272,10 +284,58 @@ export function pilotReducer(state, action) {
       return { ...state, bond: { ...state.bond, [action.field]: action.value } };
     case 'SET_BOND_NEW_POWER':
       return { ...state, bond: { ...state.bond, newPower: action.value } };
+    // XP накопичується без обрізання; трек показує позицію в поточному циклі з 8.
+    // Клік по сегменту виправляє саме цю позицію, пройдені цикли не чіпає.
     case 'SET_BOND_XP': {
-      const next = toggleFilled(state.bond.xp, action.idx);
-      if (next === state.bond.xp) return state;
-      return log({ ...state, bond: { ...state.bond, xp: next } }, `Bond XP: ${state.bond.xp} → ${next}`);
+      const xp = state.bond.xp || 0;
+      const base = Math.floor(xp / BOND_XP_PER_POWER) * BOND_XP_PER_POWER;
+      const next = base + toggleFilled(xp - base, action.idx);
+      if (next === xp) return state;
+      return log({ ...state, bond: { ...state.bond, xp: next } }, `Bond XP: ${xp} → ${next}`);
+    }
+    case 'TOGGLE_BOND_CHECK': {
+      const checks = Array.from({ length: BOND_CHECKS }, (_, i) => !!state.bond.checks?.[i]);
+      checks[action.idx] = !checks[action.idx];
+      return { ...state, bond: { ...state.bond, checks } };
+    }
+    case 'SET_BOND_PICK':
+      return { ...state, bond: { ...state.bond, pick: Number(action.value) || 0 } };
+    // +1 XP за кожну відмітку; відмітки знімаються, вибір мінорного ідеалу — на перший.
+    case 'TALLY_BOND_XP': {
+      const gained = (state.bond.checks || []).filter(Boolean).length;
+      if (!gained) return state;
+      const xp = (state.bond.xp || 0) + gained;
+      return log(
+        { ...state, bond: { ...state.bond, xp, checks: Array(BOND_CHECKS).fill(false), pick: 0 } },
+        `Tally XP: +${gained} XP бонду (${state.bond.xp || 0} → ${xp})`,
+      );
+    }
+    // «СКИНУТИ» повертає Bond powers до 1; XP не змінюється.
+    case 'RESET_BOND_POWERS': {
+      const offset = Math.floor((state.bond.xp || 0) / BOND_XP_PER_POWER);
+      if (offset === (state.bond.powerOffset || 0)) return state;
+      return log({ ...state, bond: { ...state.bond, powerOffset: offset } }, 'Bond powers скинуто до 1');
+    }
+    // Бонд із COMP/CON «Save Pilot»: назва, три major ideals, мінорні — у select, XP.
+    case 'IMPORT_BOND': {
+      const b = action.payload;
+      const xp = b.xp ?? state.bond.xp;
+      return log(
+        {
+          ...state,
+          bond: {
+            ...state.bond,
+            archetype: b.name,
+            confirmed: true,
+            majorIdeals: b.major,
+            minorIdeals: b.minor,
+            xp,
+            checks: Array(BOND_CHECKS).fill(false),
+            pick: 0,
+          },
+        },
+        `Бонд «${b.name}» підтягнуто з COMP/CON: ${b.minor.length} мінорних ідеалів, XP ${xp}`,
+      );
     }
     case 'TOGGLE_IDEAL':
       return {
@@ -618,6 +678,10 @@ export function pilotReducer(state, action) {
       }
       const price = item.prices[owned];
       const prPrice = item.pr?.[owned] || 0;
+      if (item.requires && !state.hangar.owned[item.requires]) {
+        const req = HANGAR_DATA.find((h) => h.key === item.requires);
+        return { ...state, hangar: { ...state.hangar, error: `Спершу потрібне «${req?.title || item.requires}».` } };
+      }
       if (price > state.mana.balance) {
         return { ...state, hangar: { ...state.hangar, error: 'Недостатньо мани.' } };
       }
@@ -695,7 +759,7 @@ export function pilotReducer(state, action) {
         if (key === 'refillone') {
           return {
             ...m,
-            limited: m.limited.map((li, i) => (i === pick ? { ...li, current: li.max, destroyed: false } : li)),
+            items: m.items.map((it, i) => (i === pick ? { ...it, current: it.max, destroyed: false } : it)),
           };
         }
         if (key === 'fullrepair') {
@@ -707,7 +771,7 @@ export function pilotReducer(state, action) {
             reactorFilled: 0,
             overcharge: 0,
             corePower: true,
-            limited: m.limited.map((li) => ({ ...li, current: li.max, destroyed: false })),
+            items: restoreItems(m.items),
           };
         }
         return m;
@@ -940,7 +1004,7 @@ export function pilotReducer(state, action) {
             reactorFilled: 0,
             overcharge: 0,
             corePower: true,
-            limited: m.limited.map((li) => ({ ...li, current: li.max, destroyed: false })),
+            items: restoreItems(m.items),
           };
         }
         return m;
@@ -972,7 +1036,7 @@ export function pilotReducer(state, action) {
         reactorFilled: 0,
         corePower: true,
         overcharge: 0,
-        limited: [],
+        items: [],
       };
       return log(
         { ...state, mechs: [...state.mechs, mech], mechDraft: { name: '', hpMax: '', repairMax: '', frame: '' } },
@@ -981,7 +1045,7 @@ export function pilotReducer(state, action) {
     }
     case 'REMOVE_MECH': {
       const m = findMech(state, action.id);
-      return log({ ...state, mechs: state.mechs.filter((mm) => mm.id !== action.id) }, `Мех видалений: «${m?.name}»`);
+      return log({ ...state, mechs: state.mechs.filter((mm) => mm.id !== action.id) }, `Мех видалений: «${m?.name}»`, true);
     }
     case 'INC_MECH_HP':
     case 'DEC_MECH_HP': {
@@ -997,7 +1061,8 @@ export function pilotReducer(state, action) {
       const dir = action.type === 'INC_MECH_REPAIR' ? 1 : -1;
       const next = clamp(m.repairCurrent + dir, 0, m.repairMax);
       if (next === m.repairCurrent) return state;
-      return log(updateMech(state, action.id, (mm) => ({ ...mm, repairCurrent: next })), `${m.name}: рем. комплекти ${m.repairCurrent} → ${next}`);
+      // Зменшення — це витрачений комплект, тож рядок іде в журнал операцій.
+      return log(updateMech(state, action.id, (mm) => ({ ...mm, repairCurrent: next })), `${m.name}: рем. комплекти ${m.repairCurrent} → ${next}`, dir < 0);
     }
     // Mission DC sits on the mech that flew the game. Mechs saved before this field
     // existed read as 0, so the counter works without migrating anyone's state.
@@ -1023,7 +1088,7 @@ export function pilotReducer(state, action) {
           reactorFilled: 0,
           overcharge: 0,
           corePower: true,
-          limited: mm.limited.map((li) => ({ ...li, current: li.max, destroyed: false })),
+          items: restoreItems(mm.items),
         })),
         `${m.name}: повний ремонт`,
       );
@@ -1038,81 +1103,131 @@ export function pilotReducer(state, action) {
       const next = toggleFilled(m.reactorFilled, action.idx);
       return log(updateMech(state, action.id, (mm) => ({ ...mm, reactorFilled: next })), `${m.name}: реактор ${m.reactorFilled} → ${next}`);
     }
-    case 'SET_LIMITED_DRAFT':
-      return {
-        ...state,
-        limitedDraft: {
-          ...state.limitedDraft,
-          [action.id]: { ...(state.limitedDraft[action.id] || { name: '', max: '' }), [action.field]: action.value },
-        },
+    // ---------- Пошкодження і ремонт (правила 2a, див. repair.js) ----------
+    // «−» на структурі/реакторі — пошкодження, безкоштовно.
+    case 'DAMAGE_MECH': {
+      const m = findMech(state, action.id);
+      if (!m) return state;
+      if (action.what === 'structure') {
+        const next = Math.min(MECH_STRUCTURE, (m.structureFilled || 0) + 1);
+        if (next === (m.structureFilled || 0)) return state;
+        return log(
+          updateMech(state, m.id, (mm) => ({ ...mm, structureFilled: next })),
+          `${m.name}: структура ${MECH_STRUCTURE - (m.structureFilled || 0)} → ${MECH_STRUCTURE - next}`,
+        );
+      }
+      const next = Math.min(MECH_REACTOR, (m.reactorFilled || 0) + 1);
+      if (next === (m.reactorFilled || 0)) return state;
+      return log(
+        updateMech(state, m.id, (mm) => ({ ...mm, reactorFilled: next })),
+        `${m.name}: реактор ${MECH_REACTOR - (m.reactorFilled || 0)} → ${MECH_REACTOR - next}`,
+      );
+    }
+    // Спершу списуються ремкомплекти меха, яких бракує — докуповуються по 10 PR.
+    case 'MECH_REPAIR': {
+      const m = findMech(state, action.id);
+      if (!m) return state;
+      const plan = repairPlan(m, action.what, action.idx);
+      if (!plan) return state;
+      const c = repairCost(m, state.pr, plan.kits);
+      if (!c.ok) return state;
+      const next = updateMech(state, m.id, (mm) => ({ ...plan.apply(mm), repairCurrent: mm.repairCurrent - c.use }));
+      return log(
+        { ...next, pr: state.pr - c.prCost },
+        `${m.name}: ${plan.done} ${spentText(c.use, c.prCost)}` + (c.prCost ? ` (PR ${state.pr} → ${state.pr - c.prCost})` : ''),
+        true,
+      );
+    }
+    // Купівля ремкомплектів: один за 10 PR або до максимуму за 50 PR.
+    case 'BUY_KITS': {
+      const m = findMech(state, action.id);
+      if (!m || m.repairCurrent >= m.repairMax) return state;
+      const full = action.mode === 'full';
+      const cost = full ? KITS_FULL_PR : KIT_PR;
+      if (cost > state.pr) return state;
+      const kits = full ? m.repairMax : m.repairCurrent + 1;
+      return log(
+        { ...updateMech(state, m.id, (mm) => ({ ...mm, repairCurrent: kits })), pr: state.pr - cost },
+        `${m.name}: ${full ? 'ремкомплекти поповнено до максимуму' : 'куплено 1 ремкомплект'} (${m.repairCurrent} → ${kits}) за ${cost} PR (PR ${state.pr} → ${state.pr - cost})`,
+        true,
+      );
+    }
+    // Поповнення зарядів однієї системи — ціна за базовим запасом (1 → 30, 2 → 20, 3+ → 10 PR).
+    case 'REFILL_ITEM': {
+      const m = findMech(state, action.id);
+      const it = m?.items?.[action.idx];
+      if (!isLimited(it) || it.current >= it.max) return state;
+      const cost = itemRefillPr(it);
+      if (cost > state.pr) return state;
+      return log(
+        { ...updateItem(state, m.id, action.idx, (x) => ({ ...x, current: x.max })), pr: state.pr - cost },
+        `${m.name} · ${it.name}: заряди ${it.current} → ${it.max} за ${cost} PR (PR ${state.pr} → ${state.pr - cost})`,
+        true,
+      );
+    }
+
+    // ---------- Зброя та системи ----------
+    case 'ADD_ITEM': {
+      const name = (action.name || '').trim();
+      if (!name) return state;
+      const m = findMech(state, action.id);
+      if (!m) return state;
+      const n = parseInt(action.max, 10);
+      const weapon = action.itemType !== 'system';
+      const item = {
+        name,
+        type: weapon ? 'weapon' : 'system',
+        mount: '',
+        ...(n > 0 ? { current: n, max: n, base: n } : {}),
+        destroyed: false,
       };
-    case 'ADD_LIMITED': {
-      const draft = state.limitedDraft[action.id] || { name: '', max: '' };
-      if (!draft.name.trim()) return state;
-      const max = parseInt(draft.max, 10) || 1;
-      const m = findMech(state, action.id);
+      // Зброя стає в кінець групи зброї, система — в кінець систем.
+      const items = [...(m.items || [])];
+      const lastW = items.map((x) => x.type === 'weapon').lastIndexOf(true);
+      items.splice(weapon ? lastW + 1 : items.length, 0, item);
       return log(
-        {
-          ...updateMech(state, action.id, (mm) => ({
-            ...mm,
-            limited: [...mm.limited, { name: draft.name.trim(), current: max, max, destroyed: false }],
-          })),
-          limitedDraft: { ...state.limitedDraft, [action.id]: { name: '', max: '' } },
-        },
-        `${m.name}: система додана «${draft.name.trim()}» (${max})`,
+        updateMech(state, m.id, (mm) => ({ ...mm, items })),
+        `${m.name}: ${weapon ? 'зброя' : 'система'} додана «${name}»${n > 0 ? ` (${n} зар.)` : ''}`,
       );
     }
-    case 'REMOVE_LIMITED': {
+    case 'REMOVE_ITEM': {
       const m = findMech(state, action.id);
-      const li = m.limited[action.idx];
+      const it = m?.items?.[action.idx];
+      if (!it) return state;
       return log(
-        updateMech(state, action.id, (mm) => ({ ...mm, limited: mm.limited.filter((_, i) => i !== action.idx) })),
-        `${m.name}: система видалена «${li?.name}»`,
+        updateMech(state, m.id, (mm) => ({ ...mm, items: mm.items.filter((_, i) => i !== action.idx) })),
+        `${m.name}: видалено «${it.name}» з меха`,
+        true,
       );
     }
-    case 'INC_LIMITED':
-    case 'DEC_LIMITED': {
+    case 'INC_ITEM':
+    case 'DEC_ITEM': {
       const m = findMech(state, action.id);
-      const li = m.limited[action.idx];
-      const dir = action.type === 'INC_LIMITED' ? 1 : -1;
-      const next = clamp(li.current + dir, 0, li.max);
-      if (next === li.current) return state;
-      return log(
-        updateMech(state, action.id, (mm) => ({
-          ...mm,
-          limited: mm.limited.map((l, i) => (i === action.idx ? { ...l, current: next } : l)),
-        })),
-        `${m.name} · ${li.name}: заряди ${li.current} → ${next}`,
-      );
+      const it = m?.items?.[action.idx];
+      if (!isLimited(it)) return state;
+      const next = clamp(it.current + (action.type === 'INC_ITEM' ? 1 : -1), 0, it.max);
+      if (next === it.current) return state;
+      return log(updateItem(state, m.id, action.idx, (x) => ({ ...x, current: next })), `${m.name} · ${it.name}: заряди ${it.current} → ${next}`);
     }
-    // The cap is not just the weapon's LIMITED tag: Engineering, core bonuses and some frames
-    // all raise it, and not every source can be read out of a COMP/CON export. Editable so the
-    // sheet can hold the real number whatever it comes from.
-    case 'SET_LIMITED_MAX': {
+    // Максимум зарядів — не лише тег LIMITED: Engineering, кор-бонуси й фрейми його
+    // піднімають, і не все це видно з експорту COMP/CON. Тому він редагований.
+    case 'SET_ITEM_MAX': {
       const m = findMech(state, action.id);
-      const li = m.limited[action.idx];
+      const it = m?.items?.[action.idx];
+      if (!isLimited(it)) return state;
       const next = Math.max(1, parseInt(action.value, 10) || 1);
-      if (next === li.max) return state;
-      const nextCurrent = Math.min(li.current, next);
+      if (next === it.max) return state;
       return log(
-        updateMech(state, action.id, (mm) => ({
-          ...mm,
-          limited: mm.limited.map((l, i) => (i === action.idx ? { ...l, max: next, current: nextCurrent } : l)),
-        })),
-        `${m.name} · ${li.name}: макс. заряди ${li.max} → ${next}`,
+        updateItem(state, m.id, action.idx, (x) => ({ ...x, max: next, current: Math.min(x.current, next) })),
+        `${m.name} · ${it.name}: макс. заряди ${it.max} → ${next}`,
       );
     }
-    case 'TOGGLE_LIMITED_DESTROYED': {
+    // Позначка «знищено» безкоштовна; ремонт — через MECH_REPAIR (1 ремкомплект).
+    case 'MARK_ITEM_DESTROYED': {
       const m = findMech(state, action.id);
-      const li = m.limited[action.idx];
-      const next = !li.destroyed;
-      return log(
-        updateMech(state, action.id, (mm) => ({
-          ...mm,
-          limited: mm.limited.map((l, i) => (i === action.idx ? { ...l, destroyed: next } : l)),
-        })),
-        `${m.name} · ${li.name}: ${next ? 'знищена' : 'відновлена'}`,
-      );
+      const it = m?.items?.[action.idx];
+      if (!it || it.destroyed) return state;
+      return log(updateItem(state, m.id, action.idx, (x) => ({ ...x, destroyed: true })), `${m.name} · ${it.name}: знищено`);
     }
     case 'TOGGLE_MECH_EDIT': {
       const opening = state.mechEditId !== action.id;
@@ -1160,6 +1275,43 @@ export function pilotReducer(state, action) {
     // ---------- Narrative & log ----------
     case 'SET_NARRATIVE':
       return { ...state, narrative: action.value };
+    // ---------- Записник ----------
+    case 'ADD_NOTE': {
+      const text = (action.text || '').trim();
+      if (!text) return state;
+      const note = {
+        id: newId(state.notes),
+        date: new Date().toISOString(),
+        tag: NOTE_TAGS.includes(action.tag) ? action.tag : null,
+        gameId: action.gameId || null,
+        gameLabel: action.gameLabel || '',
+        text,
+        pinned: false,
+      };
+      return { ...state, notes: [note, ...(state.notes || [])] };
+    }
+    case 'UPDATE_NOTE': {
+      const text = action.patch.text != null ? action.patch.text.trim() : null;
+      if (text === '') return state;
+      return {
+        ...state,
+        notes: (state.notes || []).map((n) => (n.id === action.id ? { ...n, ...action.patch, ...(text != null ? { text } : {}) } : n)),
+      };
+    }
+    case 'TOGGLE_NOTE_PIN':
+      return {
+        ...state,
+        notes: (state.notes || []).map((n) => (n.id === action.id ? { ...n, pinned: !n.pinned } : n)),
+      };
+    case 'REMOVE_NOTE': {
+      const n = (state.notes || []).find((x) => x.id === action.id);
+      if (!n) return state;
+      return log(
+        { ...state, notes: state.notes.filter((x) => x.id !== action.id) },
+        `Записник: видалено нотатку «${n.text.slice(0, 40)}${n.text.length > 40 ? '…' : ''}»`,
+        true,
+      );
+    }
     case 'CLEAR_LOG':
       return { ...state, actionLog: [] };
 

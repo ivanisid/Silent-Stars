@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -7,12 +7,12 @@ import { normalizePilotState } from '../pilot/pilotDefaults';
 // import { WEEKLY_DOWNTIME_DATA } from '../pilot/constants'; — разом із панелі простою
 
 import Header from '../pilot/components/Header.jsx';
-import SyncTools from '../pilot/components/SyncTools.jsx';
 import ManaPanel from '../pilot/components/ManaPanel.jsx';
 import PrPanel from '../pilot/components/PrPanel.jsx';
 import ShopDrawer from '../pilot/components/ShopDrawer.jsx';
 import BondMenu from '../pilot/components/BondMenu.jsx';
-import SkillTriggers from '../pilot/components/SkillTriggers.jsx';
+// Панель скіл-тригерів прибрана з чарника (інтерфейс 2a); компонент і екшени лишились.
+// Синхронізація (CSV / COMP/CON JSON) переїхала в меню «⋯» профілю.
 // Панель «ЧАС ПРОСТОЮ» схована цілком — так само, як ангар. Разом з нею з чарника
 // пішов і трекер Get Creative, який жив усередині картки, та опції Get rest.
 // Компонент, WEEKLY_DOWNTIME_DATA і всі екшени редюсера лишились на місці.
@@ -28,7 +28,8 @@ import HangarPanel from '../pilot/components/HangarPanel.jsx';
 import MechsPanel from '../pilot/components/MechsPanel.jsx';
 import VaultPanel from '../pilot/components/VaultPanel.jsx';
 import OperationsLogPanel from '../pilot/components/OperationsLogPanel.jsx';
-import NavDrawer from '../components/NavDrawer.jsx';
+import { PageHeader, PageShell, SyncBadge } from '../components/kit.jsx';
+import { usePilotGames } from '../pilot/components/PilotGames.jsx';
 import NarrativeEditor from '../pilot/components/NarrativeEditor.jsx';
 
 import ManaTxModal from '../pilot/components/modals/ManaTxModal.jsx';
@@ -48,6 +49,8 @@ export default function PilotProfilePage() {
   const [saveStatus, setSaveStatus] = useState('saved');
   // Bumped after every successful save so the history panels know to re-read.
   const [savedTick, setSavedTick] = useState(0);
+  const [savedAt, setSavedAt] = useState('');
+  const games = usePilotGames(id);
 
   // Портрет і арти мехів: окремо від state пілота, бо живуть у сховищі, а не в JSON.
   const [art, setArt] = useState({ portrait: null, mechs: {} });
@@ -124,6 +127,8 @@ export default function PilotProfilePage() {
       try {
         await api.updatePilot(id, { state });
         setSaveStatus('saved');
+        const now = new Date();
+        setSavedAt(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
         // A save is what creates an audit row, so the history panels are stale until
         // they re-read. Without this they only ever show what existed at page load,
         // and a purchase made since looks like it was never recorded.
@@ -141,93 +146,79 @@ export default function PilotProfilePage() {
     setPilot(updated);
   }
 
-  const containerStyle = useMemo(
-    () => ({
-      minHeight: '100vh',
-      background: 'var(--bg-alt)',
-      backgroundImage: 'radial-gradient(var(--dot) 1px, transparent 1px)',
-      backgroundSize: '22px 22px',
-      color: 'var(--text)',
-      paddingBottom: 80,
-    }),
-    [],
-  );
-
   if (loadError) {
     return (
-      <div style={{ padding: 40 }}>
-        <div className="error-box">{loadError}</div>
-      </div>
+      <PageShell>
+        <PageHeader section="ROSTER" sectionTo="/pilots" title="ПІЛОТ" />
+        <div className="error-box">!! {loadError}</div>
+      </PageShell>
     );
   }
 
   if (!pilot || !state) {
     return (
-      <div style={{ padding: 40, color: 'var(--text-dimmer)' }}>Завантаження…</div>
+      <PageShell>
+        <PageHeader section="ROSTER" sectionTo="/pilots" title="…" />
+        <div className="ss-note">&gt; Завантаження…</div>
+      </PageShell>
     );
   }
 
   return (
-    <div style={containerStyle}>
+    <PageShell>
+      <PageHeader
+        section="ROSTER"
+        sectionTo="/pilots"
+        title={pilot.callsign}
+        right={<SyncBadge saving={saveStatus === 'saving'} at={savedAt} />}
+      />
       <Header
         pilot={pilot}
         state={state}
         dispatch={dispatch}
         onSaveMeta={saveMeta}
-        saveStatus={saveStatus}
+        games={games}
         portrait={art.portrait}
         canEditArt={own}
         onUploadPortrait={(file) => uploadArt('portrait', null, file)}
         onRemoveArt={removeArt}
       />
 
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px 0 24px', display: 'flex', flexDirection: 'column', gap: 26 }}>
-        <SyncTools dispatch={dispatch} />
-
-        <div style={{ display: 'flex', gap: 26, flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 320 }}>
-            <ManaPanel state={state} dispatch={dispatch} />
-          </div>
-          <div style={{ flex: 1, minWidth: 320 }}>
-            <PrPanel state={state} dispatch={dispatch} />
-          </div>
-        </div>
-
-        <BondMenu state={state} dispatch={dispatch} />
-        <MechsPanel
-          state={state}
-          dispatch={dispatch}
-          mechArt={art.mechs}
-          canEditArt={own}
-          onUploadMechArt={(mechId, file) => uploadArt('mech', mechId, file)}
-          onRemoveArt={removeArt}
-        />
-        {/* Ангар — одразу під мехами: стоянка й ліцензування стосуються саме їх. */}
-        <HangarPanel state={state} dispatch={dispatch} />
-        <VaultPanel state={state} dispatch={dispatch} />
-        <SkillTriggers state={state} dispatch={dispatch} />
-        {/* <ContactsPanel state={state} dispatch={dispatch} /> — схована, див. імпорт вище */}
-        {/* Даунтайм прибраний з чарника цілком: передмісійний — раніше, щотижневий
-            «ЧАС ПРОСТОЮ» — тепер. Ці дії живуть у правилах і заявках, не тут. */}
-        <NarrativeEditor state={state} dispatch={dispatch} />
-        {/* Один журнал для обох ролей: свої операції гравець відкочує сам, чужі —
-            ГМ. Що видно, вирішує сервер, а не ця сторінка. */}
-        <OperationsLogPanel
-          pilotId={id}
-          refreshKey={savedTick}
-          onReverted={reloadPilot}
-          own={pilot?.user_id === user?.id}
-        />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 22 }}>
+        <ManaPanel state={state} dispatch={dispatch} />
+        <PrPanel state={state} dispatch={dispatch} />
       </div>
 
+      <BondMenu state={state} dispatch={dispatch} />
+      <VaultPanel state={state} dispatch={dispatch} />
+      <MechsPanel
+        state={state}
+        dispatch={dispatch}
+        mechArt={art.mechs}
+        canEditArt={own}
+        onUploadMechArt={(mechId, file) => uploadArt('mech', mechId, file)}
+        onRemoveArt={removeArt}
+      />
+      {/* Ангар — одразу під мехами: стоянка й ліцензування стосуються саме їх. */}
+      <HangarPanel state={state} dispatch={dispatch} />
+      {/* <ContactsPanel state={state} dispatch={dispatch} /> — схована, див. імпорт вище */}
+      <NarrativeEditor state={state} dispatch={dispatch} games={games} saving={saveStatus === 'saving'} />
+      {/* Один журнал для обох ролей: свої операції гравець відкочує сам, чужі —
+          ГМ. Що видно, вирішує сервер, а не ця сторінка. */}
+      <OperationsLogPanel
+        pilotId={id}
+        refreshKey={savedTick}
+        onReverted={reloadPilot}
+        own={pilot?.user_id === user?.id}
+      />
+
       <ShopDrawer state={state} dispatch={dispatch} />
-      <NavDrawer />
 
       <ManaTxModal state={state} dispatch={dispatch} />
       <ShopModal state={state} dispatch={dispatch} />
       <PrSpendModal state={state} dispatch={dispatch} />
       <LevelUpModal state={state} dispatch={dispatch} />
       <HangarConfirmModal state={state} dispatch={dispatch} />
-    </div>
+    </PageShell>
   );
 }

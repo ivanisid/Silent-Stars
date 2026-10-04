@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { RESERVES, RESERVE_CATEGORIES, RESERVE_RANK_PR } from '../pilot/reserves';
 import { RARE_RESERVES, RARE_RANKS, VAULT_CAP_BASE } from '../pilot/rareReserves';
-import NavDrawer from '../components/NavDrawer.jsx';
+import { PageHeader, PageShell } from '../components/kit.jsx';
 import ReserveIcon, { ReserveGlyph, hasReserveIcon } from '../pilot/components/ReserveIcon.jsx';
 
 // Довідник резервів — тільки перегляд, нічого не купується. Дві категорії:
@@ -21,79 +21,55 @@ export default function ReservesPage() {
   const [q, setQ] = useState('');
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        padding: '40px 24px',
-        boxSizing: 'border-box',
-        background: 'radial-gradient(ellipse at 50% 0%, var(--page-grad) 0%, var(--bg) 70%)',
-      }}
-    >
-      <div style={{ maxWidth: 1000, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <div className="title-font" style={{ fontSize: 30, color: 'var(--text-bright)' }}>
-          РЕЗЕРВИ
+    <PageShell>
+      <PageHeader section="ДОВІДНИК" title="РЕЗЕРВИ" />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div className="ss-seg">
+          <button type="button" className={kind === KIND_COMMON ? 'on' : ''} style={{ height: 28, padding: '0 16px' }} onClick={() => { setKind(KIND_COMMON); setQ(''); }}>
+            ЗВИЧАЙНІ · {RESERVES.length}
+          </button>
+          <button type="button" className={kind === KIND_RARE ? 'on' : ''} style={{ height: 28, padding: '0 16px' }} onClick={() => { setKind(KIND_RARE); setQ(''); }}>
+            РІДКІСНІ · {RARE_RESERVES.length}
+          </button>
         </div>
-
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <KindButton active={kind === KIND_COMMON} onClick={() => { setKind(KIND_COMMON); setQ(''); }} label="ЗВИЧАЙНІ" count={RESERVES.length} />
-          <KindButton active={kind === KIND_RARE} onClick={() => { setKind(KIND_RARE); setQ(''); }} label="РІДКІСНІ" count={RARE_RESERVES.length} />
-        </div>
-
-        <input
-          type="text"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Пошук за назвою або ефектом…"
-          style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: 13 }}
-        />
-
-        {kind === KIND_COMMON ? <CommonList q={q} /> : <RareList q={q} />}
+        <input className="ss-input" type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ пошук за назвою або ефектом" style={{ flex: 1, minWidth: 220, height: 30, fontSize: 12 }} />
       </div>
 
-      <NavDrawer />
-    </div>
-  );
-}
-
-function KindButton({ active, onClick, label, count }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        padding: '10px 20px',
-        fontSize: 13,
-        letterSpacing: 1,
-        background: active ? 'var(--header)' : 'var(--input-bg)',
-        color: active ? 'var(--text-bright)' : 'var(--text-dim)',
-        border: `1px solid ${active ? 'var(--accent)' : 'var(--input-border)'}`,
-        cursor: 'pointer',
-      }}
-    >
-      {label}
-      <span style={{ fontSize: 10, opacity: 0.8, marginLeft: 8 }}>{count}</span>
-    </button>
+      {kind === KIND_COMMON ? <CommonList q={q} /> : <RareList q={q} />}
+    </PageShell>
   );
 }
 
 function Note({ children }) {
-  return (
-    <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.7 }}>{children}</div>
-  );
+  return <div style={{ fontSize: 12, color: 'var(--text-grey)', lineHeight: 1.7, textWrap: 'pretty', maxWidth: 760 }}>{children}</div>;
 }
 
-function Counter({ shown, total }) {
+// Панель-список: лічильник позицій угорі, рядки «іконка | назва, мета, опис | ціна».
+function ListPanel({ shown, total, children }) {
   return (
-    <div style={{ fontSize: 11, color: 'var(--text-dimmer)' }}>
-      {shown === total ? `${total} позицій` : `${shown} з ${total}`}
+    <div className="ss-panel">
+      <div style={{ padding: '7px 14px', borderBottom: '1px solid var(--panel-border)', fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>
+        {shown === total ? `${total} ПОЗИЦІЙ` : `${shown} З ${total}`}
+      </div>
+      {shown === 0 && <div style={{ padding: '18px 14px', fontSize: 12, color: 'var(--text-dimmer)' }}>&gt; Нічого не знайдено.</div>}
+      {children}
     </div>
   );
 }
 
-function Empty() {
+function Row({ i, icon, name, meta, desc, flavor, price }) {
   return (
-    <div style={{ fontSize: 13, color: 'var(--text-dimmer)', padding: '20px 0' }}>
-      Нічого не знайдено.
+    <div style={{ display: 'grid', gridTemplateColumns: '44px minmax(0,1fr) auto', gap: 14, alignItems: 'start', padding: '12px 14px', borderTop: i ? '1px solid var(--panel-border)' : 'none' }}>
+      {icon}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 14, color: 'var(--text-bright)' }}>{name}</span>
+          <span style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>{meta}</span>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.6, textWrap: 'pretty' }}>{desc}</div>
+        {flavor && <div style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.6, fontStyle: 'italic' }}>&gt; {flavor}</div>}
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-info)', letterSpacing: 1, whiteSpace: 'nowrap' }}>{price}</div>
     </div>
   );
 }
@@ -133,7 +109,7 @@ function CommonList({ q }) {
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: -8 }}>
         <Chip small active={category === 'all'} onClick={() => setCategory('all')}>УСІ</Chip>
         {cats.map((c) => (
           <Chip key={c.key} small active={category === c.key} onClick={() => setCategory(c.key)}>
@@ -147,28 +123,22 @@ function CommonList({ q }) {
         ))}
       </div>
 
-      <Counter shown={list.length} total={RESERVES.length} />
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {list.map((r) => (
-          <div key={r.key} style={{ ...cardStyle, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-            <ReserveIcon kind={r.category} title={RESERVE_CATEGORIES.find((c) => c.key === r.category)?.label} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ fontSize: 14, color: 'var(--text-bright)' }}>{r.name}</div>
-              <div style={{ fontSize: 10, color: 'var(--text-info)', letterSpacing: 1 }}>
-                РАНГ {r.rank} · {RESERVE_RANK_PR[r.rank]} PR
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>
-                · {RESERVE_CATEGORIES.find((c) => c.key === r.category)?.label || r.category}
-              </div>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.6, marginTop: 8 }}>{r.desc}</div>
-            </div>
-          </div>
-        ))}
-        {list.length === 0 && <Empty />}
-      </div>
+      <ListPanel shown={list.length} total={RESERVES.length}>
+        {list.map((r, i) => {
+          const cat = RESERVE_CATEGORIES.find((c) => c.key === r.category)?.label || r.category;
+          return (
+            <Row
+              key={r.key}
+              i={i}
+              icon={<ReserveIcon kind={r.category} title={cat} />}
+              name={r.name}
+              meta={`РАНГ ${r.rank} · ${cat}`}
+              desc={r.desc}
+              price={`${RESERVE_RANK_PR[r.rank]} PR`}
+            />
+          );
+        })}
+      </ListPanel>
     </>
   );
 }
@@ -208,66 +178,27 @@ function RareList({ q }) {
         ))}
       </div>
 
-      <Counter shown={list.length} total={RARE_RESERVES.length} />
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {list.map((r) => (
-          <div key={r.key} style={{ ...cardStyle, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-            <ReserveIcon kind="rare" title="Рідкісний резерв" />
-            <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ fontSize: 14, color: 'var(--text-bright)' }}>{r.name}</div>
-              <div style={{ fontSize: 10, color: 'var(--text-info)', letterSpacing: 1 }}>РАНГ {r.rank}</div>
-              <div style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>· {r.action}</div>
-              {r.tags && (
-                <div style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>· {r.tags}</div>
-              )}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.6, marginTop: 8 }}>{r.desc}</div>
-            {r.flavor && (
-              <div
-                style={{
-                  fontSize: 11,
-                  color: 'var(--text-dimmer)',
-                  lineHeight: 1.6,
-                  marginTop: 8,
-                  borderLeft: '2px solid var(--rule)',
-                  paddingLeft: 10,
-                  fontStyle: 'italic',
-                }}
-              >
-                {r.flavor}
-              </div>
-            )}
-            </div>
-          </div>
+      <ListPanel shown={list.length} total={RARE_RESERVES.length}>
+        {list.map((r, i) => (
+          <Row
+            key={r.key}
+            i={i}
+            icon={<ReserveIcon kind="rare" title="Рідкісний резерв" />}
+            name={r.name}
+            meta={[`РАНГ ${r.rank}`, r.action, r.tags].filter(Boolean).join(' · ')}
+            desc={r.desc}
+            flavor={r.flavor}
+            price="НАГОРОДА"
+          />
         ))}
-        {list.length === 0 && <Empty />}
-      </div>
+      </ListPanel>
     </>
   );
 }
 
-const cardStyle = {
-  background: 'var(--panel)',
-  border: '1px solid var(--panel-border)',
-  padding: '14px 16px',
-};
-
 function Chip({ active, onClick, children, small }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        padding: small ? '5px 10px' : '7px 13px',
-        fontSize: small ? 10 : 11,
-        background: active ? 'var(--header)' : 'var(--input-bg)',
-        color: active ? 'var(--text-bright)' : 'var(--text-dim)',
-        border: `1px solid ${active ? 'var(--accent)' : 'var(--input-border)'}`,
-        cursor: 'pointer',
-      }}
-    >
+    <button type="button" className={`ss-chip${active ? ' on' : ''}`} onClick={onClick} style={small ? { height: 22, padding: '0 8px', display: 'inline-flex', alignItems: 'center' } : { fontSize: 11 }}>
       {children}
     </button>
   );

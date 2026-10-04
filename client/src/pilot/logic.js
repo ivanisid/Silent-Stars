@@ -111,10 +111,12 @@ export function nextRelationship(rel) {
   return order[(idx + 1) % order.length];
 }
 
-export function logEntry(msg) {
-  return { ts: nowTs(), msg };
+// op: true — запис потрапляє в журнал операцій (з відкатом), навіть якщо мана й PR
+// не змінились: списання ремкомплектів, видалення зброї/систем/мехів.
+export function logEntry(msg, op = false) {
+  return op ? { ts: nowTs(), msg, op: true } : { ts: nowTs(), msg };
 }
 
-export function pushLog(actionLog, msg) {
-  return [logEntry(msg), ...actionLog].slice(0, 300);
+export function pushLog(actionLog, msg, op = false) {
+  return [logEntry(msg, op), ...actionLog].slice(0, 300);
 }

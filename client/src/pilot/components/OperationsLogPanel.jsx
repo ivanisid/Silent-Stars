@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
-import { Card } from './ui';
+import { Panel, useConfirm } from '../../components/kit.jsx';
 
 // One log for both roles. The player reads their own currency operations and can undo
 // them; the GM reads and undoes the same rows in anyone's sheet. Sourced from the
@@ -44,6 +44,7 @@ export default function OperationsLogPanel({ pilotId, refreshKey, onReverted, ow
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState('');
+  const [ask, dialog] = useConfirm();
 
   async function load() {
     setLoading(true);
@@ -65,10 +66,14 @@ export default function OperationsLogPanel({ pilotId, refreshKey, onReverted, ow
   }, [pilotId, refreshKey]);
 
   async function revert(row) {
-    if (!window.confirm(
-      `Повернути персонажа до стану перед операцією від ${formatDate(row.changedAt)}?\n\n` +
-      'Усі зміни, зроблені після неї, буде скасовано. Відкат теж потрапить у журнал.',
-    )) return;
+    const ok = await ask({
+      title: 'ВІДКОТИТИ ОПЕРАЦІЮ?',
+      tone: own ? undefined : 'gm',
+      question: `Повернути персонажа до стану перед операцією від ${formatDate(row.changedAt)}?`,
+      lines: ['усі зміни, зроблені після неї, буде скасовано', 'відкат теж потрапить у журнал'],
+      yesLabel: 'ВІДКОТИТИ',
+    });
+    if (!ok) return;
     setBusyId(row.id);
     setError('');
     try {
@@ -83,84 +88,70 @@ export default function OperationsLogPanel({ pilotId, refreshKey, onReverted, ow
   }
 
   return (
-    <Card
+    <Panel
       title="ЖУРНАЛ ОПЕРАЦІЙ"
+      sub={rows !== null ? `${rows.length} ОПЕРАЦІЙ` : undefined}
       right={
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {rows !== null && (
-            <span style={{ fontSize: 11, color: 'var(--text-dimmer)' }}>операцій: {rows.length}</span>
-          )}
-          <button className="btn-ghost" type="button" style={{ fontSize: 11, padding: '4px 10px' }} disabled={loading} onClick={load}>
-            {loading ? 'ОНОВЛЮЄТЬСЯ…' : 'ОНОВИТИ'}
-          </button>
-        </div>
+        <button
+          className="btn-ghost sm"
+          type="button"
+          style={{ color: 'var(--header-text)', borderColor: 'var(--header-border)' }}
+          disabled={loading}
+          onClick={load}
+        >
+          {loading ? 'ОНОВЛЮЄТЬСЯ…' : 'ОНОВИТИ'}
+        </button>
       }
     >
-      <div style={{ padding: 20 }}>
-        {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
+      {dialog}
+      <div style={{ display: 'flex', flexDirection: 'column', fontSize: 12 }}>
+        {error && <div className="error-box" style={{ margin: 14 }}>!! {error}</div>}
         {rows !== null && rows.length === 0 && !error && (
-          <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>Операцій з маною чи PR ще не зафіксовано.</div>
+          <div className="ss-note" style={{ padding: '12px 14px' }}>&gt; Операцій ще не зафіксовано.</div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 420, overflowY: 'auto' }}>
-          {(rows || []).map((r) => (
-            <div key={r.id} style={{ borderTop: '1px solid var(--rule)', padding: '9px 0' }}>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11, color: 'var(--text-dimmer)', whiteSpace: 'nowrap' }}>
-                  {formatDate(r.changedAt)}
-                </span>
-
-                {/* У своєму чарнику автор завжди ти — показуємо його лише в чужому. */}
-                {!own && r.nick && (
-                  <span style={{ fontSize: 11, color: GOLD, whiteSpace: 'nowrap' }}>{r.nick}</span>
-                )}
-
-                {r.action === 'insert' && (
-                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>пілота створено</span>
-                )}
-                {r.action === 'delete' && (
-                  <span style={{ fontSize: 11, color: 'var(--danger)' }}>пілота видалено</span>
-                )}
-
-                <Delta label="МАНА" oldVal={r.manaOld} newVal={r.manaNew} />
-                <Delta label="PR" oldVal={r.prOld} newVal={r.prNew} />
-
-                {journalCleared(r) && (
-                  <span style={{ fontSize: 11, color: 'var(--danger)', letterSpacing: 1 }}>
-                    ⚠ ЖУРНАЛ ДІЙ ОЧИЩЕНО ({r.logOldCount} → {r.logNewCount})
-                  </span>
-                )}
-
-                <button
-                  className="btn-ghost"
-                  type="button"
-                  disabled={!r.revertible || busyId !== null}
-                  onClick={() => revert(r)}
-                  style={{ marginLeft: 'auto', fontSize: 11, padding: '4px 10px', whiteSpace: 'nowrap' }}
-                >
-                  {busyId === r.id ? 'ВІДКОЧУЄТЬСЯ…' : '↶ ВІДКОТИТИ'}
-                </button>
-              </div>
-
-              {r.logAdded.length > 0 && (
-                <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {r.logAdded.map((e, j) => (
-                    <div key={j} style={{ fontSize: 11, color: 'var(--text-grey)', paddingLeft: 12 }}>
-                      › {e.msg}
-                    </div>
-                  ))}
+        <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 480, overflowY: 'auto' }}>
+          {(rows || []).map((r, i) => (
+            <div
+              key={r.id}
+              className="m-op"
+              style={{ display: 'grid', gridTemplateColumns: '130px minmax(0,1fr) auto', gap: 12, padding: '9px 14px', alignItems: 'baseline', borderTop: i ? '1px solid var(--rule)' : 'none' }}
+            >
+              <span style={{ color: 'var(--text-dimmer)', whiteSpace: 'nowrap' }}>{formatDate(r.changedAt)}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'baseline' }}>
+                  {/* У своєму чарнику автор завжди ти — показуємо його лише в чужому. */}
+                  {!own && r.nick && <span style={{ fontSize: 11, color: GOLD, whiteSpace: 'nowrap' }}>{r.nick}</span>}
+                  {r.action === 'insert' && <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>пілота створено</span>}
+                  {r.action === 'delete' && <span style={{ fontSize: 11, color: 'var(--danger)' }}>пілота видалено</span>}
+                  <Delta label="МАНА" oldVal={r.manaOld} newVal={r.manaNew} />
+                  <Delta label="PR" oldVal={r.prOld} newVal={r.prNew} />
+                  {journalCleared(r) && (
+                    <span style={{ fontSize: 11, color: 'var(--danger)', letterSpacing: 1 }}>
+                      !! ЖУРНАЛ ДІЙ ОЧИЩЕНО ({r.logOldCount} → {r.logNewCount})
+                    </span>
+                  )}
                 </div>
-              )}
+                {r.logAdded.map((e, j) => (
+                  <span key={j} style={{ fontSize: 11, color: 'var(--text-soft-dim)', overflowWrap: 'anywhere' }}>› {e.msg}</span>
+                ))}
+              </div>
+              <button
+                className="btn-ghost md"
+                type="button"
+                disabled={!r.revertible || busyId !== null}
+                onClick={() => revert(r)}
+              >
+                {busyId === r.id ? 'ВІДКОЧУЄТЬСЯ…' : '↶ ВІДКОТИТИ'}
+              </button>
             </div>
           ))}
         </div>
 
-        <div style={{ marginTop: 14, fontSize: 10, color: 'var(--text-dimmer)', lineHeight: 1.6 }}>
-          Відкат повертає персонажа до стану перед обраною операцією й скасовує все, що
-          було після неї. Кожен відкат теж записується — журнал лежить на сервері й не
-          очищується з чарника.
+        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--panel-border)', fontSize: 11, color: 'var(--text-grey)', lineHeight: 1.6 }}>
+          Відкат повертає персонажа до стану перед обраною операцією й скасовує все, що було після неї. Кожен відкат теж записується.
         </div>
       </div>
-    </Card>
+    </Panel>
   );
 }
