@@ -11,7 +11,8 @@
    on the GALSIM orange and the SSC gold, and those bars are what make those themes
    recognisable. Body text everywhere else is still clamped for contrast. */
 
-:root {
+/* .ss-login — сторінка входу завжди в GMS Dark, хоч би яку тему обрано. */
+:root, .ss-login {
   /* Chrome on Android force-darkens ("Auto Dark Theme") any page that has not declared
      which colour schemes it handles, which is why a phone showed different colours to a
      desktop even though every theme here is a fixed set of variables. Declaring the scheme
@@ -1265,3 +1266,23 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 /* Рядок реєстру пілотів: ліва смуга на hover */
 .ss-roster-row { border-left: 3px solid transparent; }
 .ss-roster-row:hover { border-left-color: var(--accent-dim); background: var(--panel-inset); }
+
+/* Логін: текстовий режим */
+.ss-login { background: var(--bg); color: var(--text); color-scheme: dark; }
+.ss-login input::placeholder { color: var(--text-faint); }
+.ss-login .lg-item { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0; border: none; background: transparent; font-size: 16px; letter-spacing: 3px; text-align: left; }
+.ss-login .lg-item:hover { color: var(--text-bright) !important; }
+.ss-login .lg-row { display: flex; align-items: center; gap: 10px; min-height: 32px; white-space: nowrap; }
+.ss-login .lg-tree { color: #4a4f58; font-size: 15px; width: 26px; flex: none; }
+.ss-login .lg-lbl { width: 110px; flex: none; color: var(--text-bright); font-size: 15px; }
+.ss-login .lg-in { flex: 1; min-width: 0; height: 32px; padding: 0; font-size: 19px; background: transparent; border: none; color: var(--text-bright); }
+.ss-login .lg-submit { display: flex; align-items: center; gap: 8px; padding: 0; border: none; background: transparent; color: var(--text-bright); font-size: 15px; letter-spacing: 2px; }
+.ss-login .lg-submit:hover:not(:disabled) { color: var(--accent); }
+.ss-login .lg-cursor { width: 9px; height: 15px; background: var(--text-bright); display: inline-block; animation: ss-blink 1s steps(1) infinite; }
+.ss-login .lg-log { width: 520px; max-width: 100%; flex: 1; min-height: 72px; overflow: hidden; pointer-events: none; display: flex; flex-direction: column; font-size: 11px; line-height: 1.7; color: #4a4f58; }
+.ss-login .lg-log > div { flex: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+.ss-login .lg-log span { color: #3a3f48; }
+.ss-login .lg-log.top { justify-content: flex-end; -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 70%); mask-image: linear-gradient(180deg, transparent 0%, #000 70%); }
+.ss-login .lg-log.bot { justify-content: flex-start; -webkit-mask-image: linear-gradient(0deg, transparent 0%, #000 70%); mask-image: linear-gradient(0deg, transparent 0%, #000 70%); }
+@keyframes ss-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ss-login .lg-cursor { animation: none; } }
