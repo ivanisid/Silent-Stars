@@ -140,7 +140,8 @@ export function mergeFields(fields, appObj, doc, appTime) {
   return { update: Object.keys(update).length ? update : null, patch, baseAfterPush, conflicts };
 }
 
-// Лімітні системи й зброя меха: предмет у Foundry ↔ запис у mech.limited за назвою.
+// Лімітні системи й зброя меха: предмет у Foundry ↔ лімітний запис меха в апці за назвою
+// (функція foundry-sync віддає їх у полі limited — з mech.items, де є max).
 // Повертає оновлення предметів, патч для апки ({ [назва]: { current } }) і бази.
 export function mergeLimited(appMech, items, appTime) {
   const byName = new Map((appMech.limited || []).map((l) => [norm(l.name), l]));

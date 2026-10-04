@@ -23,9 +23,11 @@ export function mergeFoundryState(local, remote) {
     if (!r) return m;
     const next = { ...m };
     for (const k of MECH_KEYS) if (r[k] !== undefined) next[k] = r[k];
-    const rLimited = new Map((r.limited || []).map((l) => [(l.name || '').trim().toLowerCase(), l]));
-    next.limited = (m.limited || []).map((l) => {
-      const rl = rLimited.get((l.name || '').trim().toLowerCase());
+    // Заряди лімітної зброї й систем (записи items з max).
+    const key = (l) => (l.name || '').trim().toLowerCase();
+    const rItems = new Map((r.items || r.limited || []).filter((l) => l.max != null).map((l) => [key(l), l]));
+    next.items = (m.items || []).map((l) => {
+      const rl = l.max != null && rItems.get(key(l));
       return rl ? { ...l, current: rl.current, max: rl.max } : l;
     });
     return next;

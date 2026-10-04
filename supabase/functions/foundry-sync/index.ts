@@ -18,7 +18,8 @@
 //   pilot: { hpCurrent?, stress? }
 //   mechs: { [mechId]: { hpCurrent?, hpMax?, repairCurrent?, repairMax?, structureFilled?,
 //                        reactorFilled?, overcharge?, corePower?,
-//                        limited?: { [назва системи]: { current?, max? } } } }
+//                        limited?: { [назва системи в нижньому регістрі]: { current?, max? } } } }
+//   (limited накладається на лімітні записи mech.items, або mech.limited у старій формі)
 //
 // Доступ: заголовок x-foundry-key має збігатися з секретом foundry_sync_key у vault.
 // Розгортається з verify_jwt = false.
@@ -65,7 +66,10 @@ function toSyncMech(m: any, art: Map<string, string>, pilotId: string) {
     reactorFilled: num(m.reactorFilled),
     overcharge: num(m.overcharge),
     corePower: m.corePower !== false,
-    limited: (m.limited || []).map((l: any) => ({ name: l.name || '', current: num(l.current), max: num(l.max) })),
+    // Лімітна зброя й системи. Новіша форма — mech.items (уся зброя й системи, лімітні мають
+    // max), старіша — mech.limited; рядки, які ще не пересохранялись з апки, мають саме її.
+    limited: itemsOf(m).filter((l: any) => l.max != null)
+      .map((l: any) => ({ name: l.name || '', current: num(l.current), max: num(l.max) })),
     art: art.get(`${pilotId}:mech:${m.id}`) || null,
   };
 }
@@ -104,6 +108,9 @@ async function pull() {
   }
   return { pilots: (pilots || []).map((p) => toSyncPilot(p, nicks, art)) };
 }
+
+const itemsKey = (m: any) => (Array.isArray(m.items) ? 'items' : 'limited');
+const itemsOf = (m: any) => m[itemsKey(m)] || [];
 
 // ----- push -----
 
@@ -162,8 +169,8 @@ function applyPatch(state: any, u: any) {
       m.corePower = v;
     }
     if (mp.limited && typeof mp.limited === 'object') {
-      m.limited = (m.limited || []).map((l: any) => {
-        const lp = mp.limited[(l.name || '').trim().toLowerCase()];
+      m[itemsKey(m)] = itemsOf(m).map((l: any) => {
+        const lp = l.max != null && mp.limited[(l.name || '').trim().toLowerCase()];
         if (!lp) return l;
         const out = { ...l };
         if (has(lp, 'max')) { const v = Math.max(0, num(lp.max)); set(`${name} / ${l.name}: макс. зарядів`, out.max, v); out.max = v; }
