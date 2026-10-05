@@ -119,6 +119,14 @@ export const api = {
     return data;
   },
 
+  // ГМ робить іншого учасника ГМом ('gm') або знімає роль ('player'). Свою роль змінити
+  // не можна — це перевіряє сервер (gm_set_role).
+  gmSetRole: async (userId, role) => {
+    const { data, error } = await supabase.rpc('gm_set_role', { p_user_id: userId, p_role: role });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
   // ----- Game board -----
 
   getMyContestBonus: async (userId) => {
