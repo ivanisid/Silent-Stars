@@ -3,7 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { llTier } from '../pilot/logic';
-import { Msg, PageHeader, PageShell, Panel } from '../components/kit.jsx';
+import { Menu, Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
 
 function formatDate(iso) {
   if (!iso) return '—';
@@ -26,11 +26,35 @@ function plural(n) {
 export default function GmPanelPage() {
   const { user, role, isGm } = useAuth();
   const [q, setQ] = useState('');
-
   const [pilots, setPilots] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [ask, dialog] = useConfirm();
+  const [roleNote, setRoleNote] = useState('');
+
+  async function changeRole(group) {
+    const toGm = group.role !== 'gm';
+    const ok = await ask({
+      title: toGm ? 'ЗРОБИТИ ГМОМ?' : 'ЗНЯТИ РОЛЬ ГМА?',
+      tone: toGm ? 'gm' : 'danger',
+      lines: toGm
+        ? [`«${group.nick}»`, 'бачитиме персонажів усіх гравців і цю панель', 'зможе створювати й вести слоти ігор', 'зможе змінювати ролі інших учасників']
+        : [`«${group.nick}»`, 'втратить доступ до ГМ-панелі й чужих персонажів'],
+      yesLabel: toGm ? 'ЗРОБИТИ ГМОМ' : 'ЗНЯТИ РОЛЬ',
+    });
+    if (!ok) return;
+    setLoadError('');
+    setRoleNote('');
+    try {
+      const newRole = await api.gmSetRole(group.userId, toGm ? 'gm' : 'player');
+      setProfiles((list) => list.map((p) => (p.id === group.userId ? { ...p, role: newRole } : p)));
+      setRoleNote(newRole === 'gm' ? `«${group.nick}» тепер ГМ.` : `«${group.nick}» більше не ГМ.`);
+    } catch (err) {
+      setLoadError(err.message);
+    }
+  }
+
 
   useEffect(() => {
     if (!isGm) return undefined;
@@ -120,7 +144,9 @@ export default function GmPanelPage() {
         <input className="ss-input sm m-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ гравець або позивний" style={{ marginLeft: 'auto', width: 220 }} />
       </div>
 
+      {dialog}
       {loadError && <Msg kind="err">{loadError}</Msg>}
+      {roleNote && <Msg kind="ok">{roleNote}</Msg>}
       {loading && <div className="ss-note">&gt; Завантаження…</div>}
 
       {!loading &&
@@ -135,6 +161,21 @@ export default function GmPanelPage() {
               </span>
             }
             sub={group.pilots.length ? `${group.pilots.length} ${plural(group.pilots.length)}` : 'ПЕРСОНАЖІВ НЕМАЄ'}
+            right={
+              // Свою роль змінити не можна — меню лише в чужих групах.
+              group.userId !== user?.id && (
+                <Menu
+                  small
+                  title="Роль учасника"
+                  items={[
+                    { header: 'РОЛЬ' },
+                    group.role === 'gm'
+                      ? { label: 'ЗНЯТИ РОЛЬ ГМА…', danger: true, onClick: () => changeRole(group) }
+                      : { label: 'ЗРОБИТИ ГМОМ…', onClick: () => changeRole(group) },
+                  ]}
+                />
+              )
+            }
           >
             {group.pilots.length > 0 && (
               <div className="gm-thead" style={{ display: 'grid', gridTemplateColumns: COLS, gap: 10, padding: '6px 14px', fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1, borderBottom: '1px solid var(--panel-border)' }}>
