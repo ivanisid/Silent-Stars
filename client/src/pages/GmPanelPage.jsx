@@ -3,7 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { llTier } from '../pilot/logic';
-import { Menu, Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
+import { ConfirmDialog, Menu, Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
 
 function formatDate(iso) {
   if (!iso) return '—';
@@ -11,6 +11,35 @@ function formatDate(iso) {
   if (Number.isNaN(d.getTime())) return '—';
   const pad = (n) => String(n).padStart(2, '0');
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Видалення незворотне, тож «так» стає доступним лише після введення ніка учасника.
+function DeleteUserDialog({ group, onYes, onNo }) {
+  const [typed, setTyped] = useState('');
+  const match = typed.trim().toLowerCase() === group.nick.trim().toLowerCase();
+  return (
+    <ConfirmDialog
+      title="ВИДАЛИТИ ПРОФІЛЬ?"
+      tone="danger"
+      lines={[
+        `«${group.nick}»`,
+        `персонажів: ${group.pilots.length} — зникнуть разом із мехами, резервами й журналом дій`,
+        'записи на ігри та прив\'язка Discord теж зникнуть',
+        'акаунт буде видалено — увійти в нього більше не вийде',
+        'відновлення: неможливе',
+      ]}
+      note="Якщо гравець просто не грає — краще перенести його персонажів в архів."
+      yesLabel="ВИДАЛИТИ НАЗАВЖДИ"
+      canYes={match}
+      onYes={onYes}
+      onNo={onNo}
+    >
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        <span style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>ВВЕДІТЬ НІК «{group.nick}», ЩОБ ПІДТВЕРДИТИ</span>
+        <input className="ss-input" value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus placeholder={group.nick} />
+      </label>
+    </ConfirmDialog>
+  );
 }
 
 const COLS = 'minmax(140px,1.4fr) repeat(8, minmax(44px,.5fr)) 120px';
@@ -32,16 +61,31 @@ export default function GmPanelPage() {
   const [loadError, setLoadError] = useState('');
   const [ask, dialog] = useConfirm();
   const [roleNote, setRoleNote] = useState('');
+  const [deleting, setDeleting] = useState(null); // група, яку збираються видалити
+
+  async function deleteUser(group) {
+    setDeleting(null);
+    setLoadError('');
+    setRoleNote('');
+    try {
+      const nick = await api.gmDeleteUser(group.userId);
+      setProfiles((list) => list.filter((p) => p.id !== group.userId));
+      setPilots((list) => list.filter((p) => p.userId !== group.userId));
+      setRoleNote(`Профіль «${nick}» видалено.`);
+    } catch (err) {
+      setLoadError(err.message);
+    }
+  }
 
   async function changeRole(group) {
     const toGm = group.role !== 'gm';
     const ok = await ask({
-      title: toGm ? 'ЗРОБИТИ ГМОМ?' : 'ЗНЯТИ РОЛЬ ГМА?',
+      title: toGm ? 'ПІДВИЩИТИ ДО GM?' : 'ПОНИЗИТИ ДО ГРАВЦЯ?',
       tone: toGm ? 'gm' : 'danger',
       lines: toGm
         ? [`«${group.nick}»`, 'бачитиме персонажів усіх гравців і цю панель', 'зможе створювати й вести слоти ігор', 'зможе змінювати ролі інших учасників']
         : [`«${group.nick}»`, 'втратить доступ до ГМ-панелі й чужих персонажів'],
-      yesLabel: toGm ? 'ЗРОБИТИ ГМОМ' : 'ЗНЯТИ РОЛЬ',
+      yesLabel: toGm ? 'ПІДВИЩИТИ' : 'ПОНИЗИТИ',
     });
     if (!ok) return;
     setLoadError('');
@@ -145,6 +189,7 @@ export default function GmPanelPage() {
       </div>
 
       {dialog}
+      {deleting && <DeleteUserDialog group={deleting} onYes={() => deleteUser(deleting)} onNo={() => setDeleting(null)} />}
       {loadError && <Msg kind="err">{loadError}</Msg>}
       {roleNote && <Msg kind="ok">{roleNote}</Msg>}
       {loading && <div className="ss-note">&gt; Завантаження…</div>}
@@ -170,8 +215,12 @@ export default function GmPanelPage() {
                   items={[
                     { header: 'РОЛЬ' },
                     group.role === 'gm'
-                      ? { label: 'ЗНЯТИ РОЛЬ ГМА…', danger: true, onClick: () => changeRole(group) }
-                      : { label: 'ЗРОБИТИ ГМОМ…', onClick: () => changeRole(group) },
+                      ? { label: 'ПОНИЗИТИ ДО ГРАВЦЯ…', onClick: () => changeRole(group) }
+                      : { label: 'ПІДВИЩИТИ ДО GM…', onClick: () => changeRole(group) },
+                    { header: 'ПРОФІЛЬ' },
+                    group.role === 'gm'
+                      ? { label: 'ВИДАЛИТИ ПРОФІЛЬ — СПЕРШУ ПОНИЗИТИ', danger: true, disabled: true }
+                      : { label: 'ВИДАЛИТИ ПРОФІЛЬ…', danger: true, onClick: () => setDeleting(group) },
                   ]}
                 />
               )
