@@ -3,13 +3,14 @@ import { Menu, Panel, useConfirm } from '../../components/kit.jsx';
 import { RARE_RESERVES, rareReserveByKey, anyReserveByKey } from '../rareReserves';
 import { derivePilotView } from '../derive';
 import ReserveIcon from './ReserveIcon.jsx';
-import { reserveByKey } from '../reserves';
+import { RESERVES, RESERVE_CATEGORIES, RESERVE_RANK_PR, reserveByKey } from '../reserves';
 
 // Склад рідкісних резервів. Не магазин: тут нічого не купується й не витрачається —
 // гравець записує те, що видали як частину нагороди за місію. На складі резерв лежить
 // і не згорає; «взяти на місію» перекладає його на руки, де він згорить після місії.
 export default function VaultPanel({ state, dispatch }) {
-  const [picking, setPicking] = useState(false);
+  // null | 'rare' | 'common' — на якій вкладці відкрито меню вибору.
+  const [picking, setPicking] = useState(null);
   const [ask, dialog] = useConfirm();
   const vault = state.vault || [];
   // Кап приходить із derive — там же, де й решта похідних величин пілота.
@@ -50,7 +51,7 @@ export default function VaultPanel({ state, dispatch }) {
           <div className="ss-sect">
             <div className="ss-label">НА СКЛАДІ</div>
             <div className="ss-count" style={{ color: full ? 'var(--warn)' : undefined }}>{vault.length} / {cap}</div>
-            <button className="btn-ghost sm" type="button" style={{ marginLeft: 'auto' }} disabled={full} title={full ? 'Склад заповнений — звільніть місце' : undefined} onClick={() => setPicking(true)}>
+            <button className="btn-ghost sm" type="button" style={{ marginLeft: 'auto' }} disabled={full} title={full ? 'Склад заповнений — звільніть місце' : undefined} onClick={() => setPicking('rare')}>
               + ЗАПИСАТИ РЕЗЕРВ
             </button>
           </div>
@@ -92,6 +93,9 @@ export default function VaultPanel({ state, dispatch }) {
           <div className="ss-sect">
             <div className="ss-label">НА РУКАХ</div>
             <div className="ss-count">{onHand.length}</div>
+            <button className="btn-ghost sm" type="button" style={{ marginLeft: 'auto' }} onClick={() => setPicking('common')}>
+              + ЗАПИСАТИ РЕЗЕРВ
+            </button>
           </div>
           {onHand.length === 0 ? (
             <div className="ss-slot" style={{ minHeight: 54 }}>НІЧОГО НЕ ВЗЯТО</div>
@@ -123,10 +127,12 @@ export default function VaultPanel({ state, dispatch }) {
 
       {picking && (
         <PickModal
-          onClose={() => setPicking(false)}
-          onPick={(key) => {
-            dispatch({ type: 'ADD_TO_VAULT', key });
-            setPicking(false);
+          initialTab={picking}
+          vaultFull={full}
+          onClose={() => setPicking(null)}
+          onPick={(tab, key) => {
+            dispatch({ type: tab === 'rare' ? 'ADD_TO_VAULT' : 'ADD_RESERVE_TO_HAND', key });
+            setPicking(null);
           }}
         />
       )}
@@ -134,16 +140,23 @@ export default function VaultPanel({ state, dispatch }) {
   );
 }
 
-function PickModal({ onClose, onPick }) {
+// Меню вибору: РІДКІСНІ ідуть на склад (поки є місце), ЗВИЧАЙНІ — одразу на руки.
+function PickModal({ initialTab = 'rare', vaultFull, onClose, onPick }) {
+  const [tab, setTab] = useState(initialTab);
   const [rank, setRank] = useState(1);
+  const [category, setCategory] = useState('all');
   const [q, setQ] = useState('');
+  const rare = tab === 'rare';
+  const ranks = rare ? [1, 2] : [1, 2, 3];
 
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return RARE_RESERVES.filter(
-      (r) => r.rank === rank && (needle === '' || r.name.toLowerCase().includes(needle) || r.desc.toLowerCase().includes(needle)),
-    );
-  }, [rank, q]);
+    const match = (r) => needle === '' || r.name.toLowerCase().includes(needle) || r.desc.toLowerCase().includes(needle);
+    if (rare) return RARE_RESERVES.filter((r) => r.rank === rank && match(r));
+    return RESERVES.filter((r) => r.rank === rank && (category === 'all' || r.category === category) && match(r));
+  }, [rare, rank, category, q]);
+
+  const blocked = rare && vaultFull;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -152,12 +165,21 @@ function PickModal({ onClose, onPick }) {
         style={{ width: 620, maxHeight: '82vh', display: 'flex', flexDirection: 'column' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-header">ЗАПИСАТИ РІДКІСНИЙ РЕЗЕРВ</div>
+        <div className="modal-header">ЗАПИСАТИ РЕЗЕРВ</div>
         <div className="modal-body" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="ss-seg" style={{ display: 'flex' }}>
+            <button type="button" className={rare ? 'on' : ''} style={{ flex: 1 }} onClick={() => { setTab('rare'); setRank(1); }}>
+              РІДКІСНІ · НА СКЛАД
+            </button>
+            <button type="button" className={!rare ? 'on' : ''} style={{ flex: 1 }} onClick={() => { setTab('common'); setRank(1); setCategory('all'); }}>
+              ЗВИЧАЙНІ · НА РУКИ
+            </button>
+          </div>
+
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {[1, 2].map((rk) => (
+            {ranks.map((rk) => (
               <button key={rk} type="button" className={`ss-chip${rank === rk ? ' on' : ''}`} onClick={() => setRank(rk)}>
-                РАНГ {rk}
+                РАНГ {rk}{rare ? '' : ` · ${RESERVE_RANK_PR[rk]} PR`}
               </button>
             ))}
             <input
@@ -170,44 +192,61 @@ function PickModal({ onClose, onPick }) {
               style={{ flex: 1, minWidth: 160 }}
             />
           </div>
+          {!rare && (
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: -4 }}>
+              <button type="button" className={`ss-chip sm${category === 'all' ? ' on' : ''}`} onClick={() => setCategory('all')}>УСІ</button>
+              {RESERVE_CATEGORIES.map((c) => (
+                <button key={c.key} type="button" className={`ss-chip sm${category === c.key ? ' on' : ''}`} onClick={() => setCategory(c.key)}>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="ss-note">
+            {rare
+              ? blocked
+                ? ':: Склад заповнений — звільніть місце, щоб записати рідкісний резерв.'
+                : 'Рідкісний резерв ляже на склад і не згорить, доки його не взяли на місію.'
+              : 'Звичайний резерв одразу піде на руки й згорить після місії. PR не списуються — купівля за PR лишилась у магазині.'}
+          </div>
 
           <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 4 }}>
             {list.map((r) => (
               <button
                 key={r.key}
                 type="button"
-                onClick={() => onPick(r.key)}
+                disabled={blocked}
+                onClick={() => onPick(tab, r.key)}
                 style={{
                   textAlign: 'left',
                   padding: '9px 11px',
                   background: 'var(--input-bg)',
                   border: '1px solid var(--input-border)',
                   color: 'var(--text)',
-                  cursor: 'pointer',
+                  cursor: blocked ? 'not-allowed' : 'pointer',
+                  opacity: blocked ? 0.5 : 1,
                   display: 'flex',
                   gap: 12,
                   alignItems: 'flex-start',
                 }}
               >
-                <ReserveIcon kind="rare" size={36} />
+                <ReserveIcon kind={rare ? 'rare' : r.category} size={36} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, color: 'var(--text-bright)' }}>{r.name}</div>
-                <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginTop: 3 }}>
-                  {r.action}
-                  {r.tags ? ` · ${r.tags}` : ''}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-soft-dim)', lineHeight: 1.5, marginTop: 5 }}>
-                  {r.desc}
-                </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-bright)' }}>{r.name}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginTop: 3 }}>
+                    {rare
+                      ? `${r.action}${r.tags ? ` · ${r.tags}` : ''}`
+                      : RESERVE_CATEGORIES.find((c) => c.key === r.category)?.label || r.category}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-soft-dim)', lineHeight: 1.5, marginTop: 5 }}>{r.desc}</div>
                 </div>
               </button>
             ))}
-            {list.length === 0 && (
-              <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>Нічого не знайдено.</div>
-            )}
+            {list.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>&gt; Нічого не знайдено.</div>}
           </div>
 
-          <button className="btn-ghost" type="button" onClick={onClose} style={{ alignSelf: 'flex-end' }}>
+          <button className="btn-ghost" type="button" onClick={onClose} style={{ alignSelf: 'flex-end', flexShrink: 0 }}>
             ЗАКРИТИ
           </button>
         </div>
