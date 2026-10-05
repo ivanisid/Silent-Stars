@@ -28,15 +28,31 @@ const flag = (doc, k) => doc.getFlag(MODULE, k);
 
 // ----- Запити до функції foundry-sync -----
 
+// fetch кидає TypeError, коли відповіді немає зовсім (з'єднання обірвалось, мережа
+// моргнула) — це не помилка даних, тож пробуємо ще раз. Повтор push безпечний: функція
+// перевіряє updatedAt, і вже застосований push повернеться як conflict.
+class NetworkError extends Error {}
+const RETRY_DELAYS = [2000, 5000];
+
 async function call(body) {
   const url = setting('url');
   const key = setting('key');
   if (!url || !key) throw new Error('Не вказано адресу функції або ключ синхронізації (налаштування модуля).');
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-foundry-key': key },
-    body: JSON.stringify(body),
-  });
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-foundry-key': key },
+        body: JSON.stringify(body),
+      });
+      break;
+    } catch (err) {
+      if (!(err instanceof TypeError)) throw err;
+      if (attempt >= RETRY_DELAYS.length) throw new NetworkError(`немає зв'язку з апкою (${err.message})`);
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+    }
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
@@ -156,7 +172,9 @@ export async function syncNow({ quiet = true } = {}) {
     if (!quiet) ui.notifications.info(`Silent Stars: синхронізовано. ${lastStatus}`);
   } catch (err) {
     lastStatus = `${new Date().toLocaleTimeString()} — помилка: ${err.message}`;
-    console.error(`${MODULE} |`, err);
+    // Мережевий збій після повторів — попередження: наступний цикл таймера спробує знову.
+    if (err instanceof NetworkError) console.warn(`${MODULE} | ${err.message}, спробую в наступному циклі`);
+    else console.error(`${MODULE} |`, err);
     if (!quiet) ui.notifications.error(`Silent Stars: ${err.message}`);
   } finally {
     running = false;
