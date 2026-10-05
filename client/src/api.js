@@ -127,6 +127,14 @@ export const api = {
     return data;
   },
 
+  // Видаляє акаунт іншого учасника разом із пілотами (gm_delete_user). Сервер не дасть
+  // видалити себе, ГМа чи того, хто веде слоти ігор.
+  gmDeleteUser: async (userId) => {
+    const { data, error } = await supabase.rpc('gm_delete_user', { p_user_id: userId });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
   // ----- Game board -----
 
   getMyContestBonus: async (userId) => {
