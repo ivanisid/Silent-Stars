@@ -890,6 +890,18 @@ export function pilotReducer(state, action) {
       );
     }
 
+    // Звичайний резерв, записаний вручну з меню складу, — одразу на руки, без складу
+    // і без списання PR (як і рідкісні, це запис отриманого). Згорає після місії.
+    case 'ADD_RESERVE_TO_HAND': {
+      const def = reserveByKey(action.key);
+      if (!def) return state;
+      const gamesLeft = reserveGamesLeft(def.key, state.hangar.owned);
+      const entry = { id: newId(state.reserves), key: def.key, source: 'manual', gamesLeft };
+      return log(
+        { ...state, reserves: [...state.reserves, entry] },
+        `На руки: «${def.name}» (ранг ${def.rank}), згорить після місії`,
+      );
+    }
     // Купівля резерву за PR без обмежень: чи потрібна downtime-дія — питання правил
     // за столом, додаток його не стежить.
     case 'BUY_RESERVE': {
