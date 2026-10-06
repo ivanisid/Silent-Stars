@@ -1,7 +1,10 @@
 // Перевірка логіки злиття без Foundry. Запуск: node foundry-module/silent-stars-sync/scripts/sync.test.mjs
 
 import assert from 'node:assert/strict';
-import { decide, mergeFields, mergeLimited, mechMaxPatch, MECH_FIELDS, PILOT_FIELDS, MODULE } from './sync.js';
+import {
+  decide, mergeFields, mergeGroup, mergeLimited, mechMaxPatch, profileActorName, pilotIdentityUpdate,
+  MECH_FIELDS, PILOT_FIELDS, MODULE,
+} from './sync.js';
 
 let n = 0;
 const test = (name, fn) => {
@@ -86,6 +89,79 @@ test('лімітні заряди: поповнення в апці', () => {
 test('максимуми ХП/ремкомплектів беруться з Foundry', () => {
   assert.deepEqual(mechMaxPatch(appMech({ hpMax: 10 }), mechActor()), { hpMax: 12 });
   assert.deepEqual(mechMaxPatch(appMech(), mechActor()), {});
+});
+
+// ----- Два актори одного пілота (два профілі) -----
+
+const pilotActor = (hp, stress, base, time = 0) => ({
+  system: { hp: { value: hp }, bond_state: { stress: { value: stress } } },
+  flags: base ? { [MODULE]: { base } } : {},
+  _stats: { modifiedTime: time },
+});
+
+test('група: шкода на одному акторі йде в апку й одразу в другого актора', () => {
+  const a = pilotActor(4, 2, { hp: 6, stress: 2 }, 100);
+  const b = pilotActor(6, 2, { hp: 6, stress: 2 }, 50);
+  const r = mergeGroup(PILOT_FIELDS, { hpCurrent: 6, stress: 2 }, [a, b], 0);
+  assert.deepEqual(r.patch, { hpCurrent: 4 });
+  assert.equal(r.updates[0], null);
+  assert.deepEqual(r.updates[1], { 'system.hp.value': 4 }); // база — лише після push
+  assert.deepEqual(r.baseAfterPush, [{ hp: 4 }, { hp: 4 }]);
+  assert.deepEqual(r.conflicts, []);
+});
+
+test('група: обидва актори змінились — бере гору новіший, це конфлікт', () => {
+  const a = pilotActor(5, 2, { hp: 10, stress: 2 }, 100);
+  const b = pilotActor(7, 2, { hp: 10, stress: 2 }, 200);
+  const r = mergeGroup(PILOT_FIELDS, { hpCurrent: 10, stress: 2 }, [a, b], 0);
+  assert.deepEqual(r.patch, { hpCurrent: 7 });
+  assert.deepEqual(r.updates[0], { 'system.hp.value': 7 });
+  assert.deepEqual(r.conflicts, ['hp']);
+});
+
+test('група: push відклали — наступний цикл не відкочує зміну', () => {
+  // Після попереднього циклу обидва актори мають 7, база ще стара (10), апка — 10.
+  const a = pilotActor(7, 2, { hp: 10, stress: 2 }, 300);
+  const b = pilotActor(7, 2, { hp: 10, stress: 2 }, 200);
+  const r = mergeGroup(PILOT_FIELDS, { hpCurrent: 10, stress: 2 }, [a, b], 0);
+  assert.deepEqual(r.patch, { hpCurrent: 7 });
+  assert.deepEqual(r.conflicts, []);
+});
+
+test('група: змінилась апка — обидва актори отримують значення', () => {
+  const a = pilotActor(6, 2, { hp: 6, stress: 2 });
+  const b = pilotActor(6, 2, { hp: 6, stress: 2 });
+  const r = mergeGroup(PILOT_FIELDS, { hpCurrent: 3, stress: 2 }, [a, b], 0);
+  assert.deepEqual(r.patch, {});
+  for (const u of r.updates) assert.deepEqual(u, { 'system.hp.value': 3, [`flags.${MODULE}.base.hp`]: 3 });
+});
+
+test('група: новий актор без бази бере значення з апки', () => {
+  const a = pilotActor(6, 2, { hp: 6, stress: 2 });
+  const b = pilotActor(9, 0);
+  const r = mergeGroup(PILOT_FIELDS, { hpCurrent: 6, stress: 2 }, [a, b], 0);
+  assert.equal(r.updates[0], null);
+  assert.equal(r.updates[1]['system.hp.value'], 6);
+  assert.equal(r.updates[1]['system.bond_state.stress.value'], 2);
+});
+
+// ----- Імена акторів, створених з апки -----
+
+const twoMechs = { callsign: 'AMON', mechs: [{ id: '1', name: 'MASTIFF' }, { id: '2', name: 'BLACKBEARD' }] };
+
+test("ім'я: один мех — просто позивний", () => {
+  assert.equal(profileActorName({ callsign: 'AMON', mechs: [{ id: '1', name: 'MASTIFF' }] }, '1'), 'AMON');
+});
+
+test("ім'я: кілька мехів — позивний і мех профілю", () => {
+  assert.equal(profileActorName(twoMechs, '2'), 'AMON (BLACKBEARD)');
+});
+
+test("ім'я: актора без profileMechId не перейменовуємо", () => {
+  const actor = { name: 'Amon Ra', system: { callsign: 'AMON', level: 2 }, flags: {} };
+  assert.equal(pilotIdentityUpdate({ ...twoMechs, ll: 2 }, actor).name, undefined);
+  const created = { ...actor, flags: { [MODULE]: { profileMechId: '1' } } };
+  assert.equal(pilotIdentityUpdate({ ...twoMechs, ll: 2 }, created).name, 'AMON (MASTIFF)');
 });
 
 console.log(`\n${n} тестів пройдено`);

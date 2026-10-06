@@ -29,7 +29,7 @@ import {
   skillCapMax,
   skillCapUsed,
 } from './logic';
-import { mergeMechsByName } from './compconImport';
+import { mergeMechsByName, isMechNameTaken, mechNameClashes } from './compconImport';
 import { repairPlan, repairCost, spentText, isLimited, itemRefillPr, KIT_PR, KITS_FULL_PR, MECH_STRUCTURE, MECH_REACTOR } from './repair';
 import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft } from './reserves';
 import { rareReserveByKey, anyReserveByKey, vaultCap } from './rareReserves';
@@ -1030,7 +1030,8 @@ export function pilotReducer(state, action) {
       return { ...state, mechDraft: { ...state.mechDraft, [action.field]: action.value } };
     case 'ADD_MECH': {
       const { name, hpMax, repairMax, frame } = state.mechDraft;
-      if (!name.trim()) return state;
+      // Назви мехів унікальні: за ними імпорт COMP/CON і Foundry розрізняють мехів.
+      if (!name.trim() || isMechNameTaken(state.mechs, name)) return state;
       const hp = parseInt(hpMax, 10) || 10;
       const rep = parseInt(repairMax, 10) || 5;
       const mech = {
@@ -1347,6 +1348,8 @@ export function pilotReducer(state, action) {
     }
     case 'MERGE_COMPCON_MECHS': {
       const { mechs, callsign } = action.payload;
+      // Компоненти перевіряють це заздалегідь і показують помилку; тут — страховка.
+      if (mechNameClashes(state.mechs, mechs).length) return state;
       const names = mechs.map((m) => m.name).join(', ') || '—';
       return log(
         { ...state, mechs: mergeMechsByName(state.mechs, mechs) },

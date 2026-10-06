@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { derivePilotView } from '../derive';
-import { mapCompconBond, mapCompconPilot } from '../compconImport';
+import { compconProfiles, mapCompconBond, mapCompconPilot, mechClashMessage, mechNameClashes } from '../compconImport';
+import { api } from '../../api';
 import { parseAdventureLeagueCsv, summarizeAdventureLeagueLog } from '../csvImport';
 import { Menu, Panel } from '../../components/kit.jsx';
 import ArtSlot from './ArtSlot.jsx';
@@ -23,6 +24,9 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
   const [importMsg, setImportMsg] = useState(null);
   const csvRef = useRef(null);
   const jsonRef = useRef(null);
+  // 'full' — файл основного профілю (мехи й бонд), 'mech' — інший профіль того ж пілота:
+  // з нього лише мех, дані пілота не змінюються.
+  const jsonMode = useRef('full');
 
   function saveMeta() {
     onSaveMeta({ name: name.trim() || pilot.name, callsign: callsign.trim() || pilot.callsign, background });
@@ -49,7 +53,8 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
     }
   }
 
-  // Той самий файл COMP/CON дає і мехів, і бонд (назва, ідеали, XP).
+  // Файл COMP/CON дає мехів, а файл основного профілю — ще й бонд (назва, ідеали, XP).
+  // Сам файл зберігається для кожного меха: з нього модуль Foundry створює актора.
   async function handleJson(e) {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -57,14 +62,28 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
     try {
       const json = JSON.parse(await file.text());
       const mapped = mapCompconPilot(json);
+      const clashes = mechNameClashes(state.mechs, mapped.state.mechs);
+      if (clashes.length) throw new Error(mechClashMessage(clashes));
+      const profiles = compconProfiles(state.mechs, mapped.state.mechs, json);
       dispatch({ type: 'MERGE_COMPCON_MECHS', payload: { mechs: mapped.state.mechs, callsign: mapped.callsign } });
-      const bond = mapCompconBond(json);
+      const bond = jsonMode.current === 'full' ? mapCompconBond(json) : null;
       if (bond) dispatch({ type: 'IMPORT_BOND', payload: bond });
       const names = mapped.state.mechs.map((m) => m.name).join(', ') || '—';
-      setImportMsg({ ok: true, text: `Мех(и) підтягнуто з COMP/CON: ${names}${bond ? ` · бонд «${bond.name}»` : ''}` });
+      let saved = '';
+      try {
+        await api.saveCompconProfiles(pilot.id, profiles);
+      } catch (err) {
+        saved = ` · файл для Foundry не збережено: ${err.message}`;
+      }
+      setImportMsg({ ok: !saved, text: `Мех(и) підтягнуто з COMP/CON: ${names}${bond ? ` · бонд «${bond.name}»` : ''}${saved}` });
     } catch (err) {
       setImportMsg({ ok: false, text: err instanceof SyntaxError ? 'Файл не є коректним JSON.' : err.message });
     }
+  }
+
+  function pickJson(mode) {
+    jsonMode.current = mode;
+    jsonRef.current?.click();
   }
 
   const statusActive = state.status === 'active';
@@ -117,7 +136,8 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
                   items={[
                     { header: 'ІМПОРТ' },
                     { label: 'Завантажити дані з Adventure League log', onClick: () => csvRef.current?.click() },
-                    { label: 'Додати меха з COMP/CON JSON', onClick: () => jsonRef.current?.click() },
+                    { label: 'Оновити з COMP/CON JSON (мехи і бонд)', onClick: () => pickJson('full') },
+                    { label: 'Додати меха з іншого профілю COMP/CON', onClick: () => pickJson('mech') },
                     importMsg && {
                       node: (
                         <div className="mmsg" style={{ color: importMsg.ok ? 'var(--success)' : 'var(--danger)' }}>

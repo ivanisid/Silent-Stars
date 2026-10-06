@@ -247,6 +247,17 @@ export const api = {
     }
   },
 
+  // Файли COMP/CON по одному на меха (див. compconProfiles): з них модуль Foundry створює
+  // акторів. Повторне завантаження того ж меха замінює файл.
+  saveCompconProfiles: async (pilotId, profiles) => {
+    if (!profiles?.length) return;
+    const rows = profiles.map((p) => ({
+      pilot_id: pilotId, mech_id: p.mechId, data: p.data, updated_at: new Date().toISOString(),
+    }));
+    const { error } = await supabase.from('pilot_compcon').upsert(rows, { onConflict: 'pilot_id,mech_id' });
+    if (error) throw new Error(error.message);
+  },
+
   // М'яке видалення: файл із Foundry і зі сховища прибирає синхронізатор.
   deleteArt: async (id) => {
     const { error } = await supabase.rpc('art_delete', { p_id: id });

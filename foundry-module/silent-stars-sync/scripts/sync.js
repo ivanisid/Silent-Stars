@@ -109,35 +109,75 @@ export function decide(A, F, B, appTime, foundryTime) {
 
 const timeOf = (doc) => int(get(doc, '_stats.modifiedTime'));
 
-// Зводить набір полів одного документа (актора). Повертає:
+// Зводить набір полів кількох документів, які відповідають одному запису апки. Так буває
+// з пілотом: другий профіль (інші таланти, скіли, ліцензії, свій мех) — окремий актор,
+// а ХП і стрес у пілота одні. Для одного документа це те саме, що decide().
+//
+// Змінені у Foundry — документи, у яких є база і значення від неї відійшло. Серед них
+// бере гору найновіший; інший змінений документ з іншим значенням — конфлікт, його
+// зміна губиться (і потрапляє в conflicts). Решта документів групи одразу отримують
+// значення, що перемогло, а не чекають наступного циклу.
+//
+// Повертає (масиви — у порядку docs):
+//   updates — оновлення для doc.update (значення + нова база в прапорці), або null
+//   patch  — що відправити в апку
+//   baseAfterPush — що дописати в базу кожного документа, коли апка прийме patch
+//   conflicts — назви полів, де змінилось більше однієї сторони
+export function mergeGroup(fields, appObj, docs, appTime) {
+  const updates = docs.map(() => ({}));
+  const baseAfterPush = docs.map(() => ({}));
+  const patch = {};
+  const conflicts = [];
+  for (const [key, f] of Object.entries(fields)) {
+    const A = f.app(appObj);
+    const states = docs.map((doc) => ({ doc, F: f.foundry(doc), B: get(doc, `flags.${MODULE}.base`)?.[key], t: timeOf(doc) }));
+    const changed = states.filter((s) => s.B !== undefined && s.F !== s.B);
+
+    let value = A;
+    let fromFoundry = false;
+    if (changed.length) {
+      const newest = changed.reduce((a, b) => (b.t > a.t ? b : a));
+      const rivals = changed.some((s) => s.F !== newest.F);
+      const appChanged = newest.B !== A;
+      if (newest.F !== A) {
+        // Апка теж змінилась — новіша зміна перемагає, як у decide().
+        if (appChanged && appTime >= newest.t) value = A;
+        else { value = newest.F; fromFoundry = true; }
+      }
+      if (rivals || (appChanged && newest.F !== A)) conflicts.push(key);
+    }
+
+    if (fromFoundry) {
+      // База — лише коли апка прийме зміну: якщо push відкладуть, наступний цикл
+      // знову побачить зміну у Foundry, а не відкотить її значенням з апки.
+      Object.assign(patch, f.toApp(value));
+      states.forEach((s, i) => {
+        if (s.F !== value) Object.assign(updates[i], f.toFoundry(value, s.doc));
+        baseAfterPush[i][key] = value;
+      });
+    } else {
+      states.forEach((s, i) => {
+        if (s.F !== value) Object.assign(updates[i], f.toFoundry(value, s.doc));
+        if (s.B !== value) updates[i][`flags.${MODULE}.base.${key}`] = value;
+      });
+    }
+  }
+  return {
+    updates: updates.map((u) => (Object.keys(u).length ? u : null)),
+    patch,
+    baseAfterPush,
+    conflicts,
+  };
+}
+
+// Те саме для одного документа (актора меха). Повертає:
 //   update — оновлення для doc.update (значення + нова база в прапорці), або null
 //   patch  — що відправити в апку
 //   baseAfterPush — що дописати в базу, коли апка прийме patch
 //   conflicts — назви полів, де змінились обидві сторони
 export function mergeFields(fields, appObj, doc, appTime) {
-  const base = get(doc, `flags.${MODULE}.base`) || {};
-  const update = {};
-  const patch = {};
-  const newBase = {};
-  const baseAfterPush = {};
-  const conflicts = [];
-  for (const [key, f] of Object.entries(fields)) {
-    const A = f.app(appObj);
-    const F = f.foundry(doc);
-    const d = decide(A, F, base[key], appTime, timeOf(doc));
-    if (d.conflict) conflicts.push(key);
-    if (d.winner === 'same') {
-      if (base[key] !== A) newBase[key] = A;
-    } else if (d.winner === 'app') {
-      Object.assign(update, f.toFoundry(d.value, doc));
-      newBase[key] = d.value;
-    } else {
-      Object.assign(patch, f.toApp(d.value));
-      baseAfterPush[key] = d.value;
-    }
-  }
-  for (const [k, v] of Object.entries(newBase)) update[`flags.${MODULE}.base.${k}`] = v;
-  return { update: Object.keys(update).length ? update : null, patch, baseAfterPush, conflicts };
+  const r = mergeGroup(fields, appObj, [doc], appTime);
+  return { update: r.updates[0], patch: r.patch, baseAfterPush: r.baseAfterPush[0], conflicts: r.conflicts };
 }
 
 // Лімітні системи й зброя меха: предмет у Foundry ↔ лімітний запис меха в апці за назвою
@@ -186,9 +226,22 @@ export function mechMaxPatch(appMech, actor) {
   return out;
 }
 
-// Те, що веде лише апка: позивний, рівень, портрет і арт меха.
+// Ім'я актора, створеного з апки: просто позивний, а коли мехів у пілота кілька — позивний
+// і мех профілю, «AMON (MASTIFF)». Інакше Foundry плутає, якому пілоту належить мех.
+export function profileActorName(p, mechId) {
+  const m = (p.mechs || []).find((x) => x.id === String(mechId));
+  return p.mechs.length > 1 && m ? `${p.callsign} (${m.name})` : p.callsign;
+}
+
+// Те, що веде лише апка: позивний, рівень, портрет і арт меха. Ім'я актора — лише
+// в акторів, створених модулем (прапорець profileMechId): вручну названих не чіпаємо.
 export function pilotIdentityUpdate(p, actor) {
   const u = {};
+  const profileMechId = get(actor, `flags.${MODULE}.profileMechId`);
+  if (profileMechId && p.callsign) {
+    const name = profileActorName(p, profileMechId);
+    if (actor.name !== name) u.name = name;
+  }
   if (p.callsign && get(actor, 'system.callsign') !== p.callsign) u['system.callsign'] = p.callsign;
   if (int(get(actor, 'system.level')) !== int(p.ll)) u['system.level'] = int(p.ll);
   if (p.player && get(actor, 'system.player_name') !== p.player) u['system.player_name'] = p.player;

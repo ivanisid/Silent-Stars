@@ -16,10 +16,12 @@ import {
 } from '../repair';
 import { Menu, Msg, Panel, Track, useConfirm } from '../../components/kit.jsx';
 import ArtSlot from './ArtSlot.jsx';
+import { isMechNameTaken } from '../compconImport';
 
 export default function MechsPanel({ state, dispatch, mechArt = {}, canEditArt, onUploadMechArt, onRemoveArt }) {
   const d = state.mechDraft;
   const [ask, dialog] = useConfirm();
+  const nameTaken = isMechNameTaken(state.mechs, d.name);
 
   return (
     <Panel title="МЕХИ" sub={state.mechs.length}>
@@ -49,8 +51,9 @@ export default function MechsPanel({ state, dispatch, mechArt = {}, canEditArt, 
           <input className="ss-input" style={{ height: 30, fontSize: 12 }} type="text" value={d.frame || ''} onChange={(e) => dispatch({ type: 'SET_MECH_DRAFT_FIELD', field: 'frame', value: e.target.value })} placeholder="Фрейм (Tortuga)" />
           <input className="ss-input" style={{ height: 30, fontSize: 12 }} type="number" value={d.hpMax} onChange={(e) => dispatch({ type: 'SET_MECH_DRAFT_FIELD', field: 'hpMax', value: e.target.value })} placeholder="HP" />
           <input className="ss-input" style={{ height: 30, fontSize: 12 }} type="number" value={d.repairMax} onChange={(e) => dispatch({ type: 'SET_MECH_DRAFT_FIELD', field: 'repairMax', value: e.target.value })} placeholder="Рем." />
-          <button className="btn" type="button" disabled={!d.name.trim()} onClick={() => dispatch({ type: 'ADD_MECH' })}>+ МЕХ</button>
+          <button className="btn" type="button" disabled={!d.name.trim() || nameTaken} onClick={() => dispatch({ type: 'ADD_MECH' })}>+ МЕХ</button>
         </div>
+        {nameTaken && <div className="error-box">Мех з назвою «{d.name.trim()}» уже є. Назви мехів мають бути різні.</div>}
       </div>
     </Panel>
   );
