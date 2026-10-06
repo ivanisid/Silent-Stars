@@ -226,11 +226,12 @@ export function mechMaxPatch(appMech, actor) {
   return out;
 }
 
-// Ім'я актора, створеного з апки: просто позивний, а коли мехів у пілота кілька — позивний
-// і мех профілю, «AMON (MASTIFF)». Інакше Foundry плутає, якому пілоту належить мех.
+// Ім'я актора, створеного з апки: ім'я пілота, а коли мехів у пілота кілька — ім'я і мех
+// профілю, «Amon (MASTIFF)». Інакше Foundry плутає, якому пілоту належить мех.
 export function profileActorName(p, mechId) {
+  const name = p.name || p.callsign;
   const m = (p.mechs || []).find((x) => x.id === String(mechId));
-  return p.mechs.length > 1 && m ? `${p.callsign} (${m.name})` : p.callsign;
+  return p.mechs.length > 1 && m ? `${name} (${m.name})` : name;
 }
 
 // Те, що веде лише апка: позивний, рівень, портрет і арт меха. Ім'я актора — лише
@@ -238,7 +239,7 @@ export function profileActorName(p, mechId) {
 export function pilotIdentityUpdate(p, actor) {
   const u = {};
   const profileMechId = get(actor, `flags.${MODULE}.profileMechId`);
-  if (profileMechId && p.callsign) {
+  if (profileMechId && (p.name || p.callsign)) {
     const name = profileActorName(p, profileMechId);
     if (actor.name !== name) u.name = name;
   }

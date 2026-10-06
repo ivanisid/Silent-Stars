@@ -147,21 +147,25 @@ test('група: новий актор без бази бере значенн�
 
 // ----- Імена акторів, створених з апки -----
 
-const twoMechs = { callsign: 'AMON', mechs: [{ id: '1', name: 'MASTIFF' }, { id: '2', name: 'BLACKBEARD' }] };
+const twoMechs = { name: 'Amon', callsign: 'AMON', mechs: [{ id: '1', name: 'MASTIFF' }, { id: '2', name: 'BLACKBEARD' }] };
 
-test("ім'я: один мех — просто позивний", () => {
-  assert.equal(profileActorName({ callsign: 'AMON', mechs: [{ id: '1', name: 'MASTIFF' }] }, '1'), 'AMON');
+test("ім'я: один мех — просто ім'я пілота", () => {
+  assert.equal(profileActorName({ name: 'Amon', callsign: 'AMON', mechs: [{ id: '1', name: 'MASTIFF' }] }, '1'), 'Amon');
 });
 
-test("ім'я: кілька мехів — позивний і мех профілю", () => {
-  assert.equal(profileActorName(twoMechs, '2'), 'AMON (BLACKBEARD)');
+test("ім'я: кілька мехів — ім'я пілота і мех профілю", () => {
+  assert.equal(profileActorName(twoMechs, '2'), 'Amon (BLACKBEARD)');
+});
+
+test("ім'я: без імені — позивний", () => {
+  assert.equal(profileActorName({ name: '', callsign: 'AMON', mechs: [] }, '1'), 'AMON');
 });
 
 test("ім'я: актора без profileMechId не перейменовуємо", () => {
   const actor = { name: 'Amon Ra', system: { callsign: 'AMON', level: 2 }, flags: {} };
   assert.equal(pilotIdentityUpdate({ ...twoMechs, ll: 2 }, actor).name, undefined);
   const created = { ...actor, flags: { [MODULE]: { profileMechId: '1' } } };
-  assert.equal(pilotIdentityUpdate({ ...twoMechs, ll: 2 }, created).name, 'AMON (MASTIFF)');
+  assert.equal(pilotIdentityUpdate({ ...twoMechs, ll: 2 }, created).name, 'Amon (MASTIFF)');
 });
 
 console.log(`\n${n} тестів пройдено`);
