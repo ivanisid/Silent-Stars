@@ -12,7 +12,7 @@
 
 import {
   MODULE, PILOT_FIELDS, MECH_FIELDS, get, norm,
-  mergeFields, mergeGroup, mergeLimited, mechMaxPatch, pilotIdentityUpdate, artUpdate,
+  mergeFields, mergeGroup, mergeLimited, mergeDestroyed, combineItemUpdates, mechMaxPatch, pilotIdentityUpdate, artUpdate,
   findAppPilotFor, findAppMechFor, profileActorName, matchGroup, suggestActors, resolveLinks, pendingMechs,
 } from './sync.js';
 
@@ -211,10 +211,13 @@ export async function syncNow({ quiet = true } = {}) {
         if (Object.keys(update).length) await actor.update(update, SYNC_OPTION);
 
         const lim = mergeLimited(m, actor.items.contents, appTime);
-        if (lim.itemUpdates.length) await actor.updateEmbeddedDocuments('Item', lim.itemUpdates, SYNC_OPTION);
+        const des = mergeDestroyed(m, actor.items.contents, appTime);
+        const itemUpdates = combineItemUpdates(lim.itemUpdates, des.itemUpdates);
+        if (itemUpdates.length) await actor.updateEmbeddedDocuments('Item', itemUpdates, SYNC_OPTION);
 
         const mechPatch = { ...mechMaxPatch(m, actor), ...r.patch };
         if (Object.keys(lim.patch).length) mechPatch.limited = lim.patch;
+        if (Object.keys(des.patch).length) mechPatch.destroyed = des.patch;
         if (Object.keys(mechPatch).length) {
           const push = pushFor(p);
           push.mechs[m.id] = mechPatch;
@@ -222,8 +225,11 @@ export async function syncNow({ quiet = true } = {}) {
           for (const { item, value } of lim.baseAfterPush) {
             push.after.push([actor.name, () => item.update({ [`flags.${MODULE}.base`]: value }, SYNC_OPTION)]);
           }
+          for (const { item, value } of des.baseAfterPush) {
+            push.after.push([actor.name, () => item.update({ [`flags.${MODULE}.baseDestroyed`]: value }, SYNC_OPTION)]);
+          }
         }
-        conflicts.push(...[...r.conflicts, ...lim.conflicts].map((c) => `${p.callsign} / ${m.name}: ${c}`));
+        conflicts.push(...[...r.conflicts, ...lim.conflicts, ...des.conflicts].map((c) => `${p.callsign} / ${m.name}: ${c}`));
       });
     }
 

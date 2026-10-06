@@ -30,6 +30,12 @@ export function mergeFoundryState(local, remote) {
       const rl = l.max != null && rItems.get(key(l));
       return rl ? { ...l, current: rl.current, max: rl.max } : l;
     });
+    // Позначка «знищено» — для всієї зброї й систем.
+    const rAll = new Map((r.items || r.limited || []).map((l) => [key(l), l]));
+    next.items = next.items.map((l) => {
+      const rl = rAll.get(key(l));
+      return rl && rl.destroyed !== undefined && !!rl.destroyed !== !!l.destroyed ? { ...l, destroyed: !!rl.destroyed } : l;
+    });
     return next;
   });
 
@@ -41,6 +47,13 @@ export function mergeFoundryState(local, remote) {
     ...local,
     hp: { ...local.hp, current: remote.hp?.current ?? local.hp?.current },
     stress: remote.stress ?? local.stress,
+    // Бонд: XP, галочки ідеалів і обраний мінорний ідеал — те, що синхронізує Foundry.
+    bond: {
+      ...local.bond,
+      xp: remote.bond?.xp ?? local.bond?.xp,
+      checks: remote.bond?.checks ?? local.bond?.checks,
+      pick: remote.bond?.pick ?? local.bond?.pick,
+    },
     mechs,
     actionLog: [...fresh, ...localLog].slice(0, 300),
     foundrySyncAt: remote.foundrySyncAt,

@@ -23,10 +23,13 @@
 //     → { results: [{ pilotId, ok, updatedAt?, conflict?, error? }] }
 //
 // Поля у push — в одиницях апки (не Foundry):
-//   pilot: { hpCurrent?, stress? }
+//   pilot: { hpCurrent?, stress?, bondXp?, bondMajors?: [b, b, b], bondMinor?, bondPick? }
+//     (bondXp — загальний XP бонду; bondMajors/bondMinor — галочки ідеалів, state.bond.checks[0..3];
+//      bondPick — номер обраного мінорного ідеалу)
 //   mechs: { [mechId]: { hpCurrent?, hpMax?, repairCurrent?, repairMax?, structureFilled?,
 //                        reactorFilled?, overcharge?, corePower?,
-//                        limited?: { [назва системи в нижньому регістрі]: { current?, max? } } } }
+//                        limited?: { [назва системи в нижньому регістрі]: { current?, max? } },
+//                        destroyed?: { [назва зброї/системи в нижньому регістрі]: true | false } } }
 //   (limited накладається на лімітні записи mech.items, або mech.limited у старій формі)
 //
 // Доступ: заголовок x-foundry-key має збігатися з секретом foundry_sync_key у vault.
@@ -81,6 +84,8 @@ function toSyncMech(m: any, art: Art, pilotId: string, profiles: Set<string>) {
     // max), старіша — mech.limited; рядки, які ще не пересохранялись з апки, мають саме її.
     limited: itemsOf(m).filter((l: any) => l.max != null)
       .map((l: any) => ({ name: l.name || '', current: num(l.current), max: num(l.max) })),
+    // Уся зброя й системи — для позначки «знищено» (зіставлення за назвою).
+    items: itemsOf(m).map((l: any) => ({ name: l.name || '', destroyed: !!l.destroyed })),
     art: a?.path || null,
     artId: a?.id || null,
     // Є файл COMP/CON — з нього модуль може створити актора.
@@ -102,6 +107,10 @@ function toSyncPilot(p: any, nicks: Map<string, string>, art: Art, profiles: Set
     hpMax: num(s.hp?.max),
     stress: num(s.stress),
     stressMax: num(s.stressMax ?? 8),
+    bondXp: num(s.bond?.xp),
+    bondChecks: Array.from({ length: 5 }, (_, i) => !!s.bond?.checks?.[i]),
+    bondPick: num(s.bond?.pick),
+    minorIdeals: Array.isArray(s.bond?.minorIdeals) ? s.bond.minorIdeals : [],
     portrait: portrait?.path || null,
     portraitId: portrait?.id || null,
     mechs: (s.mechs || []).map((m: any) => toSyncMech(m, art, p.id, profiles)),
@@ -186,6 +195,37 @@ function applyPatch(state: any, u: any) {
     set('стрес', next.stress, v);
     next.stress = v;
   }
+  // Бонд: XP і галочки ідеалів (checks[0..2] — major, checks[3] — мінорний; checks[4] —
+  // «Boon XP» — лише в апці), обраний мінорний ідеал.
+  const bondKeys = ['bondXp', 'bondMajors', 'bondMinor', 'bondPick'];
+  if (bondKeys.some((k) => has(u.pilot, k))) {
+    const bond = { ...(next.bond || {}) };
+    const checks = Array.from({ length: 5 }, (_, i) => !!bond.checks?.[i]);
+    if (has(u.pilot, 'bondXp')) {
+      const v = Math.max(0, num(u.pilot.bondXp));
+      set('XP бонду', bond.xp ?? 0, v);
+      bond.xp = v;
+    }
+    if (Array.isArray(u.pilot.bondMajors)) {
+      [0, 1, 2].forEach((i) => {
+        const v = !!u.pilot.bondMajors[i];
+        if (v !== checks[i]) changes.push(`бонд: ідеал ${i + 1} ${v ? 'відмічено' : 'знято'}`);
+        checks[i] = v;
+      });
+    }
+    if (has(u.pilot, 'bondMinor')) {
+      const v = !!u.pilot.bondMinor;
+      if (v !== checks[3]) changes.push(`бонд: мінорний ідеал ${v ? 'відмічено' : 'знято'}`);
+      checks[3] = v;
+    }
+    if (has(u.pilot, 'bondPick')) {
+      const v = Math.max(0, num(u.pilot.bondPick));
+      if (v !== num(bond.pick)) changes.push(`бонд: обрано мінорний ідеал ${v + 1}`);
+      bond.pick = v;
+    }
+    bond.checks = checks;
+    next.bond = bond;
+  }
 
   for (const [mechId, mp] of Object.entries<any>(u.mechs || {})) {
     const idx = next.mechs.findIndex((m: any) => String(m.id) === mechId);
@@ -214,6 +254,15 @@ function applyPatch(state: any, u: any) {
         if (has(lp, 'max')) { const v = Math.max(0, num(lp.max)); set(`${name} / ${l.name}: макс. зарядів`, out.max, v); out.max = v; }
         if (has(lp, 'current')) { const v = clamp(num(lp.current), 0, out.max ?? 99); set(`${name} / ${l.name}: заряди`, out.current, v); out.current = v; }
         return out;
+      });
+    }
+    if (mp.destroyed && typeof mp.destroyed === 'object') {
+      m[itemsKey(m)] = itemsOf(m).map((l: any) => {
+        const key = (l.name || '').trim().toLowerCase();
+        if (!has(mp.destroyed, key)) return l;
+        const v = !!mp.destroyed[key];
+        if (v !== !!l.destroyed) changes.push(`${name} / ${l.name}: ${v ? 'знищено' : 'відновлено'}`);
+        return { ...l, destroyed: v };
       });
     }
     next.mechs[idx] = m;

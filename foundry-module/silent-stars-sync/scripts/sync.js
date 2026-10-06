@@ -13,6 +13,7 @@
 
 export const MODULE = 'silent-stars-sync';
 export const APP_BOXES = 4;
+export const BOND_CYCLE = 8; // XP бонду на одну силу
 
 export function get(obj, path) {
   return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
@@ -43,6 +44,39 @@ export const PILOT_FIELDS = {
     foundry: (a) => int(get(a, 'system.bond_state.stress.value')),
     toFoundry: (v) => ({ 'system.bond_state.stress.value': v }),
     toApp: (v) => ({ stress: v }),
+  },
+  // Bond XP. В апці XP загальний (кожні 8 — сила бонду), у Foundry — 0…8 у поточному циклі.
+  // Спільна одиниця — позиція в циклі; 8 у Foundry закриває цикл в апці, як TALLY XP.
+  bondXp: {
+    app: (p) => int(p.bondXp) % BOND_CYCLE,
+    foundry: (a) => clamp(int(get(a, 'system.bond_state.xp.value')), 0, BOND_CYCLE),
+    toFoundry: (v) => ({ 'system.bond_state.xp.value': v }),
+    toApp: (v, p) => ({ bondXp: Math.floor(int(p.bondXp) / BOND_CYCLE) * BOND_CYCLE + v }),
+  },
+  // Галочки трьох major ideals — одним полем (бітова маска): у Foundry це один масив, і
+  // окремі поля перезаписували б зміни одне одного.
+  bondMajors: {
+    app: (p) => [0, 1, 2].reduce((m, i) => m | (p.bondChecks?.[i] ? 1 << i : 0), 0),
+    foundry: (a) => [0, 1, 2].reduce((m, i) => m | (get(a, 'system.bond_state.xp_checklist.major_ideals')?.[i] ? 1 << i : 0), 0),
+    toFoundry: (v) => ({ 'system.bond_state.xp_checklist.major_ideals': [0, 1, 2].map((i) => !!(v & (1 << i))) }),
+    toApp: (v) => ({ bondMajors: [0, 1, 2].map((i) => !!(v & (1 << i))) }),
+  },
+  bondMinor: {
+    app: (p) => (p.bondChecks?.[3] ? 1 : 0),
+    foundry: (a) => (get(a, 'system.bond_state.xp_checklist.minor_ideal') ? 1 : 0),
+    toFoundry: (v) => ({ 'system.bond_state.xp_checklist.minor_ideal': !!v }),
+    toApp: (v) => ({ bondMinor: !!v }),
+  },
+  // Обраний мінорний ідеал: в апці — номер у списку бонду, у Foundry — текст. Текст, якого
+  // немає в списку апки, в апку не йде.
+  bondMinorIdeal: {
+    app: (p) => String(p.minorIdeals?.[int(p.bondPick)] ?? ''),
+    foundry: (a) => String(get(a, 'system.bond_state.minor_ideal') ?? ''),
+    toFoundry: (v) => ({ 'system.bond_state.minor_ideal': v }),
+    toApp: (v, p) => {
+      const i = (p.minorIdeals || []).indexOf(v);
+      return i >= 0 ? { bondPick: i } : {};
+    },
   },
 };
 
@@ -150,7 +184,7 @@ export function mergeGroup(fields, appObj, docs, appTime) {
     if (fromFoundry) {
       // База — лише коли апка прийме зміну: якщо push відкладуть, наступний цикл
       // знову побачить зміну у Foundry, а не відкотить її значенням з апки.
-      Object.assign(patch, f.toApp(value));
+      Object.assign(patch, f.toApp(value, appObj));
       states.forEach((s, i) => {
         if (s.F !== value) Object.assign(updates[i], f.toFoundry(value, s.doc));
         baseAfterPush[i][key] = value;
@@ -214,6 +248,46 @@ export function mergeLimited(appMech, items, appTime) {
     }
   }
   return { itemUpdates, patch, baseAfterPush, conflicts };
+}
+
+// Знищена зброя й системи меха: предмет Foundry (mech_weapon / mech_system, system.destroyed)
+// ↔ предмет меха в апці (items[].destroyed) за назвою. База — окремий прапорець предмета
+// baseDestroyed (base вже зайнятий зарядами). Повертає оновлення предметів, патч для апки
+// ({ [назва]: так/ні }) і бази.
+const DESTROYABLE = new Set(['mech_weapon', 'mech_system']);
+export function mergeDestroyed(appMech, items, appTime) {
+  const byName = new Map((appMech.items || []).map((l) => [norm(l.name), l]));
+  const itemUpdates = [];
+  const patch = {};
+  const baseAfterPush = []; // [{ item, value }]
+  const conflicts = [];
+  for (const item of items) {
+    if (!DESTROYABLE.has(item.type)) continue;
+    const name = norm(item.name);
+    const l = byName.get(name);
+    if (!l) continue;
+    const A = l.destroyed ? 1 : 0;
+    const F = get(item, 'system.destroyed') ? 1 : 0;
+    const B = get(item, `flags.${MODULE}.baseDestroyed`);
+    const d = decide(A, F, B, appTime, timeOf(item));
+    if (d.conflict) conflicts.push(item.name);
+    if (d.winner === 'same') {
+      if (B !== A) itemUpdates.push({ _id: item.id, [`flags.${MODULE}.baseDestroyed`]: A });
+    } else if (d.winner === 'app') {
+      itemUpdates.push({ _id: item.id, 'system.destroyed': !!A, [`flags.${MODULE}.baseDestroyed`]: A });
+    } else {
+      patch[name] = !!F;
+      baseAfterPush.push({ item, value: F });
+    }
+  }
+  return { itemUpdates, patch, baseAfterPush, conflicts };
+}
+
+// Оновлення предметів для updateEmbeddedDocuments: кілька змін одного предмета — в одне.
+export function combineItemUpdates(...lists) {
+  const byId = new Map();
+  for (const u of lists.flat()) byId.set(u._id, { ...(byId.get(u._id) || {}), ...u });
+  return [...byId.values()];
 }
 
 // Максимуми ХП і ремкомплектів: Foundry рахує їх з повного лоадауту, тож іде лише в апку.
