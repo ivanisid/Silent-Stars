@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { RESERVES, RESERVE_CATEGORIES, RESERVE_RANK_PR } from '../pilot/reserves';
+import { RESERVES, RESERVE_CATEGORIES } from '../pilot/reserves';
 import { RARE_RANKS, VAULT_CAP_BASE, useRareCatalog, loadRareCatalog } from '../pilot/rareReserves';
 import { Menu, Msg, PageHeader, PageShell } from '../components/kit.jsx';
 import ReserveIcon, { ReserveGlyph, hasReserveIcon } from '../pilot/components/ReserveIcon.jsx';
@@ -11,8 +11,8 @@ import { RareReserveEditor, TagManager } from './RareReserveEditor.jsx';
 // Довідник резервів — тільки перегляд, нічого не купується. Дві категорії:
 //
 //   ЗВИЧАЙНІ — ті, що є в магазині за PR і знаходяться за даунтайм (Get Creative).
-//   РІДКІСНІ — ті, що не купуються й не знаходяться: їх видають як частину нагороди
-//              за місію, і вони лягають на склад у чарнику. Їхній каталог живе в базі:
+//   РІДКІСНІ — не знаходяться за даунтайм; ціну в PR задає ГМ. Отримані лягають на
+//              склад у чарнику. Їхній каталог живе в базі:
 //              ГМ тут же редагує, додає й приховує резерви та керує тегами (фракціями).
 //
 // Купівля звичайних лишилась у магазині: тут саме довідник, щоб не було двох місць,
@@ -103,16 +103,15 @@ function CommonList({ q }) {
   return (
     <>
       <Note>
-        Купуються за PR у магазині й здобуваються за даунтайм-дію Get Creative. Ціна
-        залежить від рангу: {RESERVE_RANK_PR[1]} / {RESERVE_RANK_PR[2]} / {RESERVE_RANK_PR[3]} PR.
-        Тут лише довідник — витрата PR лишилась у магазині.
+        Купуються в магазині й здобуваються за даунтайм-дію Get Creative. Тут лише
+        довідник — витрата PR лишилась у магазині.
       </Note>
 
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <Chip active={rank === 0} onClick={() => { setRank(0); setCategory('all'); }}>УСІ РАНГИ</Chip>
         {[1, 2, 3].map((rk) => (
           <Chip key={rk} active={rank === rk} onClick={() => { setRank(rk); setCategory('all'); }}>
-            РАНГ {rk} · {RESERVE_RANK_PR[rk]} PR
+            РАНГ {rk}
           </Chip>
         ))}
       </div>
@@ -142,7 +141,6 @@ function CommonList({ q }) {
               name={r.name}
               meta={`РАНГ ${r.rank} · ${cat}`}
               desc={r.desc}
-              price={`${RESERVE_RANK_PR[r.rank]} PR`}
             />
           );
         })}
@@ -193,8 +191,8 @@ function RareList({ q }) {
   return (
     <>
       <Note>
-        Не купуються й не знаходяться за даунтайм — їх видають як частину нагороди за
-        місію. Отриманий резерв записують на склад у чарнику: він вміщує {VAULT_CAP_BASE}{' '}
+        Не знаходяться за даунтайм. Ціну в PR задає ГМ для кожного резерву. Отриманий
+        резерв записують на склад у чарнику: він вміщує {VAULT_CAP_BASE}{' '}
         і нічого не витрачає, доки резерв лежить. Згорає лише те, що взяли на місію.
         Теги фракцій допомагають перед грою відібрати резерви, доступні від замовника.
       </Note>
@@ -242,7 +240,7 @@ function RareList({ q }) {
               price={
                 isGm ? (
                   <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-                    НАГОРОДА
+                    {r.pricePr} PR
                     <Menu
                       small
                       items={[
@@ -253,7 +251,7 @@ function RareList({ q }) {
                       ]}
                     />
                   </span>
-                ) : 'НАГОРОДА'
+                ) : `${r.pricePr} PR`
               }
             />
           ))}

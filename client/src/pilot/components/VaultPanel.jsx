@@ -4,7 +4,7 @@ import { rareReserveByKey, anyReserveByKey, useRareCatalog, RARE_RANKS } from '.
 import { TagFilter, TagPills, matchTags } from './ReserveTags.jsx';
 import { derivePilotView } from '../derive';
 import ReserveIcon from './ReserveIcon.jsx';
-import { RESERVES, RESERVE_CATEGORIES, RESERVE_RANK_PR, reserveByKey } from '../reserves';
+import { RESERVES, RESERVE_CATEGORIES, reserveByKey } from '../reserves';
 
 // Склад рідкісних резервів. Не магазин: тут нічого не купується й не витрачається —
 // гравець записує те, що видали як частину нагороди за місію. На складі резерв лежить
@@ -88,7 +88,7 @@ export default function VaultPanel({ state, dispatch }) {
             ))}
           </div>
           <div className="ss-note" style={{ marginTop: 'auto' }}>
-            На складі резерв не згорає. Рідкісні резерви не купуються — їх видають як нагороду за місію.
+            На складі резерв не згорає. Ціну рідкісного резерву в PR задає ГМ — її видно в довіднику.
           </div>
         </div>
 
@@ -185,7 +185,7 @@ function PickModal({ initialTab = 'rare', vaultFull, onClose, onPick }) {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {ranks.map((rk) => (
               <button key={rk} type="button" className={`ss-chip${rank === rk ? ' on' : ''}`} onClick={() => setRank(rk)}>
-                РАНГ {rk}{rare ? '' : ` · ${RESERVE_RANK_PR[rk]} PR`}
+                РАНГ {rk}
               </button>
             ))}
             <input
@@ -243,7 +243,7 @@ function PickModal({ initialTab = 'rare', vaultFull, onClose, onPick }) {
                   <div style={{ fontSize: 12, color: 'var(--text-bright)' }}>{r.name}</div>
                   <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginTop: 3 }}>
                     {rare
-                      ? `${r.action}${r.traits ? ` · ${r.traits}` : ''}`
+                      ? `${r.pricePr} PR · ${r.action}${r.traits ? ` · ${r.traits}` : ''}`
                       : RESERVE_CATEGORIES.find((c) => c.key === r.category)?.label || r.category}
                   </div>
                   {rare && r.tagIds.length > 0 && (
