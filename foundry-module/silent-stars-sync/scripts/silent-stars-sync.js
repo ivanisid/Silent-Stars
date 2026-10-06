@@ -13,7 +13,7 @@
 import {
   MODULE, PILOT_FIELDS, MECH_FIELDS, get, norm,
   mergeFields, mergeGroup, mergeLimited, mechMaxPatch, pilotIdentityUpdate, artUpdate,
-  findAppPilotFor, findAppMechFor, profileActorName,
+  findAppPilotFor, findAppMechFor, profileActorName, groupActors, matchGroup,
 } from './sync.js';
 
 const DEFAULT_URL = 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/foundry-sync';
@@ -33,15 +33,31 @@ const flag = (doc, k) => doc.getFlag(MODULE, k);
 
 // ----- Запити до функції foundry-sync -----
 
+// fetch кидає TypeError, коли відповіді немає зовсім (з'єднання обірвалось, мережа
+// моргнула) — це не помилка даних, тож пробуємо ще раз. Повтор push безпечний: функція
+// перевіряє updatedAt, і вже застосований push повернеться як conflict.
+class NetworkError extends Error {}
+const RETRY_DELAYS = [2000, 5000];
+
 async function call(body) {
   const url = setting('url');
   const key = setting('key');
   if (!url || !key) throw new Error('Не вказано адресу функції або ключ синхронізації (налаштування модуля).');
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-foundry-key': key },
-    body: JSON.stringify(body),
-  });
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-foundry-key': key },
+        body: JSON.stringify(body),
+      });
+      break;
+    } catch (err) {
+      if (!(err instanceof TypeError)) throw err;
+      if (attempt >= RETRY_DELAYS.length) throw new NetworkError(`немає зв'язку з апкою (${err.message})`);
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+    }
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
@@ -222,7 +238,9 @@ export async function syncNow({ quiet = true } = {}) {
     if (!quiet) ui.notifications.info(`Silent Stars: синхронізовано. ${lastStatus}`);
   } catch (err) {
     lastStatus = `${new Date().toLocaleTimeString()} — помилка: ${err.message}`;
-    console.error(`${MODULE} |`, err);
+    // Мережевий збій після повторів — попередження: наступний цикл таймера спробує знову.
+    if (err instanceof NetworkError) console.warn(`${MODULE} | ${err.message}, спробую в наступному циклі`);
+    else console.error(`${MODULE} |`, err);
     if (!quiet) ui.notifications.error(`Silent Stars: ${err.message}`);
   } finally {
     running = false;
@@ -331,52 +349,116 @@ class LinksApp extends ApplicationV2 {
     return {};
   }
 
+  query = '';
+
   async _renderHTML() {
     const esc = foundry.utils.escapeHTML ?? ((s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`));
     const div = document.createElement('div');
-    div.style.padding = '8px';
+    div.style.cssText = 'display:flex;flex-direction:column;padding:8px;gap:6px';
     if (this.error) {
       div.innerHTML = `<p style="color:var(--color-level-error,#c00)">${esc(this.error)}</p>`;
       return div;
     }
-    const pilots = this.pilots || [];
+    const byCallsign = (a, b) => String(a.callsign).localeCompare(String(b.callsign), 'en', { sensitivity: 'base', numeric: true });
+    const pilots = [...(this.pilots || [])].sort(byCallsign);
+    const none = `<option value="">— не зв'язано —</option>`;
     const pilotOpts = (sel) =>
-      `<option value="">— не зв'язано —</option>` +
-      pilots.map((p) => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.callsign)} (${esc(p.player || p.name)})</option>`).join('');
-    const mechOpts = (sel) =>
-      `<option value="">— не зв'язано —</option>` +
-      pilots.flatMap((p) => p.mechs.map((m) => {
-        const v = `${p.id}|${m.id}`;
-        return `<option value="${v}" ${v === sel ? 'selected' : ''}>${esc(p.callsign)} / ${esc(m.name)}${m.frame ? ` (${esc(m.frame)})` : ''}</option>`;
-      })).join('');
+      none + pilots.map((p) => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.callsign)} (${esc(p.player || p.name)})</option>`).join('');
+    // Мехи згруповані за пілотами апки; мехи пілота, з яким зв'язаний власник цього меха
+    // у Foundry, — першими, бо майже завжди шукають саме серед них.
+    const mechOpts = (sel, ownerAppId) => {
+      const ordered = [...pilots.filter((p) => p.id === ownerAppId), ...pilots.filter((p) => p.id !== ownerAppId)];
+      return none + ordered.filter((p) => p.mechs.length).map((p) =>
+        `<optgroup label="${esc(p.callsign)}">` + p.mechs.map((m) => {
+          const v = `${p.id}|${m.id}`;
+          return `<option value="${v}" ${v === sel ? 'selected' : ''}>${esc(p.callsign)} / ${esc(m.name)}${m.frame ? ` (${esc(m.frame)})` : ''}</option>`;
+        }).join('') + '</optgroup>').join('');
+    };
 
-    // Мехи, для яких гравець завантажив файл COMP/CON; уже зв'язані з актором — позначені.
+    // «Створити з апки»: мехи, для яких гравець завантажив файл COMP/CON, — під своїм
+    // пілотом, пілоти й мехи за алфавітом; уже зв'язані з актором позначені.
     const linkedMechIds = new Set(mechActors().map((a) => flag(a, 'mechId')).filter(Boolean));
-    const createOpts = pilots.flatMap((p) => p.mechs.filter((m) => m.hasProfile).map((m) =>
-      `<option value="${p.id}|${m.id}">${esc(profileActorName(p, m.id))} — ${esc(m.name)}${m.frame ? ` (${esc(m.frame)})` : ''}${linkedMechIds.has(m.id) ? " · уже є" : ''}</option>`,
-    )).join('');
+    const abc = (a, b) => String(a).localeCompare(String(b), 'en', { sensitivity: 'base', numeric: true });
+    const createOpts = [...pilots].sort((a, b) => abc(a.name || a.callsign, b.name || b.callsign))
+      .filter((p) => p.mechs.some((m) => m.hasProfile))
+      .map((p) => `<optgroup label="${esc(p.name || p.callsign)}${p.name && p.name !== p.callsign ? ` (${esc(p.callsign)})` : ''}">` +
+        p.mechs.filter((m) => m.hasProfile).sort((a, b) => abc(a.name, b.name)).map((m) =>
+          `<option value="${p.id}|${m.id}">${esc(profileActorName(p, m.id))} — ${esc(m.name)}${m.frame ? ` (${esc(m.frame)})` : ''}${linkedMechIds.has(m.id) ? ' · уже є' : ''}</option>`,
+        ).join('') + '</optgroup>')
+      .join('');
 
-    const row = (actor, select) =>
-      `<tr><td style="padding:2px 6px"><img src="${esc(actor.img)}" width="28" height="28" style="vertical-align:middle;border:none"> ${esc(actor.name)}</td><td>${select}</td></tr>`;
+    const cell = (actor, indent) =>
+      `<td style="padding:2px 6px${indent ? ';padding-left:34px' : ''}">` +
+      `${indent ? '<i class="fas fa-turn-up fa-rotate-90" style="opacity:.5;margin-right:6px"></i>' : ''}` +
+      `<img src="${esc(actor.img)}" width="28" height="28" style="vertical-align:middle;border:none"> ${esc(actor.name)}</td>`;
+    const pilotRow = (a) =>
+      `<tr data-row data-name="${esc(a.name)}">${cell(a, false)}<td><select name="pilot.${a.id}">${pilotOpts(flag(a, 'pilotId'))}</select></td></tr>`;
+    const mechRow = (a, ownerAppId, indent) => {
+      const sel = flag(a, 'mechId') ? `${flag(a, 'pilotId')}|${flag(a, 'mechId')}` : '';
+      return `<tr data-row data-name="${esc(a.name)}">${cell(a, indent)}<td><select name="mech.${a.id}">${mechOpts(sel, ownerAppId)}</select></td></tr>`;
+    };
 
+    const { groups, orphans } = groupActors(pilotActors(), mechActors());
+    const body = groups.map((g) =>
+      `<tbody data-group style="border-top:1px solid rgba(127,127,127,.25)">` +
+      pilotRow(g.pilot) + g.mechs.map((m) => mechRow(m, flag(g.pilot, 'pilotId'), true)).join('') +
+      '</tbody>').join('');
+    // Мехи без пілота: кожен — окрема «група» з одного рядка, щоб пошук ховав їх поштучно.
+    const lonely = orphans.map((m) => `<tbody data-group data-solo>${mechRow(m, null, false)}</tbody>`).join('');
+
+    // Список має власну межу висоти (60% екрана) і прокручується сам: з десятками акторів
+    // вікно інакше виростає за екран, а висоту вікна Foundry рахує по-своєму.
     div.innerHTML = `
-      <p>Статус: ${esc(lastStatus)}</p>
-      <h3>Створити з апки</h3>
+      <p style="margin:0">Статус: ${esc(lastStatus)}</p>
+      <h3 style="margin:0">Створити з апки</h3>
       <div style="display:flex;gap:8px;align-items:center">
         <select name="create" style="flex:1">${createOpts || '<option value="">Немає мехів з файлом COMP/CON</option>'}</select>
-        <button type="button" data-action="createActor" ${createOpts ? '' : 'disabled'}><i class="fas fa-user-plus"></i> Створити</button>
+        <button type="button" data-action="createActor" style="flex:0 0 auto;width:auto" ${createOpts ? '' : 'disabled'}><i class="fas fa-user-plus"></i> Створити</button>
       </div>
-      <p style="font-size:12px;opacity:.8">Пілот і мех з файлу, який гравець завантажив в апку, і одразу зв'язок з апкою. Фрейм, зброя й системи беруться з компендіумів світу.</p>
-      <h3>Пілоти</h3>
-      <table>${pilotActors().map((a) => row(a, `<select name="pilot.${a.id}">${pilotOpts(flag(a, 'pilotId'))}</select>`)).join('') || '<tr><td>Немає акторів-пілотів</td></tr>'}</table>
-      <h3>Мехи</h3>
-      <table>${mechActors().map((a) => row(a, `<select name="mech.${a.id}">${mechOpts(flag(a, 'mechId') ? `${flag(a, 'pilotId')}|${flag(a, 'mechId')}` : '')}</select>`)).join('') || '<tr><td>Немає акторів-мехів</td></tr>'}</table>
-      <p style="font-size:12px;opacity:.8">Після зміни зв'язку перша синхронізація бере значення з апки.</p>
+      <p style="font-size:12px;opacity:.8;margin:0">Пілот і мех з файлу, який гравець завантажив в апку, і одразу зв'язок з апкою. Фрейм, зброя й системи беруться з компендіумів світу.</p>
+      <h3 style="margin:0">Зв'язки</h3>
+      <input type="search" data-search placeholder="Пошук: пілот, мех або позивний в апці…" value="${esc(this.query)}">
+      <div style="max-height:60vh;overflow-y:auto;padding-right:4px">
+        <table style="margin:0">${body || '<tbody><tr><td>Немає акторів-пілотів</td></tr></tbody>'}</table>
+        ${lonely ? `<h3 data-solo-title style="margin-top:12px">Мехи без пілота у Foundry</h3><table style="margin:0">${lonely}</table>` : ''}
+        <p data-empty style="display:none;opacity:.7">Нічого не знайдено.</p>
+      </div>
+      <p style="font-size:12px;opacity:.8;margin:0">Після зміни зв'язку перша синхронізація бере значення з апки.</p>
       <footer class="form-footer" style="display:flex;gap:8px">
         <button type="submit"><i class="fas fa-save"></i> Зберегти зв'язки</button>
         <button type="button" data-action="syncNow"><i class="fas fa-sync"></i> Синхронізувати зараз</button>
       </footer>`;
     return div;
+  }
+
+  // Пошук фільтрує вже намальовані рядки, без перемальовування: вибрані, але ще не збережені
+  // зв'язки лишаються на місці. Шукає в імені актора і в підписі вибраного зв'язку.
+  _onRender() {
+    const root = this.element;
+    const input = root.querySelector('[data-search]');
+    if (!input) return;
+    const apply = () => {
+      this.query = input.value;
+      let any = false;
+      let anySolo = false;
+      for (const group of root.querySelectorAll('[data-group]')) {
+        const rows = [...group.querySelectorAll('[data-row]')];
+        const texts = rows.map((r) => `${r.dataset.name} ${r.querySelector('select')?.selectedOptions[0]?.text ?? ''}`);
+        const m = matchGroup(texts, this.query);
+        group.style.display = m.visible ? '' : 'none';
+        rows.forEach((r, i) => { r.style.display = m.rows[i] ? '' : 'none'; });
+        any ||= m.visible;
+        if (group.hasAttribute('data-solo')) anySolo ||= m.visible;
+      }
+      const soloTitle = root.querySelector('[data-solo-title]');
+      if (soloTitle) soloTitle.style.display = anySolo ? '' : 'none';
+      root.querySelector('[data-empty]').style.display = any ? 'none' : '';
+    };
+    input.addEventListener('input', apply);
+    // Enter у полі пошуку не має зберігати форму.
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
+    root.querySelectorAll('select').forEach((s) => s.addEventListener('change', apply));
+    apply();
   }
 
   _replaceHTML(result, content) {

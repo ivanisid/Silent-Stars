@@ -106,15 +106,30 @@ Foundry (клієнт ГМа)                     Supabase
    ```sql
    select decrypted_secret from vault.decrypted_secrets where name = 'foundry_sync_key';
    ```
-2. **Модуль:** скопіювати теку `foundry-module/silent-stars-sync/` у
-   `Data/modules/silent-stars-sync/` на сервері Foundry (наприклад, через File Browser),
-   перезапустити Foundry й увімкнути модуль у світі.
+2. **Модуль:** у Foundry → «Встановити модуль» → поле «URL маніфесту»:
+   ```
+   https://github.com/ivanisid/Silent-Stars/releases/latest/download/module.json
+   ```
+   Потім увімкнути модуль у світі. Оновлення — кнопкою «Перевірити оновлення» на вкладці
+   модулів (і перезапуск Foundry).
+
+   **Випуск нової версії:** підняти `version` у `foundry-module/silent-stars-sync/module.json`
+   і злити в main. Action `.github/workflows/foundry-module.yml` прожене тести, збере модуль
+   (`node foundry-module/build.mjs`) і опублікує реліз `sync-v<версія>` з `module.json` і
+   `silent-stars-sync.zip`. Без нової версії реліз не створюється. `releases/latest` —
+   найновіший реліз репозиторію, тож інших релізів у ньому бути не повинно.
+
+   Версія вписується в імена скриптів: перед Foundry стоїть кеш, який віддавав старий
+   скрипт після заміни файлу. Вручну: `node foundry-module/build.mjs` → вміст
+   `foundry-module/dist/silent-stars-sync/` у `Data/modules/silent-stars-sync/`.
 3. **У Foundry (як ГМ):** Налаштування → Silent Stars Sync → вписати «Ключ синхронізації».
    Ключ зберігається лише в цьому браузері (налаштування `client`): значення
    world-налаштувань отримують усі клієнти, зокрема гравці.
 4. **Зв'язки:** пілоти зв'язуються автоматично за позивним, мехи — за назвою серед мехів
    свого пілота (`system.pilot` меха у Foundry). Перевірити й виправити — кнопка
-   «Відкрити зв'язки» в налаштуваннях модуля; там же «Синхронізувати зараз».
+   «Відкрити зв'язки» в налаштуваннях модуля; там же «Синхронізувати зараз». У вікні
+   пілоти йдуть за алфавітом, під кожним — його мехи; мехи без пілота у Foundry — окремо
+   в кінці. Пошук шукає в іменах акторів і в підписах вибраних зв'язків.
 
 ## Обмеження
 
