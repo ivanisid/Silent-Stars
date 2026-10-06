@@ -375,16 +375,29 @@ class LinksApp extends ApplicationV2 {
         }).join('') + '</optgroup>').join('');
     };
 
-    // «Створити з апки»: мехи, для яких гравець завантажив файл COMP/CON, — під своїм
-    // пілотом, пілоти й мехи за алфавітом; уже зв'язані з актором позначені.
+    // «Створити з апки»: пілоти за алфавітом, під кожним його мехи. Біля меха з файлом
+    // COMP/CON — кнопка «Створити» (з файлу виходить пара актор-пілот + мех); мех, уже
+    // зв'язаний з актором цього світу, позначено; мех без файлу — без кнопки. Пілоти без
+    // жодного файлу не показуються.
     const linkedMechIds = new Set(mechActors().map((a) => flag(a, 'mechId')).filter(Boolean));
     const abc = (a, b) => String(a).localeCompare(String(b), 'en', { sensitivity: 'base', numeric: true });
-    const createOpts = [...pilots].sort((a, b) => abc(a.name || a.callsign, b.name || b.callsign))
+    const createBody = [...pilots].sort((a, b) => abc(a.name || a.callsign, b.name || b.callsign))
       .filter((p) => p.mechs.some((m) => m.hasProfile))
-      .map((p) => `<optgroup label="${esc(p.name || p.callsign)}${p.name && p.name !== p.callsign ? ` (${esc(p.callsign)})` : ''}">` +
-        p.mechs.filter((m) => m.hasProfile).sort((a, b) => abc(a.name, b.name)).map((m) =>
-          `<option value="${p.id}|${m.id}">${esc(profileActorName(p, m.id))} — ${esc(m.name)}${m.frame ? ` (${esc(m.frame)})` : ''}${linkedMechIds.has(m.id) ? ' · уже є' : ''}</option>`,
-        ).join('') + '</optgroup>')
+      .map((p) => {
+        const head = `<tr><td colspan="2" style="padding:6px 6px 2px"><strong>${esc(p.name || p.callsign)}</strong>` +
+          `${p.name && p.name !== p.callsign ? ` <span style="opacity:.6">${esc(p.callsign)}</span>` : ''}</td></tr>`;
+        const rows = [...p.mechs].sort((a, b) => abc(a.name, b.name)).map((m) => {
+          const action = !m.hasProfile
+            ? '<span style="opacity:.5;font-size:12px">немає файлу</span>'
+            : linkedMechIds.has(m.id)
+              ? '<span style="opacity:.7;font-size:12px"><i class="fas fa-check"></i> у Foundry</span>'
+              : `<button type="button" data-action="createActor" data-pilot="${p.id}" data-mech="${m.id}" style="width:auto;line-height:1.6;padding:0 10px"><i class="fas fa-user-plus"></i> Створити</button>`;
+          return `<tr><td style="padding:2px 6px 2px 34px"><i class="fas fa-turn-up fa-rotate-90" style="opacity:.5;margin-right:6px"></i>` +
+            `${esc(m.name)}${m.frame ? ` <span style="opacity:.6">(${esc(m.frame)})</span>` : ''}</td>` +
+            `<td style="text-align:right;white-space:nowrap;padding:2px 6px">${action}</td></tr>`;
+        }).join('');
+        return `<tbody style="border-top:1px solid rgba(127,127,127,.25)">${head}${rows}</tbody>`;
+      })
       .join('');
 
     const cell = (actor, indent) =>
@@ -411,11 +424,10 @@ class LinksApp extends ApplicationV2 {
     div.innerHTML = `
       <p style="margin:0">Статус: ${esc(lastStatus)}</p>
       <h3 style="margin:0">Створити з апки</h3>
-      <div style="display:flex;gap:8px;align-items:center">
-        <select name="create" style="flex:1">${createOpts || '<option value="">Немає мехів з файлом COMP/CON</option>'}</select>
-        <button type="button" data-action="createActor" style="flex:0 0 auto;width:auto" ${createOpts ? '' : 'disabled'}><i class="fas fa-user-plus"></i> Створити</button>
+      <div style="max-height:30vh;overflow-y:auto;padding-right:4px">
+        <table style="margin:0">${createBody || '<tbody><tr><td style="opacity:.7">Гравці ще не завантажили файлів COMP/CON.</td></tr></tbody>'}</table>
       </div>
-      <p style="font-size:12px;opacity:.8;margin:0">Пілот і мех з файлу, який гравець завантажив в апку, і одразу зв'язок з апкою. Фрейм, зброя й системи беруться з компендіумів світу.</p>
+      <p style="font-size:12px;opacity:.8;margin:0">«Створити» робить актора-пілота й меха з файлу, який гравець завантажив в апку, і одразу зв'язує їх з апкою. Фрейм, зброя й системи беруться з компендіумів світу.</p>
       <h3 style="margin:0">Зв'язки</h3>
       <input type="search" data-search placeholder="Пошук: пілот, мех або позивний в апці…" value="${esc(this.query)}">
       <div style="max-height:60vh;overflow-y:auto;padding-right:4px">
@@ -490,13 +502,12 @@ class LinksApp extends ApplicationV2 {
     this.render();
   }
 
-  static async #onCreateActor() {
-    const value = this.element.querySelector('select[name="create"]')?.value;
-    if (!value) return;
-    const [pilotId, mechId] = value.split('|');
+  static async #onCreateActor(_event, target) {
+    const { pilot: pilotId, mech: mechId } = target.dataset;
     const p = (this.pilots || []).find((x) => x.id === pilotId);
     const m = p?.mechs.find((x) => x.id === mechId);
     if (!m) return;
+    target.disabled = true; // імпорт триває кілька секунд — без повторного натискання
     try {
       await createFromApp(p, m);
     } catch (err) {
