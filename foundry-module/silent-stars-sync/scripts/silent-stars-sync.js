@@ -375,28 +375,25 @@ class LinksApp extends ApplicationV2 {
         }).join('') + '</optgroup>').join('');
     };
 
-    // «Створити з апки»: пілоти за алфавітом, під кожним його мехи. Біля меха з файлом
-    // COMP/CON — кнопка «Створити» (з файлу виходить пара актор-пілот + мех); мех, уже
-    // зв'язаний з актором цього світу, позначено; мех без файлу — без кнопки. Пілоти без
-    // жодного файлу не показуються.
+    // «Є в апці, нема у Foundry»: мехи з файлом COMP/CON, ще не зв'язані з актором цього
+    // світу, — під своїм пілотом, за алфавітом, кожен з кнопкою «Створити» (з файлу виходить
+    // пара актор-пілот + мех). Після створення мех переходить у зв'язки вище.
     const linkedMechIds = new Set(mechActors().map((a) => flag(a, 'mechId')).filter(Boolean));
     const abc = (a, b) => String(a).localeCompare(String(b), 'en', { sensitivity: 'base', numeric: true });
     const createBody = [...pilots].sort((a, b) => abc(a.name || a.callsign, b.name || b.callsign))
-      .filter((p) => p.mechs.some((m) => m.hasProfile))
-      .map((p) => {
-        const head = `<tr><td colspan="2" style="padding:6px 6px 2px"><strong>${esc(p.name || p.callsign)}</strong>` +
-          `${p.name && p.name !== p.callsign ? ` <span style="opacity:.6">${esc(p.callsign)}</span>` : ''}</td></tr>`;
-        const rows = [...p.mechs].sort((a, b) => abc(a.name, b.name)).map((m) => {
-          const action = !m.hasProfile
-            ? '<span style="opacity:.5;font-size:12px">немає файлу</span>'
-            : linkedMechIds.has(m.id)
-              ? '<span style="opacity:.7;font-size:12px"><i class="fas fa-check"></i> у Foundry</span>'
-              : `<button type="button" data-action="createActor" data-pilot="${p.id}" data-mech="${m.id}" style="width:auto;line-height:1.6;padding:0 10px"><i class="fas fa-user-plus"></i> Створити</button>`;
-          return `<tr><td style="padding:2px 6px 2px 34px"><i class="fas fa-turn-up fa-rotate-90" style="opacity:.5;margin-right:6px"></i>` +
-            `${esc(m.name)}${m.frame ? ` <span style="opacity:.6">(${esc(m.frame)})</span>` : ''}</td>` +
-            `<td style="text-align:right;white-space:nowrap;padding:2px 6px">${action}</td></tr>`;
-        }).join('');
-        return `<tbody style="border-top:1px solid rgba(127,127,127,.25)">${head}${rows}</tbody>`;
+      .map((p) => ({ p, mechs: p.mechs.filter((m) => m.hasProfile && !linkedMechIds.has(m.id)).sort((a, b) => abc(a.name, b.name)) }))
+      .filter(({ mechs }) => mechs.length)
+      .map(({ p, mechs }) => {
+        const head = `<tr data-row data-name="${esc(`${p.name} ${p.callsign}`)}"><td colspan="2" style="padding:6px 6px 2px">` +
+          `<strong>${esc(p.name || p.callsign)}</strong>${p.name && p.name !== p.callsign ? ` <span style="opacity:.6">${esc(p.callsign)}</span>` : ''}</td></tr>`;
+        const rows = mechs.map((m) =>
+          `<tr data-row data-name="${esc(`${m.name} ${m.frame || ''}`)}">` +
+          `<td style="padding:2px 6px 2px 34px"><i class="fas fa-turn-up fa-rotate-90" style="opacity:.5;margin-right:6px"></i>` +
+          `${esc(m.name)}${m.frame ? ` <span style="opacity:.6">(${esc(m.frame)})</span>` : ''}</td>` +
+          `<td style="text-align:right;white-space:nowrap;padding:2px 6px">` +
+          `<button type="button" data-action="createActor" data-pilot="${p.id}" data-mech="${m.id}" style="width:auto;line-height:1.6;padding:0 10px"><i class="fas fa-user-plus"></i> Створити</button></td></tr>`,
+        ).join('');
+        return `<tbody data-group data-section="create" style="border-top:1px solid rgba(127,127,127,.25)">${head}${rows}</tbody>`;
       })
       .join('');
 
@@ -417,22 +414,17 @@ class LinksApp extends ApplicationV2 {
       pilotRow(g.pilot) + g.mechs.map((m) => mechRow(m, flag(g.pilot, 'pilotId'), true)).join('') +
       '</tbody>').join('');
     // Мехи без пілота: кожен — окрема «група» з одного рядка, щоб пошук ховав їх поштучно.
-    const lonely = orphans.map((m) => `<tbody data-group data-solo>${mechRow(m, null, false)}</tbody>`).join('');
+    const lonely = orphans.map((m) => `<tbody data-group data-section="solo">${mechRow(m, null, false)}</tbody>`).join('');
 
     // Список має власну межу висоти (60% екрана) і прокручується сам: з десятками акторів
     // вікно інакше виростає за екран, а висоту вікна Foundry рахує по-своєму.
     div.innerHTML = `
       <p style="margin:0">Статус: ${esc(lastStatus)}</p>
-      <h3 style="margin:0">Створити з апки</h3>
-      <div style="max-height:30vh;overflow-y:auto;padding-right:4px">
-        <table style="margin:0">${createBody || '<tbody><tr><td style="opacity:.7">Гравці ще не завантажили файлів COMP/CON.</td></tr></tbody>'}</table>
-      </div>
-      <p style="font-size:12px;opacity:.8;margin:0">«Створити» робить актора-пілота й меха з файлу, який гравець завантажив в апку, і одразу зв'язує їх з апкою. Фрейм, зброя й системи беруться з компендіумів світу.</p>
-      <h3 style="margin:0">Зв'язки</h3>
       <input type="search" data-search placeholder="Пошук: пілот, мех або позивний в апці…" value="${esc(this.query)}">
-      <div style="max-height:60vh;overflow-y:auto;padding-right:4px">
+      <div style="max-height:65vh;overflow-y:auto;padding-right:4px">
         <table style="margin:0">${body || '<tbody><tr><td>Немає акторів-пілотів</td></tr></tbody>'}</table>
-        ${lonely ? `<h3 data-solo-title style="margin-top:12px">Мехи без пілота у Foundry</h3><table style="margin:0">${lonely}</table>` : ''}
+        ${lonely ? `<h3 data-section-title="solo" style="margin-top:12px">Мехи без пілота у Foundry</h3><table style="margin:0">${lonely}</table>` : ''}
+        ${createBody ? `<h3 data-section-title="create" style="margin-top:12px">Є в апці, нема у Foundry</h3><table style="margin:0">${createBody}</table>` : ''}
         <p data-empty style="display:none;opacity:.7">Нічого не знайдено.</p>
       </div>
       <p style="font-size:12px;opacity:.8;margin:0">Після зміни зв'язку перша синхронізація бере значення з апки.</p>
@@ -452,7 +444,7 @@ class LinksApp extends ApplicationV2 {
     const apply = () => {
       this.query = input.value;
       let any = false;
-      let anySolo = false;
+      const sections = new Set(); // розділи, в яких лишилось хоч щось видиме
       for (const group of root.querySelectorAll('[data-group]')) {
         const rows = [...group.querySelectorAll('[data-row]')];
         const texts = rows.map((r) => `${r.dataset.name} ${r.querySelector('select')?.selectedOptions[0]?.text ?? ''}`);
@@ -460,10 +452,11 @@ class LinksApp extends ApplicationV2 {
         group.style.display = m.visible ? '' : 'none';
         rows.forEach((r, i) => { r.style.display = m.rows[i] ? '' : 'none'; });
         any ||= m.visible;
-        if (group.hasAttribute('data-solo')) anySolo ||= m.visible;
+        if (m.visible && group.dataset.section) sections.add(group.dataset.section);
       }
-      const soloTitle = root.querySelector('[data-solo-title]');
-      if (soloTitle) soloTitle.style.display = anySolo ? '' : 'none';
+      for (const title of root.querySelectorAll('[data-section-title]')) {
+        title.style.display = sections.has(title.dataset.sectionTitle) ? '' : 'none';
+      }
       root.querySelector('[data-empty]').style.display = any ? 'none' : '';
     };
     input.addEventListener('input', apply);
