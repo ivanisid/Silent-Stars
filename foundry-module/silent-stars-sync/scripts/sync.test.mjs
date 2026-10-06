@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {
   decide, mergeFields, mergeGroup, mergeLimited, mechMaxPatch, profileActorName, pilotIdentityUpdate,
-  matchGroup, suggestActors, resolveLinks, MECH_FIELDS, PILOT_FIELDS, MODULE,
+  matchGroup, suggestActors, resolveLinks, pendingMechs, MECH_FIELDS, PILOT_FIELDS, MODULE,
 } from './sync.js';
 
 let n = 0;
@@ -205,6 +205,21 @@ test('зв\'язки: без змін — порожньо', () => {
   const changes = resolveLinks({ pilotChoices: [['P1', 'a']], mechChoices: [['P1', '1', 'm']] },
     [{ id: 'a', pilotId: 'P1' }], [{ id: 'm', pilotId: 'P1', mechId: '1' }], new Set(['P1']));
   assert.deepEqual(changes, []);
+});
+
+test('створення: мех зв\'язаний і пілот є — нічого створювати', () => {
+  const p = { id: 'P1', mechs: [{ id: '1', hasProfile: true }, { id: '2', hasProfile: false }] };
+  assert.deepEqual(pendingMechs(p, [{ pilotId: 'P1' }], [{ pilotId: 'P1', mechId: '1' }]), []);
+});
+
+test('створення: актора-пілота видалили — мех знову до створення', () => {
+  const p = { id: 'P1', mechs: [{ id: '1', hasProfile: true }] };
+  assert.deepEqual(pendingMechs(p, [], [{ pilotId: 'P1', mechId: '1' }]).map((m) => m.id), ['1']);
+});
+
+test('створення: мех з тим самим id в іншого пілота не рахується', () => {
+  const p = { id: 'P1', mechs: [{ id: '1', hasProfile: true }] };
+  assert.deepEqual(pendingMechs(p, [{ pilotId: 'P1' }], [{ pilotId: 'P2', mechId: '1' }]).map((m) => m.id), ['1']);
 });
 
 console.log(`\n${n} тестів пройдено`);

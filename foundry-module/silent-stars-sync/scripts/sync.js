@@ -332,3 +332,14 @@ export function resolveLinks({ pilotChoices, mechChoices }, pilots, mechs, appPi
   }
   return changes;
 }
+
+// Мехи пілота апки, для яких «Створити» ще має сенс: є файл COMP/CON, а у світі немає
+// мех-актора, зв'язаного саме з цим мехом цього пілота, або немає жодного актора-пілота
+// цього пілота (його видалили). pilots/mechs — актори світу як { pilotId, mechId }.
+// Імпорт Lancer знаходить наявного мех-актора за ідентифікатором COMP/CON, тож повторне
+// створення пілота не дублює меха.
+export function pendingMechs(p, pilots, mechs) {
+  const hasPilot = pilots.some((a) => a.pilotId === p.id);
+  const linked = new Set(mechs.filter((a) => a.pilotId === p.id).map((a) => a.mechId));
+  return p.mechs.filter((m) => m.hasProfile && (!hasPilot || !linked.has(m.id)));
+}

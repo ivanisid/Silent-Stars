@@ -13,7 +13,7 @@
 import {
   MODULE, PILOT_FIELDS, MECH_FIELDS, get, norm,
   mergeFields, mergeGroup, mergeLimited, mechMaxPatch, pilotIdentityUpdate, artUpdate,
-  findAppPilotFor, findAppMechFor, profileActorName, matchGroup, suggestActors, resolveLinks,
+  findAppPilotFor, findAppMechFor, profileActorName, matchGroup, suggestActors, resolveLinks, pendingMechs,
 } from './sync.js';
 
 const DEFAULT_URL = 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/foundry-sync';
@@ -389,7 +389,9 @@ class LinksApp extends ApplicationV2 {
     const byPilotId = new Map(pilots.map((p) => [p.id, p]));
     const pActors = pilotActors();
     const mActors = mechActors();
-    const linkedMechIds = new Set(mActors.map((a) => flag(a, 'mechId')).filter(Boolean));
+    const asLink = (a) => ({ pilotId: flag(a, 'pilotId'), mechId: flag(a, 'mechId') });
+    const pLinks = pActors.map(asLink);
+    const mLinks = mActors.map(asLink);
 
     const linkNote = (a, ownPilotId) => {
       const other = flag(a, 'pilotId');
@@ -450,7 +452,7 @@ class LinksApp extends ApplicationV2 {
       }).join('');
 
       const withFile = p.mechs.filter((m) => m.hasProfile);
-      const pending = withFile.filter((m) => !linkedMechIds.has(m.id));
+      const pending = pendingMechs(p, pLinks, mLinks);
       const createCell = !withFile.length
         ? '<span style="opacity:.5;font-size:12px">Створити акторів: гравець не завантажив файл COMP/CON</span>'
         : !pending.length
@@ -549,8 +551,8 @@ class LinksApp extends ApplicationV2 {
   static async #onCreateActors(_event, target) {
     const p = (this.pilots || []).find((x) => x.id === target.dataset.pilot);
     if (!p) return;
-    const linked = new Set(mechActors().map((a) => flag(a, 'mechId')).filter(Boolean));
-    const pending = p.mechs.filter((m) => m.hasProfile && !linked.has(m.id));
+    const asLink = (a) => ({ pilotId: flag(a, 'pilotId'), mechId: flag(a, 'mechId') });
+    const pending = pendingMechs(p, pilotActors().map(asLink), mechActors().map(asLink));
     target.disabled = true; // імпорт триває кілька секунд — без повторного натискання
     for (const m of pending) {
       try {
