@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { OC_STEPS } from '../constants';
 import {
   KIT_PR,
@@ -16,9 +16,10 @@ import {
 } from '../repair';
 import { Menu, Msg, Panel, Track, useConfirm } from '../../components/kit.jsx';
 import ArtSlot from './ArtSlot.jsx';
-import { isMechNameTaken } from '../compconImport';
+import { isMechNameTaken, mechFromStatblock, parseCompconStatblock } from '../compconImport';
+import { importCompconFile } from '../compconFile';
 
-export default function MechsPanel({ state, dispatch, mechArt = {}, canEditArt, onUploadMechArt, onRemoveArt }) {
+export default function MechsPanel({ state, dispatch, pilotId, mechArt = {}, canEditArt, onUploadMechArt, onRemoveArt }) {
   const d = state.mechDraft;
   const [ask, dialog] = useConfirm();
   const nameTaken = isMechNameTaken(state.mechs, d.name);
@@ -54,8 +55,113 @@ export default function MechsPanel({ state, dispatch, mechArt = {}, canEditArt, 
           <button className="btn" type="button" disabled={!d.name.trim() || nameTaken} onClick={() => dispatch({ type: 'ADD_MECH' })}>+ МЕХ</button>
         </div>
         {nameTaken && <div className="error-box">Мех з назвою «{d.name.trim()}» уже є. Назви мехів мають бути різні.</div>}
+
+        <CompconMechImport state={state} dispatch={dispatch} pilotId={pilotId} />
       </div>
     </Panel>
+  );
+}
+
+// Мех з COMP/CON без зміни даних пілота: файлом JSON (інший профіль того ж пілота — з
+// нього ж модуль Foundry створить актора) або текстом statblock з мех-білду.
+function CompconMechImport({ state, dispatch, pilotId }) {
+  const fileRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const [name, setName] = useState('');
+  const [msg, setMsg] = useState(null);
+
+  let parsed = null;
+  let parseError = '';
+  if (text.trim()) {
+    try {
+      parsed = parseCompconStatblock(text);
+    } catch (err) {
+      parseError = err.message;
+    }
+  }
+  const mechName = (name.trim() || parsed?.frame || '').trim();
+  const updating = !!mechName && isMechNameTaken(state.mechs, mechName);
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      setMsg(await importCompconFile(file, { state, pilotId, dispatch, withBond: false }));
+    } catch (err) {
+      setMsg({ ok: false, text: err.message });
+    }
+  }
+
+  function addStatblock() {
+    if (!parsed || !mechName) return;
+    const mech = mechFromStatblock(parsed, mechName);
+    dispatch({ type: 'MERGE_COMPCON_MECHS', payload: { mechs: [mech], callsign: 'statblock' } });
+    setMsg({ ok: true, text: `${updating ? 'Оновлено' : 'Додано'} меха «${mech.name}» зі statblock` });
+    setText('');
+    setName('');
+    setOpen(false);
+  }
+
+  return (
+    <div className="ss-box" style={{ gap: 10 }}>
+      <FieldLabel>ДОДАТИ МЕХА З COMP/CON</FieldLabel>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <button className="btn-ghost" type="button" onClick={() => fileRef.current?.click()} style={{ fontSize: 11, padding: '6px 12px' }}>
+          ФАЙЛ JSON
+        </button>
+        <button className="btn-ghost" type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} style={{ fontSize: 11, padding: '6px 12px' }}>
+          {open ? 'СХОВАТИ STATBLOCK' : 'ТЕКСТ STATBLOCK'}
+        </button>
+        <input ref={fileRef} type="file" accept=".json,application/json" onChange={handleFile} style={{ display: 'none' }} />
+      </div>
+      <div className="ss-note">
+        Файл чи statblock додає або оновлює лише меха — дані пілота не змінюються. Меха з такою самою назвою буде оновлено.
+      </div>
+
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <textarea
+            className="ss-input"
+            rows={8}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={'--- HORUS Balor @ LL5 --\n[ STATS ]\n  HP:17 … REPAIR:4\n[ WEAPONS ]\n  Main Mount: …\n[ SYSTEMS ]\n  …'}
+            style={{ fontSize: 12, fontFamily: 'inherit' }}
+          />
+          {parseError && <div className="error-box">{parseError}</div>}
+          {parsed && (
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', overflowWrap: 'anywhere' }}>
+              &gt; {[parsed.frameSource, parsed.frame].filter(Boolean).join(' ')} · LL {parsed.ll} · HP {parsed.hpMax} · рем. {parsed.repairMax} ·{' '}
+              зброя {parsed.items.filter((i) => i.type === 'weapon').length} · системи {parsed.items.filter((i) => i.type === 'system').length}
+            </div>
+          )}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <input
+              className="ss-input"
+              style={{ height: 30, fontSize: 12, flex: '1 1 180px', minWidth: 0 }}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={parsed ? `Назва меха зі statblock (${parsed.frame})` : 'Назва меха зі statblock'}
+            />
+            <button className="btn" type="button" disabled={!parsed || !mechName} onClick={addStatblock}>
+              {updating ? `ОНОВИТИ «${mechName}»` : '+ МЕХ ЗІ STATBLOCK'}
+            </button>
+          </div>
+          <div className="ss-note">
+            У statblock немає назви меха й зарядів LIMITED, і з нього Foundry не створить актора — для «Створити з апки» потрібен файл JSON.
+          </div>
+        </div>
+      )}
+
+      {msg && (
+        <div style={{ fontSize: 11, overflowWrap: 'anywhere', color: msg.ok ? 'var(--success)' : 'var(--danger)' }}>
+          {msg.ok ? '>>' : '!!'} {msg.text}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { derivePilotView } from '../derive';
-import { compconProfiles, mapCompconBond, mapCompconPilot, mechClashMessage, mechNameClashes } from '../compconImport';
-import { api } from '../../api';
+import { importCompconFile } from '../compconFile';
 import { parseAdventureLeagueCsv, summarizeAdventureLeagueLog } from '../csvImport';
 import { Menu, Panel } from '../../components/kit.jsx';
 import ArtSlot from './ArtSlot.jsx';
@@ -13,15 +12,25 @@ function mechsLine(mechs) {
     .join(', ');
 }
 
+// Статус останнього імпорту для кожного пілота — на всю сесію вкладки, а не лише поки
+// відкритий профіль: повернувшись до пілота, гравець бачить, що й коли завантажив.
+const lastImport = new Map();
+
 // Профіль пілота: ім'я, позивний і мехи, бекграунд, ТІР/статус, меню «⋯» (імпорт і
-// правки), рядок ЛЛ з покупкою рівня, ігри пілота і портрет праворуч.
+// правки), рядок ЛЛ з покупкою рівня, ігри пілота і портрет праворуч. Під панеллю —
+// кнопки імпорту зі статусом останнього завантаження.
 export default function Header({ pilot, state, dispatch, onSaveMeta, games, portrait, canEditArt, onUploadPortrait, onRemoveArt }) {
   const view = derivePilotView(state);
   const [editingMeta, setEditingMeta] = useState(false);
   const [name, setName] = useState(pilot.name);
   const [callsign, setCallsign] = useState(pilot.callsign);
   const [background, setBackground] = useState(pilot.background);
-  const [importMsg, setImportMsg] = useState(null);
+  const [importMsg, setImportMsgState] = useState(() => lastImport.get(pilot.id) || null);
+  const setImportMsg = (msg) => {
+    const stamped = { ...msg, at: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }) };
+    lastImport.set(pilot.id, stamped);
+    setImportMsgState(stamped);
+  };
   const csvRef = useRef(null);
   const jsonRef = useRef(null);
   // 'full' — файл основного профілю (мехи й бонд), 'mech' — інший профіль того ж пілота:
@@ -54,30 +63,14 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
   }
 
   // Файл COMP/CON дає мехів, а файл основного профілю — ще й бонд (назва, ідеали, XP).
-  // Сам файл зберігається для кожного меха: з нього модуль Foundry створює актора.
   async function handleJson(e) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     try {
-      const json = JSON.parse(await file.text());
-      const mapped = mapCompconPilot(json);
-      const clashes = mechNameClashes(state.mechs, mapped.state.mechs);
-      if (clashes.length) throw new Error(mechClashMessage(clashes));
-      const profiles = compconProfiles(state.mechs, mapped.state.mechs, json);
-      dispatch({ type: 'MERGE_COMPCON_MECHS', payload: { mechs: mapped.state.mechs, callsign: mapped.callsign } });
-      const bond = jsonMode.current === 'full' ? mapCompconBond(json) : null;
-      if (bond) dispatch({ type: 'IMPORT_BOND', payload: bond });
-      const names = mapped.state.mechs.map((m) => m.name).join(', ') || '—';
-      let saved = '';
-      try {
-        await api.saveCompconProfiles(pilot.id, profiles);
-      } catch (err) {
-        saved = ` · файл для Foundry не збережено: ${err.message}`;
-      }
-      setImportMsg({ ok: !saved, text: `Мех(и) підтягнуто з COMP/CON: ${names}${bond ? ` · бонд «${bond.name}»` : ''}${saved}` });
+      setImportMsg(await importCompconFile(file, { state, pilotId: pilot.id, dispatch, withBond: jsonMode.current === 'full' }));
     } catch (err) {
-      setImportMsg({ ok: false, text: err instanceof SyntaxError ? 'Файл не є коректним JSON.' : err.message });
+      setImportMsg({ ok: false, text: err.message });
     }
   }
 
@@ -90,6 +83,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
   const balance = state.mana.balance;
 
   return (
+    <>
     <Panel title="ПРОФІЛЬ ПІЛОТА" sub="FERUM VOX PILOT">
       <div className="m-stack m-pad" style={{ padding: 20, display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 120px', gap: 28, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
@@ -224,5 +218,19 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
         />
       </div>
     </Panel>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: -8 }}>
+      <button className="btn-ghost" type="button" onClick={() => pickJson('full')} style={{ fontSize: 11, padding: '6px 12px' }}>
+        ОНОВИТИ З COMP/CON JSON
+      </button>
+      <button className="btn-ghost" type="button" onClick={() => csvRef.current?.click()} style={{ fontSize: 11, padding: '6px 12px' }}>
+        ADVENTURE LEAGUE LOG (CSV)
+      </button>
+      <div style={{ flex: '1 1 220px', minWidth: 0, fontSize: 11, lineHeight: 1.5, overflowWrap: 'anywhere', color: importMsg ? (importMsg.ok ? 'var(--success)' : 'var(--danger)') : 'var(--text-dimmer)' }}>
+        {importMsg
+          ? `${importMsg.ok ? '>>' : '!!'} ${importMsg.at} · ${importMsg.text}`
+          : '> Цієї сесії файлів ще не завантажували.'}
+      </div>
+    </div>
+    </>
   );
 }
