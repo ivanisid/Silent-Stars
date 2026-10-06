@@ -148,7 +148,18 @@ export async function syncNow({ quiet = true } = {}) {
   running = true;
   try {
     const { pilots } = await call({ action: 'pull' });
-    if (setting('autoLink')) await autoLink(pilots);
+    // Помилка на одному акторі (буває, що її кидає сама система Lancer у відповідь на
+    // оновлення) не зупиняє решту: її видно в статусі з іменем актора, деталі — у консолі.
+    const failures = [];
+    const guard = async (label, fn) => {
+      try {
+        await fn();
+      } catch (err) {
+        failures.push(`${label}: ${err.message}`);
+        console.error(`${MODULE} | ${label}:`, err);
+      }
+    };
+    if (setting('autoLink')) await guard("автозв'язування", () => autoLink(pilots));
     const byId = new Map(pilots.map((p) => [p.id, p]));
 
     // pilotId → { pilotId, updatedAt, pilot, mechs, after: [функції, що дописують базу] }
@@ -170,46 +181,50 @@ export async function syncNow({ quiet = true } = {}) {
     }
     for (const [id, actors] of groups) {
       const p = byId.get(id);
-      const appTime = Date.parse(p.updatedAt) || 0;
-      await ensureArtSafe(p.portrait, p.portraitId);
-      const r = mergeGroup(PILOT_FIELDS, p, actors, appTime);
-      for (const [i, actor] of actors.entries()) {
-        const update = { ...pilotIdentityUpdate(p, actor), ...(r.updates[i] || {}) };
-        if (Object.keys(update).length) await actor.update(update, SYNC_OPTION);
-      }
-      if (Object.keys(r.patch).length) {
-        const push = pushFor(p);
-        Object.assign(push.pilot, r.patch);
-        actors.forEach((actor, i) => push.after.push(() => setBase(actor, r.baseAfterPush[i])));
-      }
-      conflicts.push(...r.conflicts.map((c) => `${p.callsign}: ${c}`));
+      await guard(actors.map((a) => a.name).join(', '), async () => {
+        const appTime = Date.parse(p.updatedAt) || 0;
+        await ensureArtSafe(p.portrait, p.portraitId);
+        const r = mergeGroup(PILOT_FIELDS, p, actors, appTime);
+        for (const [i, actor] of actors.entries()) {
+          const update = { ...pilotIdentityUpdate(p, actor), ...(r.updates[i] || {}) };
+          if (Object.keys(update).length) await actor.update(update, SYNC_OPTION);
+        }
+        if (Object.keys(r.patch).length) {
+          const push = pushFor(p);
+          Object.assign(push.pilot, r.patch);
+          actors.forEach((actor, i) => push.after.push([actor.name, () => setBase(actor, r.baseAfterPush[i])]));
+        }
+        conflicts.push(...r.conflicts.map((c) => `${p.callsign}: ${c}`));
+      });
     }
 
     for (const actor of mechActors()) {
       const p = byId.get(flag(actor, 'pilotId'));
       const m = p?.mechs.find((x) => x.id === flag(actor, 'mechId'));
       if (!m) continue;
-      const appTime = Date.parse(p.updatedAt) || 0;
-      await ensureArtSafe(m.art, m.artId);
+      await guard(actor.name, async () => {
+        const appTime = Date.parse(p.updatedAt) || 0;
+        await ensureArtSafe(m.art, m.artId);
 
-      const r = mergeFields(MECH_FIELDS, m, actor, appTime);
-      const update = { ...artUpdate(m.art, actor), ...(r.update || {}) };
-      if (Object.keys(update).length) await actor.update(update, SYNC_OPTION);
+        const r = mergeFields(MECH_FIELDS, m, actor, appTime);
+        const update = { ...artUpdate(m.art, actor), ...(r.update || {}) };
+        if (Object.keys(update).length) await actor.update(update, SYNC_OPTION);
 
-      const lim = mergeLimited(m, actor.items.contents, appTime);
-      if (lim.itemUpdates.length) await actor.updateEmbeddedDocuments('Item', lim.itemUpdates, SYNC_OPTION);
+        const lim = mergeLimited(m, actor.items.contents, appTime);
+        if (lim.itemUpdates.length) await actor.updateEmbeddedDocuments('Item', lim.itemUpdates, SYNC_OPTION);
 
-      const mechPatch = { ...mechMaxPatch(m, actor), ...r.patch };
-      if (Object.keys(lim.patch).length) mechPatch.limited = lim.patch;
-      if (Object.keys(mechPatch).length) {
-        const push = pushFor(p);
-        push.mechs[m.id] = mechPatch;
-        push.after.push(() => setBase(actor, r.baseAfterPush));
-        for (const { item, value } of lim.baseAfterPush) {
-          push.after.push(() => item.update({ [`flags.${MODULE}.base`]: value }, SYNC_OPTION));
+        const mechPatch = { ...mechMaxPatch(m, actor), ...r.patch };
+        if (Object.keys(lim.patch).length) mechPatch.limited = lim.patch;
+        if (Object.keys(mechPatch).length) {
+          const push = pushFor(p);
+          push.mechs[m.id] = mechPatch;
+          push.after.push([actor.name, () => setBase(actor, r.baseAfterPush)]);
+          for (const { item, value } of lim.baseAfterPush) {
+            push.after.push([actor.name, () => item.update({ [`flags.${MODULE}.base`]: value }, SYNC_OPTION)]);
+          }
         }
-      }
-      conflicts.push(...[...r.conflicts, ...lim.conflicts].map((c) => `${p.callsign} / ${m.name}: ${c}`));
+        conflicts.push(...[...r.conflicts, ...lim.conflicts].map((c) => `${p.callsign} / ${m.name}: ${c}`));
+      });
     }
 
     let sent = 0;
@@ -224,7 +239,7 @@ export async function syncNow({ quiet = true } = {}) {
         const push = pushes.get(res.pilotId);
         if (res.ok) {
           sent += res.changes || 0;
-          for (const fn of push.after) await fn();
+          for (const [label, fn] of push.after) await guard(label, fn);
         } else if (res.conflict) {
           stale++; // пілота щойно змінили в апці — наступний цикл зведе вже свіжі дані
         } else {
@@ -234,8 +249,9 @@ export async function syncNow({ quiet = true } = {}) {
     }
 
     if (conflicts.length) console.warn(`${MODULE} | змінено з обох боків, взято новіше:`, conflicts);
-    lastStatus = `${new Date().toLocaleTimeString()} — у апку: ${sent} змін${stale ? `, ${stale} відкладено` : ''}`;
-    if (!quiet) ui.notifications.info(`Silent Stars: синхронізовано. ${lastStatus}`);
+    lastStatus = `${new Date().toLocaleTimeString()} — у апку: ${sent} змін${stale ? `, ${stale} відкладено` : ''}` +
+      (failures.length ? ` · помилки (${failures.length}): ${failures.slice(0, 3).join('; ')}${failures.length > 3 ? '…' : ''}` : '');
+    if (!quiet) ui.notifications[failures.length ? 'warn' : 'info'](`Silent Stars: синхронізовано. ${lastStatus}`);
   } catch (err) {
     lastStatus = `${new Date().toLocaleTimeString()} — помилка: ${err.message}`;
     // Мережевий збій після повторів — попередження: наступний цикл таймера спробує знову.
@@ -365,7 +381,10 @@ class LinksApp extends ApplicationV2 {
     // актори першими. Під пілотом — «Створити актора/акторів» з файлів COMP/CON.
     const abc = (a, b) => String(a).localeCompare(String(b), 'en', { sensitivity: 'base', numeric: true });
     const label = (p) => p.name || p.callsign;
+    // Акаунти апки за алфавітом (пілоти без акаунту — в кінці), під кожним його пілоти.
+    const account = (p) => p.player || '';
     const pilots = [...(this.pilots || [])].sort((a, b) =>
+      (!account(a) - !account(b)) || abc(account(a), account(b)) ||
       ((a.status === 'archive') - (b.status === 'archive')) || abc(label(a), label(b)));
     const byPilotId = new Map(pilots.map((p) => [p.id, p]));
     const pActors = pilotActors();
@@ -385,8 +404,27 @@ class LinksApp extends ApplicationV2 {
     const select = (name, emptyText, opts) =>
       `<select name="${name}" style="width:100%"><option value="">${emptyText}</option>${opts}</select>`;
     const ownerName = (mech) => get(mech, 'system.pilot.value')?.name;
+    // Мініатюра: арт з апки (шлях у Data), якщо його ще немає на цьому сервері — арт
+    // зв'язаного актора, далі — стандартна іконка.
+    const thumb = (src, fallback, size) => {
+      const alt = fallback || 'icons/svg/mystery-man.svg';
+      return `<img src="${esc(src || alt)}" data-fallback="${esc(alt)}" width="${size}" height="${size}" ` +
+        `style="vertical-align:middle;border:none;object-fit:cover;margin-right:6px;flex:0 0 auto" ` +
+        `onerror="if(this.src!==this.dataset.fallback){this.src=this.dataset.fallback}">`;
+    };
 
+    let lastAccount = null;
+    let accountIndex = -1;
     const body = pilots.map((p) => {
+      // Заголовок акаунту перед першим його пілотом; data-acc зв'язує його з групами пілотів,
+      // щоб пошук ховав і заголовок, коли під ним нічого не лишилось.
+      let accountHead = '';
+      if (account(p) !== lastAccount) {
+        lastAccount = account(p);
+        accountIndex++;
+        accountHead = `<tbody data-acc-head="${accountIndex}"><tr><td colspan="2" style="padding:12px 6px 4px;font-size:15px;font-weight:bold;` +
+          `border-bottom:2px solid rgba(127,127,127,.45)"><i class="fas fa-user" style="opacity:.6;margin-right:6px"></i>${esc(account(p) || 'Без акаунту')}</td></tr></tbody>`;
+      }
       const linkedPilots = pActors.filter((a) => flag(a, 'pilotId') === p.id);
       const preferredPilots = new Set(linkedPilots.map((a) => a.id));
       // Кілька мехів — кілька профілів: кожен може мати свого актора-пілота, тож лишаємо
@@ -395,7 +433,7 @@ class LinksApp extends ApplicationV2 {
       const pilotSelects = slots.map((sel, i) => select(`p:${p.id}:${i}`, sel || !i ? "— не зв'язано —" : '+ ще актор-пілот',
         options(pActors, [p.name, p.callsign], preferredPilots, sel, p.id))).join('');
       const head = `<tr data-row data-name="${esc(`${p.name} ${p.callsign}`)}"><td style="padding:6px 6px 2px;vertical-align:top">` +
-        `<strong>${esc(label(p))}</strong>${p.name && p.name !== p.callsign ? ` <span style="opacity:.6">${esc(p.callsign)}</span>` : ''}` +
+        `${thumb(p.portrait, linkedPilots[0]?.img, 32)}<strong>${esc(label(p))}</strong>${p.name && p.name !== p.callsign ? ` <span style="opacity:.6">${esc(p.callsign)}</span>` : ''}` +
         `${p.status === 'archive' ? ' <span style="opacity:.6">(архів)</span>' : ''}</td>` +
         `<td style="padding:4px 6px;display:flex;flex-direction:column;gap:4px">${pilotSelects}</td></tr>`;
 
@@ -406,7 +444,7 @@ class LinksApp extends ApplicationV2 {
         if (current) preferred.add(current.id);
         return `<tr data-row data-name="${esc(`${m.name} ${m.frame || ''}`)}">` +
           `<td style="padding:2px 6px 2px 28px"><i class="fas fa-turn-up fa-rotate-90" style="opacity:.5;margin-right:6px"></i>` +
-          `${esc(m.name)}${m.frame ? ` <span style="opacity:.6">(${esc(m.frame)})</span>` : ''}</td>` +
+          `${thumb(m.art, current?.img, 24)}${esc(m.name)}${m.frame ? ` <span style="opacity:.6">(${esc(m.frame)})</span>` : ''}</td>` +
           `<td style="padding:2px 6px">${select(`m:${p.id}:${m.id}`, "— не зв'язано —",
             options(mActors, [m.name], preferred, current?.id, p.id, (a) => (ownerName(a) ? ` — ${ownerName(a)}` : '')))}</td></tr>`;
       }).join('');
@@ -421,7 +459,7 @@ class LinksApp extends ApplicationV2 {
             `<i class="fas fa-user-plus"></i> ${pending.length > 1 ? `Створити акторів (${pending.length})` : 'Створити актора'}</button>`;
       const create = `<tr><td colspan="2" style="text-align:right;padding:2px 6px 6px">${createCell}</td></tr>`;
 
-      return `<tbody data-group style="border-top:1px solid rgba(127,127,127,.25)">${head}${mechRows}${create}</tbody>`;
+      return `${accountHead}<tbody data-group data-acc="${accountIndex}" style="border-top:1px solid rgba(127,127,127,.25)">${head}${mechRows}${create}</tbody>`;
     }).join('');
 
     // Список має власну межу висоти і прокручується сам: з десятками пілотів вікно інакше
@@ -458,6 +496,10 @@ class LinksApp extends ApplicationV2 {
         group.style.display = m.visible ? '' : 'none';
         rows.forEach((r, i) => { r.style.display = m.rows[i] ? '' : 'none'; });
         any ||= m.visible;
+      }
+      for (const head of root.querySelectorAll('[data-acc-head]')) {
+        const shown = [...root.querySelectorAll(`[data-group][data-acc="${head.dataset.accHead}"]`)].some((g) => g.style.display !== 'none');
+        head.style.display = shown ? '' : 'none';
       }
       root.querySelector('[data-empty]').style.display = any ? 'none' : '';
     };
