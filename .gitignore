@@ -4,3 +4,4 @@ client/dist/
 *.log
 .claude/
 semples/
+foundry-module/dist/
