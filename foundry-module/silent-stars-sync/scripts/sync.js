@@ -280,22 +280,6 @@ export function findAppMechFor(actor, appPilot, taken) {
 // Порядок en: імена акторів здебільшого латинські, кирилиця йде після них; numeric — «Mech 2» перед «Mech 10».
 const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'en', { sensitivity: 'base', numeric: true });
 
-// Актори для вікна зв'язків: пілоти за алфавітом, під кожним — його мехи (за system.pilot
-// у Foundry), теж за алфавітом. Мехи без пілота (або з пілотом, якого немає серед
-// акторів) — окремою групою в кінці.
-export function groupActors(pilots, mechs) {
-  const groups = [...pilots].sort(byName).map((pilot) => ({ pilot, mechs: [] }));
-  const byId = new Map(groups.map((g) => [g.pilot.id, g]));
-  const orphans = [];
-  for (const mech of mechs) {
-    const owner = get(mech, 'system.pilot.value');
-    const g = owner && byId.get(owner.id);
-    (g ? g.mechs : orphans).push(mech);
-  }
-  for (const g of groups) g.mechs.sort(byName);
-  return { groups, orphans: orphans.sort(byName) };
-}
-
 // Пошук у вікні зв'язків: група видима, якщо запит є в імені пілота, імені будь-якого його
 // меха або в підписах вибраних зв'язків. Збіг з пілотом показує всю групу, збіг лише з
 // мехом — пілота і цей мех.
@@ -306,4 +290,45 @@ export function matchGroup(texts, query) {
   if (hit[0]) return { visible: true, rows: texts.map(() => true) };
   const rows = hit.map((h, i) => i === 0 || h);
   return { visible: hit.some(Boolean), rows };
+}
+
+// ----- Вікно зв'язків від апки -----
+//
+// Вікно йде від пілотів апки: для пілота й кожного його меха ГМ вибирає актора Foundry.
+
+// Актори для списку вибору: «схожі» (ім'я містить одну з підказок — ім'я пілота, позивний,
+// назву меха — або актор уже серед `preferred`) першими, решта — за алфавітом.
+export function suggestActors(actors, hints, preferred = new Set()) {
+  const needles = hints.map(norm).filter(Boolean);
+  const similar = [];
+  const others = [];
+  for (const a of [...actors].sort(byName)) {
+    const name = norm(a.name);
+    const hit = preferred.has(a.id) || needles.some((n) => name.includes(n) || (name && n.includes(name)));
+    (hit ? similar : others).push(a);
+  }
+  return { similar, others };
+}
+
+// Які зв'язки змінити після «Зберегти». pilotChoices — [pilotId, actorId] з рядків пілотів,
+// mechChoices — [pilotId, mechId, actorId] з рядків мехів; pilots/mechs — актори світу
+// ({ id, pilotId, mechId } з прапорців); appPilotIds — пілоти апки, показані у вікні.
+// Актор, зв'язаний з пілотом апки з вікна, але ніде не вибраний, — відв'язується; зв'язаний
+// з пілотом, якого в апці вже немає, — лишається як є. Повертає лише справжні зміни.
+export function resolveLinks({ pilotChoices, mechChoices }, pilots, mechs, appPilotIds) {
+  const pilotWant = new Map(pilotChoices.filter(([, a]) => a).map(([p, a]) => [a, p]));
+  const mechWant = new Map(mechChoices.filter(([, , a]) => a).map(([p, m, a]) => [a, { pilotId: p, mechId: m }]));
+  const changes = [];
+  for (const a of pilots) {
+    const want = pilotWant.has(a.id) ? pilotWant.get(a.id) : (appPilotIds.has(a.pilotId) ? null : a.pilotId ?? null);
+    if ((a.pilotId ?? null) !== want) changes.push({ actorId: a.id, type: 'pilot', pilotId: want });
+  }
+  for (const a of mechs) {
+    const keep = appPilotIds.has(a.pilotId) ? null : { pilotId: a.pilotId ?? null, mechId: a.mechId ?? null };
+    const want = mechWant.get(a.id) ?? keep ?? { pilotId: null, mechId: null };
+    if ((a.pilotId ?? null) !== want.pilotId || (a.mechId ?? null) !== want.mechId) {
+      changes.push({ actorId: a.id, type: 'mech', ...want });
+    }
+  }
+  return changes;
 }

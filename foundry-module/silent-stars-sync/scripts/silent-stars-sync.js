@@ -13,7 +13,7 @@
 import {
   MODULE, PILOT_FIELDS, MECH_FIELDS, get, norm,
   mergeFields, mergeGroup, mergeLimited, mechMaxPatch, pilotIdentityUpdate, artUpdate,
-  findAppPilotFor, findAppMechFor, profileActorName, groupActors, matchGroup,
+  findAppPilotFor, findAppMechFor, profileActorName, matchGroup, suggestActors, resolveLinks,
 } from './sync.js';
 
 const DEFAULT_URL = 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/foundry-sync';
@@ -330,9 +330,9 @@ class LinksApp extends ApplicationV2 {
     id: `${MODULE}-links`,
     tag: 'form',
     window: { title: "Silent Stars: зв'язки з апкою", resizable: true },
-    position: { width: 720, height: 'auto' },
+    position: { width: 760, height: 'auto' },
     form: { handler: LinksApp.#onSubmit, closeOnSubmit: false },
-    actions: { syncNow: LinksApp.#onSyncNow, createActor: LinksApp.#onCreateActor },
+    actions: { syncNow: LinksApp.#onSyncNow, createActors: LinksApp.#onCreateActors },
   };
 
   pilots = null;
@@ -359,72 +359,79 @@ class LinksApp extends ApplicationV2 {
       div.innerHTML = `<p style="color:var(--color-level-error,#c00)">${esc(this.error)}</p>`;
       return div;
     }
-    const byCallsign = (a, b) => String(a.callsign).localeCompare(String(b.callsign), 'en', { sensitivity: 'base', numeric: true });
-    const pilots = [...(this.pilots || [])].sort(byCallsign);
-    const none = `<option value="">— не зв'язано —</option>`;
-    const pilotOpts = (sel) =>
-      none + pilots.map((p) => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.callsign)} (${esc(p.player || p.name)})</option>`).join('');
-    // Мехи згруповані за пілотами апки; мехи пілота, з яким зв'язаний власник цього меха
-    // у Foundry, — першими, бо майже завжди шукають саме серед них.
-    const mechOpts = (sel, ownerAppId) => {
-      const ordered = [...pilots.filter((p) => p.id === ownerAppId), ...pilots.filter((p) => p.id !== ownerAppId)];
-      return none + ordered.filter((p) => p.mechs.length).map((p) =>
-        `<optgroup label="${esc(p.callsign)}">` + p.mechs.map((m) => {
-          const v = `${p.id}|${m.id}`;
-          return `<option value="${v}" ${v === sel ? 'selected' : ''}>${esc(p.callsign)} / ${esc(m.name)}${m.frame ? ` (${esc(m.frame)})` : ''}</option>`;
-        }).join('') + '</optgroup>').join('');
-    };
 
-    // «Є в апці, нема у Foundry»: мехи з файлом COMP/CON, ще не зв'язані з актором цього
-    // світу, — під своїм пілотом, за алфавітом, кожен з кнопкою «Створити» (з файлу виходить
-    // пара актор-пілот + мех). Після створення мех переходить у зв'язки вище.
-    const linkedMechIds = new Set(mechActors().map((a) => flag(a, 'mechId')).filter(Boolean));
+    // Вікно йде від апки: пілоти апки за алфавітом (архівні — в кінці), під кожним його
+    // мехи; для пілота й кожного меха — вибір актора Foundry. У списку вибору «схожі»
+    // актори першими. Під пілотом — «Створити актора/акторів» з файлів COMP/CON.
     const abc = (a, b) => String(a).localeCompare(String(b), 'en', { sensitivity: 'base', numeric: true });
-    const createBody = [...pilots].sort((a, b) => abc(a.name || a.callsign, b.name || b.callsign))
-      .map((p) => ({ p, mechs: p.mechs.filter((m) => m.hasProfile && !linkedMechIds.has(m.id)).sort((a, b) => abc(a.name, b.name)) }))
-      .filter(({ mechs }) => mechs.length)
-      .map(({ p, mechs }) => {
-        const head = `<tr data-row data-name="${esc(`${p.name} ${p.callsign}`)}"><td colspan="2" style="padding:6px 6px 2px">` +
-          `<strong>${esc(p.name || p.callsign)}</strong>${p.name && p.name !== p.callsign ? ` <span style="opacity:.6">${esc(p.callsign)}</span>` : ''}</td></tr>`;
-        const rows = mechs.map((m) =>
-          `<tr data-row data-name="${esc(`${m.name} ${m.frame || ''}`)}">` +
-          `<td style="padding:2px 6px 2px 34px"><i class="fas fa-turn-up fa-rotate-90" style="opacity:.5;margin-right:6px"></i>` +
-          `${esc(m.name)}${m.frame ? ` <span style="opacity:.6">(${esc(m.frame)})</span>` : ''}</td>` +
-          `<td style="text-align:right;white-space:nowrap;padding:2px 6px">` +
-          `<button type="button" data-action="createActor" data-pilot="${p.id}" data-mech="${m.id}" style="width:auto;line-height:1.6;padding:0 10px"><i class="fas fa-user-plus"></i> Створити</button></td></tr>`,
-        ).join('');
-        return `<tbody data-group data-section="create" style="border-top:1px solid rgba(127,127,127,.25)">${head}${rows}</tbody>`;
-      })
-      .join('');
+    const label = (p) => p.name || p.callsign;
+    const pilots = [...(this.pilots || [])].sort((a, b) =>
+      ((a.status === 'archive') - (b.status === 'archive')) || abc(label(a), label(b)));
+    const byPilotId = new Map(pilots.map((p) => [p.id, p]));
+    const pActors = pilotActors();
+    const mActors = mechActors();
+    const linkedMechIds = new Set(mActors.map((a) => flag(a, 'mechId')).filter(Boolean));
 
-    const cell = (actor, indent) =>
-      `<td style="padding:2px 6px${indent ? ';padding-left:34px' : ''}">` +
-      `${indent ? '<i class="fas fa-turn-up fa-rotate-90" style="opacity:.5;margin-right:6px"></i>' : ''}` +
-      `<img src="${esc(actor.img)}" width="28" height="28" style="vertical-align:middle;border:none"> ${esc(actor.name)}</td>`;
-    const pilotRow = (a) =>
-      `<tr data-row data-name="${esc(a.name)}">${cell(a, false)}<td><select name="pilot.${a.id}">${pilotOpts(flag(a, 'pilotId'))}</select></td></tr>`;
-    const mechRow = (a, ownerAppId, indent) => {
-      const sel = flag(a, 'mechId') ? `${flag(a, 'pilotId')}|${flag(a, 'mechId')}` : '';
-      return `<tr data-row data-name="${esc(a.name)}">${cell(a, indent)}<td><select name="mech.${a.id}">${mechOpts(sel, ownerAppId)}</select></td></tr>`;
+    const linkNote = (a, ownPilotId) => {
+      const other = flag(a, 'pilotId');
+      return other && other !== ownPilotId && byPilotId.has(other) ? ` · ↔ ${byPilotId.get(other).callsign}` : '';
     };
+    const options = (actors, hints, preferred, selected, ownPilotId, suffix = () => '') => {
+      const { similar, others } = suggestActors(actors, hints, preferred);
+      const opt = (a) => `<option value="${a.id}" ${a.id === selected ? 'selected' : ''}>${esc(a.name)}${esc(suffix(a))}${esc(linkNote(a, ownPilotId))}</option>`;
+      return (similar.length ? `<optgroup label="Схожі">${similar.map(opt).join('')}</optgroup>` : '') +
+        (others.length ? `<optgroup label="Інші">${others.map(opt).join('')}</optgroup>` : '');
+    };
+    const select = (name, emptyText, opts) =>
+      `<select name="${name}" style="width:100%"><option value="">${emptyText}</option>${opts}</select>`;
+    const ownerName = (mech) => get(mech, 'system.pilot.value')?.name;
 
-    const { groups, orphans } = groupActors(pilotActors(), mechActors());
-    const body = groups.map((g) =>
-      `<tbody data-group style="border-top:1px solid rgba(127,127,127,.25)">` +
-      pilotRow(g.pilot) + g.mechs.map((m) => mechRow(m, flag(g.pilot, 'pilotId'), true)).join('') +
-      '</tbody>').join('');
-    // Мехи без пілота: кожен — окрема «група» з одного рядка, щоб пошук ховав їх поштучно.
-    const lonely = orphans.map((m) => `<tbody data-group data-section="solo">${mechRow(m, null, false)}</tbody>`).join('');
+    const body = pilots.map((p) => {
+      const linkedPilots = pActors.filter((a) => flag(a, 'pilotId') === p.id);
+      const preferredPilots = new Set(linkedPilots.map((a) => a.id));
+      // Кілька мехів — кілька профілів: кожен може мати свого актора-пілота, тож лишаємо
+      // порожній вибір, щоб додати ще одного.
+      const slots = [...linkedPilots.map((a) => a.id), ...(!linkedPilots.length || p.mechs.length > 1 ? [''] : [])];
+      const pilotSelects = slots.map((sel, i) => select(`p:${p.id}:${i}`, sel || !i ? "— не зв'язано —" : '+ ще актор-пілот',
+        options(pActors, [p.name, p.callsign], preferredPilots, sel, p.id))).join('');
+      const head = `<tr data-row data-name="${esc(`${p.name} ${p.callsign}`)}"><td style="padding:6px 6px 2px;vertical-align:top">` +
+        `<strong>${esc(label(p))}</strong>${p.name && p.name !== p.callsign ? ` <span style="opacity:.6">${esc(p.callsign)}</span>` : ''}` +
+        `${p.status === 'archive' ? ' <span style="opacity:.6">(архів)</span>' : ''}</td>` +
+        `<td style="padding:4px 6px;display:flex;flex-direction:column;gap:4px">${pilotSelects}</td></tr>`;
 
-    // Список має власну межу висоти (60% екрана) і прокручується сам: з десятками акторів
-    // вікно інакше виростає за екран, а висоту вікна Foundry рахує по-своєму.
+      const pilotActorIds = new Set(linkedPilots.map((a) => a.id));
+      const mechRows = [...p.mechs].sort((a, b) => abc(a.name, b.name)).map((m) => {
+        const current = mActors.find((a) => flag(a, 'pilotId') === p.id && flag(a, 'mechId') === m.id);
+        const preferred = new Set(mActors.filter((a) => pilotActorIds.has(get(a, 'system.pilot.value')?.id)).map((a) => a.id));
+        if (current) preferred.add(current.id);
+        return `<tr data-row data-name="${esc(`${m.name} ${m.frame || ''}`)}">` +
+          `<td style="padding:2px 6px 2px 28px"><i class="fas fa-turn-up fa-rotate-90" style="opacity:.5;margin-right:6px"></i>` +
+          `${esc(m.name)}${m.frame ? ` <span style="opacity:.6">(${esc(m.frame)})</span>` : ''}</td>` +
+          `<td style="padding:2px 6px">${select(`m:${p.id}:${m.id}`, "— не зв'язано —",
+            options(mActors, [m.name], preferred, current?.id, p.id, (a) => (ownerName(a) ? ` — ${ownerName(a)}` : '')))}</td></tr>`;
+      }).join('');
+
+      const withFile = p.mechs.filter((m) => m.hasProfile);
+      const pending = withFile.filter((m) => !linkedMechIds.has(m.id));
+      const createCell = !withFile.length
+        ? '<span style="opacity:.5;font-size:12px">Створити акторів: гравець не завантажив файл COMP/CON</span>'
+        : !pending.length
+          ? '<span style="opacity:.6;font-size:12px"><i class="fas fa-check"></i> усі мехи з файлом уже у Foundry</span>'
+          : `<button type="button" data-action="createActors" data-pilot="${p.id}" style="width:auto;line-height:1.6;padding:0 10px">` +
+            `<i class="fas fa-user-plus"></i> ${pending.length > 1 ? `Створити акторів (${pending.length})` : 'Створити актора'}</button>`;
+      const create = `<tr><td colspan="2" style="text-align:right;padding:2px 6px 6px">${createCell}</td></tr>`;
+
+      return `<tbody data-group style="border-top:1px solid rgba(127,127,127,.25)">${head}${mechRows}${create}</tbody>`;
+    }).join('');
+
+    // Список має власну межу висоти і прокручується сам: з десятками пілотів вікно інакше
+    // виростає за екран, а висоту вікна Foundry рахує по-своєму.
     div.innerHTML = `
       <p style="margin:0">Статус: ${esc(lastStatus)}</p>
-      <input type="search" data-search placeholder="Пошук: пілот, мех або позивний в апці…" value="${esc(this.query)}">
+      <input type="search" data-search placeholder="Пошук: пілот, позивний, мех або актор…" value="${esc(this.query)}">
       <div style="max-height:65vh;overflow-y:auto;padding-right:4px">
-        <table style="margin:0">${body || '<tbody><tr><td>Немає акторів-пілотів</td></tr></tbody>'}</table>
-        ${lonely ? `<h3 data-section-title="solo" style="margin-top:12px">Мехи без пілота у Foundry</h3><table style="margin:0">${lonely}</table>` : ''}
-        ${createBody ? `<h3 data-section-title="create" style="margin-top:12px">Є в апці, нема у Foundry</h3><table style="margin:0">${createBody}</table>` : ''}
+        <table style="margin:0;table-layout:fixed;width:100%"><colgroup><col style="width:42%"><col></colgroup>
+          ${body || '<tbody><tr><td colspan="2">В апці ще немає пілотів.</td></tr></tbody>'}</table>
         <p data-empty style="display:none;opacity:.7">Нічого не знайдено.</p>
       </div>
       <p style="font-size:12px;opacity:.8;margin:0">Після зміни зв'язку перша синхронізація бере значення з апки.</p>
@@ -436,7 +443,7 @@ class LinksApp extends ApplicationV2 {
   }
 
   // Пошук фільтрує вже намальовані рядки, без перемальовування: вибрані, але ще не збережені
-  // зв'язки лишаються на місці. Шукає в імені актора і в підписі вибраного зв'язку.
+  // зв'язки лишаються на місці. Шукає в імені пілота/меха апки і в іменах вибраних акторів.
   _onRender() {
     const root = this.element;
     const input = root.querySelector('[data-search]');
@@ -444,18 +451,13 @@ class LinksApp extends ApplicationV2 {
     const apply = () => {
       this.query = input.value;
       let any = false;
-      const sections = new Set(); // розділи, в яких лишилось хоч щось видиме
       for (const group of root.querySelectorAll('[data-group]')) {
         const rows = [...group.querySelectorAll('[data-row]')];
-        const texts = rows.map((r) => `${r.dataset.name} ${r.querySelector('select')?.selectedOptions[0]?.text ?? ''}`);
+        const texts = rows.map((r) => `${r.dataset.name} ${[...r.querySelectorAll('select')].map((s) => (s.value ? s.selectedOptions[0]?.text : '')).join(' ')}`);
         const m = matchGroup(texts, this.query);
         group.style.display = m.visible ? '' : 'none';
         rows.forEach((r, i) => { r.style.display = m.rows[i] ? '' : 'none'; });
         any ||= m.visible;
-        if (m.visible && group.dataset.section) sections.add(group.dataset.section);
-      }
-      for (const title of root.querySelectorAll('[data-section-title]')) {
-        title.style.display = sections.has(title.dataset.sectionTitle) ? '' : 'none';
       }
       root.querySelector('[data-empty]').style.display = any ? 'none' : '';
     };
@@ -471,41 +473,50 @@ class LinksApp extends ApplicationV2 {
   }
 
   static async #onSubmit(_event, _form, formData) {
-    const data = formData.object;
-    for (const actor of [...pilotActors(), ...mechActors()]) {
-      const isPilot = actor.type === 'pilot';
-      const value = data[`${isPilot ? 'pilot' : 'mech'}.${actor.id}`];
-      if (value === undefined) continue;
-      const [pilotId, mechId] = isPilot ? [value || null, null] : (value ? value.split('|') : [null, null]);
-      if (flag(actor, 'pilotId') === pilotId && (isPilot || flag(actor, 'mechId') === mechId)) continue;
-      // Новий зв'язок — стара база не про нього.
+    const pilotChoices = [];
+    const mechChoices = [];
+    for (const [key, value] of Object.entries(formData.object)) {
+      const [kind, pilotId, rest] = key.split(':');
+      if (kind === 'p') pilotChoices.push([pilotId, value || '']);
+      else if (kind === 'm') mechChoices.push([pilotId, rest, value || '']);
+    }
+    const asLink = (a) => ({ id: a.id, pilotId: flag(a, 'pilotId') ?? null, mechId: flag(a, 'mechId') ?? null });
+    const appPilotIds = new Set((this.pilots || []).map((p) => p.id));
+    const changes = resolveLinks({ pilotChoices, mechChoices }, pilotActors().map(asLink), mechActors().map(asLink), appPilotIds);
+
+    for (const c of changes) {
+      const actor = game.actors.get(c.actorId);
+      if (!actor) continue;
+      // Новий зв'язок — стара база не про нього; ім'я профілю веде лише актор, створений з апки.
       await actor.update({
         [`flags.${MODULE}.-=base`]: null,
-        [`flags.${MODULE}.pilotId`]: pilotId,
-        // Ім'я профілю веде лише актор, створений з апки, і лише для свого пілота.
-        ...(isPilot ? { [`flags.${MODULE}.-=profileMechId`]: null } : { [`flags.${MODULE}.mechId`]: mechId }),
+        [`flags.${MODULE}.pilotId`]: c.pilotId,
+        ...(c.type === 'pilot' ? { [`flags.${MODULE}.-=profileMechId`]: null } : { [`flags.${MODULE}.mechId`]: c.mechId }),
       }, SYNC_OPTION);
-      if (!isPilot) {
+      if (c.type === 'mech') {
         const resets = actor.items.filter((i) => i.getFlag(MODULE, 'base') !== undefined)
           .map((i) => ({ _id: i.id, [`flags.${MODULE}.-=base`]: null }));
         if (resets.length) await actor.updateEmbeddedDocuments('Item', resets, SYNC_OPTION);
       }
     }
-    ui.notifications.info("Silent Stars: зв'язки збережено.");
+    ui.notifications.info(`Silent Stars: зв'язки збережено${changes.length ? ` (змін: ${changes.length})` : ''}.`);
     this.render();
   }
 
-  static async #onCreateActor(_event, target) {
-    const { pilot: pilotId, mech: mechId } = target.dataset;
-    const p = (this.pilots || []).find((x) => x.id === pilotId);
-    const m = p?.mechs.find((x) => x.id === mechId);
-    if (!m) return;
+  // Пари актор-пілот + мех для всіх мехів пілота з файлом COMP/CON, яких ще немає у світі.
+  static async #onCreateActors(_event, target) {
+    const p = (this.pilots || []).find((x) => x.id === target.dataset.pilot);
+    if (!p) return;
+    const linked = new Set(mechActors().map((a) => flag(a, 'mechId')).filter(Boolean));
+    const pending = p.mechs.filter((m) => m.hasProfile && !linked.has(m.id));
     target.disabled = true; // імпорт триває кілька секунд — без повторного натискання
-    try {
-      await createFromApp(p, m);
-    } catch (err) {
-      console.error(`${MODULE} |`, err);
-      ui.notifications.error(`Silent Stars: ${err.message}`);
+    for (const m of pending) {
+      try {
+        await createFromApp(p, m);
+      } catch (err) {
+        console.error(`${MODULE} |`, err);
+        ui.notifications.error(`Silent Stars: ${m.name}: ${err.message}`);
+      }
     }
     this.pilots = null;
     this.render();
