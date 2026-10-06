@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {
   decide, mergeFields, mergeGroup, mergeLimited, mechMaxPatch, profileActorName, pilotIdentityUpdate,
-  groupActors, matchGroup, MECH_FIELDS, PILOT_FIELDS, MODULE,
+  matchGroup, suggestActors, resolveLinks, MECH_FIELDS, PILOT_FIELDS, MODULE,
 } from './sync.js';
 
 let n = 0;
@@ -168,26 +168,43 @@ test("ім'я: актора без profileMechId не перейменовуєм
   assert.equal(pilotIdentityUpdate({ ...twoMechs, ll: 2 }, created).name, 'Amon (MASTIFF)');
 });
 
-test('групування: пілоти за алфавітом, мехи під своїм пілотом', () => {
-  const zed = { id: 'p1', name: 'Zed' }, amon = { id: 'p2', name: 'Amon' }, bao = { id: 'p3', name: 'Бао' };
-  const mechs = [
-    { id: 'm1', name: 'Tortuga', system: { pilot: { value: zed } } },
-    { id: 'm2', name: 'Atlas', system: { pilot: { value: zed } } },
-    { id: 'm3', name: 'Lonely', system: { pilot: null } },
-    { id: 'm4', name: 'Ghost', system: { pilot: { value: { id: 'gone' } } } },
-  ];
-  const { groups, orphans } = groupActors([zed, bao, amon], mechs);
-  assert.deepEqual(groups.map((g) => g.pilot.name), ['Amon', 'Zed', 'Бао']);
-  assert.deepEqual(groups[1].mechs.map((m) => m.name), ['Atlas', 'Tortuga']);
-  assert.deepEqual(orphans.map((m) => m.name), ['Ghost', 'Lonely']);
-});
-
 test('пошук: збіг з пілотом показує всю групу, з мехом — пілота і мех', () => {
   const texts = ['Amon MASTIFF', 'Tortuga', 'Atlas'];
   assert.deepEqual(matchGroup(texts, ''), { visible: true, rows: [true, true, true] });
   assert.deepEqual(matchGroup(texts, 'mast'), { visible: true, rows: [true, true, true] });
   assert.deepEqual(matchGroup(texts, 'atl'), { visible: true, rows: [true, false, true] });
   assert.equal(matchGroup(texts, 'xyz').visible, false);
+});
+
+// ----- Вікно зв'язків від апки -----
+
+test('схожі актори: за іменем, позивним чи вже зв\'язані — першими', () => {
+  const actors = [{ id: '1', name: 'Zed' }, { id: '2', name: 'Emma (CROCEL)' }, { id: '3', name: 'Stella pilot' }, { id: '4', name: 'Bob' }];
+  const r = suggestActors(actors, ['Emma', 'STELLA'], new Set(['4']));
+  assert.deepEqual(r.similar.map((a) => a.id), ['4', '2', '3']);
+  assert.deepEqual(r.others.map((a) => a.id), ['1']);
+});
+
+test('зв\'язки: вибір, відв\'язування, чужі пілоти не чіпаються', () => {
+  const app = new Set(['P1', 'P2']);
+  const pilots = [{ id: 'a', pilotId: 'P1' }, { id: 'b', pilotId: 'P1' }, { id: 'c', pilotId: 'GONE' }, { id: 'd' }];
+  const mechs = [{ id: 'm', pilotId: 'P1', mechId: '1' }, { id: 'n' }];
+  const changes = resolveLinks({
+    pilotChoices: [['P1', 'a'], ['P2', 'd'], ['P2', '']],
+    mechChoices: [['P1', '1', 'n'], ['P1', '2', '']],
+  }, pilots, mechs, app);
+  assert.deepEqual(changes, [
+    { actorId: 'b', type: 'pilot', pilotId: null }, // був у P1, ніде не вибраний
+    { actorId: 'd', type: 'pilot', pilotId: 'P2' },
+    { actorId: 'm', type: 'mech', pilotId: null, mechId: null }, // мех 1 тепер у іншого актора
+    { actorId: 'n', type: 'mech', pilotId: 'P1', mechId: '1' },
+  ]);
+});
+
+test('зв\'язки: без змін — порожньо', () => {
+  const changes = resolveLinks({ pilotChoices: [['P1', 'a']], mechChoices: [['P1', '1', 'm']] },
+    [{ id: 'a', pilotId: 'P1' }], [{ id: 'm', pilotId: 'P1', mechId: '1' }], new Set(['P1']));
+  assert.deepEqual(changes, []);
 });
 
 console.log(`\n${n} тестів пройдено`);
