@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {
   decide, mergeFields, mergeGroup, mergeLimited, mechMaxPatch, profileActorName, pilotIdentityUpdate,
-  matchGroup, suggestActors, resolveLinks, pendingMechs, MECH_FIELDS, PILOT_FIELDS, MODULE,
+  matchGroup, suggestActors, resolveLinks, pendingMechs, mergeDestroyed, combineItemUpdates, MECH_FIELDS, PILOT_FIELDS, MODULE,
 } from './sync.js';
 
 let n = 0;
@@ -93,9 +93,11 @@ test('максимуми ХП/ремкомплектів беруться з Fou
 
 // ----- Два актори одного пілота (два профілі) -----
 
+// Поля бонду в базі вже узгоджені (нулі), щоб ці тести дивились лише на ХП і стрес.
+const BOND_BASE = { bondXp: 0, bondMajors: 0, bondMinor: 0, bondMinorIdeal: '' };
 const pilotActor = (hp, stress, base, time = 0) => ({
   system: { hp: { value: hp }, bond_state: { stress: { value: stress } } },
-  flags: base ? { [MODULE]: { base } } : {},
+  flags: base ? { [MODULE]: { base: { ...BOND_BASE, ...base } } } : {},
   _stats: { modifiedTime: time },
 });
 
@@ -220,6 +222,70 @@ test('створення: актора-пілота видалили — мех 
 test('створення: мех з тим самим id в іншого пілота не рахується', () => {
   const p = { id: 'P1', mechs: [{ id: '1', hasProfile: true }] };
   assert.deepEqual(pendingMechs(p, [{ pilotId: 'P1' }], [{ pilotId: 'P2', mechId: '1' }]).map((m) => m.id), ['1']);
+});
+
+// ----- Бонд -----
+
+const bondActor = (bond, base) => ({
+  system: { hp: { value: 6 }, bond_state: { stress: { value: 0 }, ...bond } },
+  flags: { [MODULE]: { base: { hp: 6, stress: 0, ...base } } },
+  _stats: { modifiedTime: 0 },
+});
+const bondApp = (over) => ({ hpCurrent: 6, stress: 0, bondXp: 0, bondChecks: [], bondPick: 0, minorIdeals: ['A', 'B'], ...over });
+
+test('бонд: XP апки йде у Foundry як позиція в циклі з 8', () => {
+  const actor = bondActor({ xp: { value: 0 } }, { bondXp: 0, bondMajors: 0, bondMinor: 0, bondMinorIdeal: 'A' });
+  const r = mergeFields(PILOT_FIELDS, bondApp({ bondXp: 11 }), actor, 0);
+  assert.equal(r.update['system.bond_state.xp.value'], 3);
+  assert.deepEqual(r.patch, {});
+});
+
+test('бонд: галочки й XP з Foundry йдуть в апку', () => {
+  const actor = bondActor(
+    { xp: { value: 4 }, xp_checklist: { major_ideals: [false, true, false], minor_ideal: true }, minor_ideal: 'B' },
+    { bondXp: 3, bondMajors: 0, bondMinor: 0, bondMinorIdeal: 'A' },
+  );
+  const r = mergeFields(PILOT_FIELDS, bondApp({ bondXp: 11 }), actor, 0);
+  assert.deepEqual(r.patch, { bondXp: 12, bondMajors: [false, true, false], bondMinor: true, bondPick: 1 });
+});
+
+test('бонд: 8 XP у Foundry закриває цикл в апці', () => {
+  const actor = bondActor({ xp: { value: 8 } }, { bondXp: 7, bondMajors: 0, bondMinor: 0, bondMinorIdeal: 'A' });
+  const r = mergeFields(PILOT_FIELDS, bondApp({ bondXp: 15 }), actor, 0);
+  assert.equal(r.patch.bondXp, 16);
+});
+
+test('бонд: мінорний ідеал, якого немає в списку апки, в апку не йде', () => {
+  const actor = bondActor({ minor_ideal: 'Свій текст' }, { bondXp: 0, bondMajors: 0, bondMinor: 0, bondMinorIdeal: 'A' });
+  const r = mergeFields(PILOT_FIELDS, bondApp(), actor, 0);
+  assert.equal(r.patch.bondPick, undefined);
+});
+
+// ----- Знищене спорядження -----
+
+const weapon = (id, name, destroyed, base, type = 'mech_weapon') => ({
+  id, name, type, system: { destroyed }, flags: base === undefined ? {} : { [MODULE]: { baseDestroyed: base } }, _stats: {},
+});
+
+test('знищене: знищили у Foundry — йде в апку', () => {
+  const r = mergeDestroyed({ items: [{ name: 'Siege Cannon', destroyed: false }] }, [weapon('i1', 'Siege Cannon', true, 0)], 0);
+  assert.deepEqual(r.patch, { 'siege cannon': true });
+  assert.equal(r.itemUpdates.length, 0);
+});
+
+test('знищене: відремонтували в апці — йде у Foundry', () => {
+  const r = mergeDestroyed({ items: [{ name: 'Siege Cannon', destroyed: false }] }, [weapon('i1', 'Siege Cannon', true, 1)], 0);
+  assert.deepEqual(r.itemUpdates, [{ _id: 'i1', 'system.destroyed': false, [`flags.${MODULE}.baseDestroyed`]: 0 }]);
+});
+
+test('знищене: предмети не меха й без пари в апці пропускаються', () => {
+  const r = mergeDestroyed({ items: [{ name: 'Siege Cannon', destroyed: true }] },
+    [weapon('i1', 'Frame', true, undefined, 'frame'), weapon('i2', 'Other', true, 0)], 0);
+  assert.deepEqual(r, { itemUpdates: [], patch: {}, baseAfterPush: [], conflicts: [] });
+});
+
+test('оновлення предметів одного id зливаються', () => {
+  assert.deepEqual(combineItemUpdates([{ _id: 'a', x: 1 }], [{ _id: 'a', y: 2 }, { _id: 'b', z: 3 }]), [{ _id: 'a', x: 1, y: 2 }, { _id: 'b', z: 3 }]);
 });
 
 console.log(`\n${n} тестів пройдено`);

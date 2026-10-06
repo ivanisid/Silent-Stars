@@ -31,6 +31,10 @@ Foundry (клієнт ГМа)                     Supabase
 | портрет / арт меха | `img` і токен актора | апка → Foundry |
 | ХП пілота | `system.hp.value` | обидва |
 | стрес (бонд) | `system.bond_state.stress.value` | обидва |
+| XP бонду (позиція в циклі з 8; 8 у Foundry закриває цикл в апці) | `system.bond_state.xp.value` | обидва |
+| галочки трьох major ideals | `system.bond_state.xp_checklist.major_ideals` | обидва |
+| галочка мінорного ідеалу | `system.bond_state.xp_checklist.minor_ideal` | обидва |
+| обраний мінорний ідеал (текст має бути в списку бонду апки) | `system.bond_state.minor_ideal` | обидва |
 | ХП меха | `system.hp.value` | обидва |
 | ремкомплекти | `system.repairs.value` | обидва |
 | структура (втрачені клітинки) | `structure.max − structure.value` | обидва |
@@ -38,9 +42,10 @@ Foundry (клієнт ГМа)                     Supabase
 | Overcharge | `system.overcharge` | обидва |
 | Core Power | `system.core_energy` | обидва |
 | заряди лімітних систем | `system.uses.value` предмета з тією ж назвою | обидва |
+| знищена зброя й системи | `system.destroyed` предмета (`mech_weapon`, `mech_system`) з тією ж назвою | обидва |
 | макс. ХП, ремкомплектів, зарядів | `.max` (рахує Foundry з лоадауту) | Foundry → апка |
 
-Решта (PR, мана, бонд, резерви, лоадаут) не синхронізується. Актора можна зв'язати з
+Решта (PR, мана, архетип і сили бонду, «Boon XP», резерви, лоадаут) не синхронізується. Актора можна зв'язати з
 уже наявним (імпорт з COMP/CON вручну) або створити з апки — див. нижче.
 
 ## Створення актора з апки
