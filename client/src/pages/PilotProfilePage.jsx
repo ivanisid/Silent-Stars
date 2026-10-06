@@ -194,6 +194,7 @@ export default function PilotProfilePage() {
       <MechsPanel
         state={state}
         dispatch={dispatch}
+        pilotId={id}
         mechArt={art.mechs}
         canEditArt={own}
         onUploadMechArt={(mechId, file) => uploadArt('mech', mechId, file)}
