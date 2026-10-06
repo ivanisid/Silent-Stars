@@ -8,6 +8,14 @@
 //   POST { action: 'pull' }
 //     → { pilots: [...] } — усі пілоти з полями, які синхронізуються (див. toSyncPilot).
 //
+//   POST { action: 'profile', pilotId, mechId }
+//     → { data } — файл COMP/CON для цього меха (pilot_compcon), з якого модуль створює
+//       актора-пілота й меха імпортом системи Lancer.
+//
+//   POST { action: 'art', id }
+//     → { url } — тимчасове посилання на арт (art_uploads.id) у сховищі. Модуль кладе файл
+//       у Data свого Foundry за шляхом foundry_path — так арти є й на локальних серверах ГМів.
+//
 //   POST { action: 'push', updates: [{ pilotId, updatedAt, pilot?, mechs?, log? }] }
 //     Кожне оновлення накладається на state пілота лише якщо updated_at у базі досі той,
 //     що бачив модуль (оптимістичне блокування). Інакше — conflict, і модуль повторить
@@ -53,7 +61,10 @@ async function loadKey() {
 
 const STRUCTURE_MAX = 4; // у апці 4 клітинки структури і 4 реактора (MechsPanel)
 
-function toSyncMech(m: any, art: Map<string, string>, pilotId: string) {
+type Art = Map<string, { id: string; path: string }>;
+
+function toSyncMech(m: any, art: Art, pilotId: string, profiles: Set<string>) {
+  const a = art.get(`${pilotId}:mech:${m.id}`);
   return {
     id: String(m.id),
     name: m.name || '',
@@ -70,12 +81,16 @@ function toSyncMech(m: any, art: Map<string, string>, pilotId: string) {
     // max), старіша — mech.limited; рядки, які ще не пересохранялись з апки, мають саме її.
     limited: itemsOf(m).filter((l: any) => l.max != null)
       .map((l: any) => ({ name: l.name || '', current: num(l.current), max: num(l.max) })),
-    art: art.get(`${pilotId}:mech:${m.id}`) || null,
+    art: a?.path || null,
+    artId: a?.id || null,
+    // Є файл COMP/CON — з нього модуль може створити актора.
+    hasProfile: profiles.has(`${pilotId}:${m.id}`),
   };
 }
 
-function toSyncPilot(p: any, nicks: Map<string, string>, art: Map<string, string>) {
+function toSyncPilot(p: any, nicks: Map<string, string>, art: Art, profiles: Set<string>) {
   const s = p.state || {};
+  const portrait = art.get(`${p.id}:portrait`);
   return {
     id: p.id,
     name: p.name,
@@ -87,26 +102,49 @@ function toSyncPilot(p: any, nicks: Map<string, string>, art: Map<string, string
     hpMax: num(s.hp?.max),
     stress: num(s.stress),
     stressMax: num(s.stressMax ?? 8),
-    portrait: art.get(`${p.id}:portrait`) || null,
-    mechs: (s.mechs || []).map((m: any) => toSyncMech(m, art, p.id)),
+    portrait: portrait?.path || null,
+    portraitId: portrait?.id || null,
+    mechs: (s.mechs || []).map((m: any) => toSyncMech(m, art, p.id, profiles)),
     updatedAt: p.updated_at,
   };
 }
 
 async function pull() {
-  const [{ data: pilots, error }, { data: profiles }, { data: arts }] = await Promise.all([
+  const [{ data: pilots, error }, { data: users }, { data: arts }, { data: cc }] = await Promise.all([
     db.from('pilots').select('id, user_id, name, callsign, state, updated_at'),
     db.from('profiles').select('id, nick'),
-    db.from('art_uploads').select('pilot_id, kind, mech_id, foundry_path')
+    db.from('art_uploads').select('id, pilot_id, kind, mech_id, foundry_path')
       .is('deleted_at', null).not('foundry_path', 'is', null),
+    db.from('pilot_compcon').select('pilot_id, mech_id'),
   ]);
   if (error) throw new Error(error.message);
-  const nicks = new Map((profiles || []).map((r) => [r.id, r.nick]));
-  const art = new Map<string, string>();
+  const nicks = new Map((users || []).map((r) => [r.id, r.nick]));
+  const art: Art = new Map();
   for (const a of arts || []) {
-    art.set(a.kind === 'portrait' ? `${a.pilot_id}:portrait` : `${a.pilot_id}:mech:${a.mech_id}`, a.foundry_path);
+    art.set(a.kind === 'portrait' ? `${a.pilot_id}:portrait` : `${a.pilot_id}:mech:${a.mech_id}`, { id: a.id, path: a.foundry_path });
   }
-  return { pilots: (pilots || []).map((p) => toSyncPilot(p, nicks, art)) };
+  const profiles = new Set((cc || []).map((r) => `${r.pilot_id}:${r.mech_id}`));
+  return { pilots: (pilots || []).map((p) => toSyncPilot(p, nicks, art, profiles)) };
+}
+
+// ----- profile / art -----
+
+async function profile(pilotId: string, mechId: string) {
+  const { data, error } = await db.from('pilot_compcon').select('data')
+    .eq('pilot_id', pilotId).eq('mech_id', String(mechId)).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return { error: 'Для цього меха немає файлу COMP/CON — гравцю треба завантажити його в апці.' };
+  return { data: data.data };
+}
+
+async function artUrl(id: string) {
+  const { data: row, error } = await db.from('art_uploads').select('storage_path')
+    .eq('id', id).is('deleted_at', null).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!row) return { error: 'арт не знайдено' };
+  const { data, error: signErr } = await db.storage.from('pilot-art').createSignedUrl(row.storage_path, 300);
+  if (signErr) throw new Error(signErr.message);
+  return { url: data.signedUrl };
 }
 
 const itemsKey = (m: any) => (Array.isArray(m.items) ? 'items' : 'limited');
@@ -228,6 +266,14 @@ Deno.serve(async (req) => {
 
   try {
     if (body.action === 'pull') return json(await pull());
+    if (body.action === 'profile') {
+      const r = await profile(String(body.pilotId || ''), String(body.mechId || ''));
+      return json(r, r.error ? 404 : 200);
+    }
+    if (body.action === 'art') {
+      const r = await artUrl(String(body.id || ''));
+      return json(r, r.error ? 404 : 200);
+    }
     if (body.action === 'push') {
       const updates = Array.isArray(body.updates) ? body.updates.slice(0, 100) : [];
       const results = [];

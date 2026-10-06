@@ -135,6 +135,9 @@ function mapMech(m, grit, hull, limitedBonus) {
   return {
     id: Date.now() + Math.floor(Math.random() * 1000),
     name: m.name || m.frameData?.name || 'Мех',
+    // Ідентифікатор меха в COMP/CON: за ним повторний імпорт відрізняє «той самий мех» від
+    // іншого меха з такою ж назвою з іншого файлу (профілю).
+    ccId: m.id || '',
     // The chassis, kept apart from the pilot's own name for it: a mech called "Godhammer"
     // is an IPS-N Tortuga, and which frame it is drives everything at the table.
     frame: m.frameData?.name || '',
@@ -166,6 +169,54 @@ export function mergeMechsByName(existingMechs, importedMechs) {
     }
   });
   return result;
+}
+
+// Назви мехів у пілота унікальні (без урахування регістру): за назвою імпорт COMP/CON
+// оновлює вже наявного меха, а в Foundry за нею розрізняються актори.
+const mechKey = (name) => String(name || '').trim().toLowerCase();
+
+export function isMechNameTaken(mechs, name, exceptId = null) {
+  const key = mechKey(name);
+  return !!key && (mechs || []).some((m) => m.id !== exceptId && mechKey(m.name) === key);
+}
+
+// Мехи з файлу, які не можна влити: два з однаковою назвою в самому файлі, або назва вже
+// зайнята мехом з іншого файлу COMP/CON (інший ccId). Мех без ccId (доданий вручну чи
+// імпортований до появи цього поля) вважається тим самим і оновлюється.
+export function mechNameClashes(existingMechs, importedMechs) {
+  const clashes = [];
+  const seen = new Set();
+  for (const incoming of importedMechs || []) {
+    const key = mechKey(incoming.name);
+    if (seen.has(key)) {
+      clashes.push(incoming.name);
+      continue;
+    }
+    seen.add(key);
+    const same = (existingMechs || []).find((m) => mechKey(m.name) === key);
+    if (same?.ccId && incoming.ccId && same.ccId !== incoming.ccId) clashes.push(incoming.name);
+  }
+  return clashes;
+}
+
+export function mechClashMessage(names) {
+  return `Мех з назвою ${names.map((n) => `«${n}»`).join(', ')} уже є в пілота з іншого файлу COMP/CON. ` +
+    'Назви мехів мають бути різні — перейменуйте меха в COMP/CON і завантажте файл знову.';
+}
+
+// Файл COMP/CON для кожного влитого меха: увесь файл, але в ньому лише цей мех. З нього
+// модуль Foundry створює актора-пілота (таланти, скіли, ліцензії цього профілю) і меха.
+// mech_id — той, що мех матиме в апці після mergeMechsByName (наявний за назвою або новий).
+export function compconProfiles(existingMechs, importedMechs, json) {
+  const byKey = new Map((existingMechs || []).map((m) => [mechKey(m.name), m]));
+  const source = json?.data?.mechs || [];
+  return (importedMechs || []).flatMap((incoming) => {
+    const raw = source.find((m) => m.id === incoming.ccId) ||
+      source.find((m) => mechKey(m.name || m.frameData?.name) === mechKey(incoming.name));
+    if (!raw) return [];
+    const id = byKey.get(mechKey(incoming.name))?.id ?? incoming.id;
+    return [{ mechId: String(id), data: { ...json, data: { ...json.data, mechs: [raw] } } }];
+  });
 }
 
 export function isCompconPilotExport(json) {

@@ -5,11 +5,15 @@
 // (sync.js) → записати у Foundry те, де перемогла апка, і відправити в апку те, де
 // перемогла Foundry. Цикл запускається за таймером, після зміни зв'язаного актора чи
 // предмета (з затримкою) і кнопкою в налаштуваннях модуля.
+//
+// Кнопка «Створити з апки» робить пару актор-пілот + мех з файлу COMP/CON, який гравець
+// завантажив в апку, імпортом самої системи Lancer — на будь-якому Foundry з цим модулем.
+// Арти модуль кладе в Data свого сервера сам, тож вони є і на локальних серверах ГМів.
 
 import {
   MODULE, PILOT_FIELDS, MECH_FIELDS, get, norm,
-  mergeFields, mergeLimited, mechMaxPatch, pilotIdentityUpdate, artUpdate,
-  findAppPilotFor, findAppMechFor,
+  mergeFields, mergeGroup, mergeLimited, mechMaxPatch, pilotIdentityUpdate, artUpdate,
+  findAppPilotFor, findAppMechFor, profileActorName,
 } from './sync.js';
 
 const DEFAULT_URL = 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/foundry-sync';
@@ -18,6 +22,7 @@ const SYNC_OPTION = { [MODULE]: true }; // позначка наших влас�
 let timer = null;
 let pending = null;
 let running = false;
+let creating = false; // поки імпорт створює актора, цикл не чіпає напівготові дані
 let lastStatus = 'ще не запускалась';
 
 const setting = (k) => game.settings.get(MODULE, k);
@@ -40,6 +45,55 @@ async function call(body) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
+}
+
+// ----- Арти в Data цього Foundry -----
+//
+// Шлях (foundry_path) визначає синхронізатор артів в апці; модуль кладе файл за тим самим
+// шляхом відносно Data. Яка версія арту вже лежить за шляхом, пам'ятає world-налаштування
+// artFiles ({ шлях: id арту }): новий арт під тим самим ім'ям замінює старий файл.
+
+const FP = () => foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
+const knownDirs = new Set();
+
+async function ensureDir(dir) {
+  let parent = '';
+  for (const part of dir.split('/').filter(Boolean)) {
+    const cur = parent ? `${parent}/${part}` : part;
+    if (!knownDirs.has(cur)) {
+      const listing = await FP().browse('data', parent).catch(() => null);
+      const exists = (listing?.dirs || []).some((d) => decodeURIComponent(d).replace(/\/+$/, '') === cur);
+      // Якщо теку створили паралельно, createDirectory впаде — тоді невдачу покаже upload.
+      if (!exists) await FP().createDirectory('data', cur, {}).catch(() => null);
+      knownDirs.add(cur);
+    }
+    parent = cur;
+  }
+}
+
+async function ensureArt(path, id) {
+  if (!path || !id || !setting('uploadArt')) return;
+  const files = setting('artFiles') || {};
+  if (files[path] === id) return;
+  const { url } = await call({ action: 'art', id });
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`арт ${path}: HTTP ${res.status}`);
+  const blob = await res.blob();
+  const dir = path.split('/').slice(0, -1).join('/');
+  const name = path.split('/').pop();
+  await ensureDir(dir);
+  const out = await FP().upload('data', dir, new File([blob], name, { type: blob.type }), {}, { notify: false });
+  if (!out?.path) throw new Error(`не вдалося покласти арт ${path} (перевірте право ГМа завантажувати файли)`);
+  await game.settings.set(MODULE, 'artFiles', { ...(setting('artFiles') || {}), [path]: id });
+}
+
+// Помилка з артом не має зупиняти синхронізацію ХП і решти.
+async function ensureArtSafe(path, id) {
+  try {
+    await ensureArt(path, id);
+  } catch (err) {
+    console.warn(`${MODULE} |`, err);
+  }
 }
 
 // ----- Зв'язки -----
@@ -74,7 +128,7 @@ async function autoLink(appPilots) {
 
 export async function syncNow({ quiet = true } = {}) {
   if (!isSyncGM()) return;
-  if (running) return;
+  if (running || creating) return;
   running = true;
   try {
     const { pilots } = await call({ action: 'pull' });
@@ -89,17 +143,28 @@ export async function syncNow({ quiet = true } = {}) {
     };
     const conflicts = [];
 
+    // Кілька акторів одного пілота (профілі з різними талантами й мехами) зводяться
+    // разом: ХП і стрес пілота в апці одні.
+    const groups = new Map();
     for (const actor of pilotActors()) {
-      const p = byId.get(flag(actor, 'pilotId'));
-      if (!p) continue;
+      const id = flag(actor, 'pilotId');
+      if (!byId.has(id)) continue;
+      if (!groups.has(id)) groups.set(id, []);
+      groups.get(id).push(actor);
+    }
+    for (const [id, actors] of groups) {
+      const p = byId.get(id);
       const appTime = Date.parse(p.updatedAt) || 0;
-      const r = mergeFields(PILOT_FIELDS, p, actor, appTime);
-      const update = { ...pilotIdentityUpdate(p, actor), ...(r.update || {}) };
-      if (Object.keys(update).length) await actor.update(update, SYNC_OPTION);
+      await ensureArtSafe(p.portrait, p.portraitId);
+      const r = mergeGroup(PILOT_FIELDS, p, actors, appTime);
+      for (const [i, actor] of actors.entries()) {
+        const update = { ...pilotIdentityUpdate(p, actor), ...(r.updates[i] || {}) };
+        if (Object.keys(update).length) await actor.update(update, SYNC_OPTION);
+      }
       if (Object.keys(r.patch).length) {
         const push = pushFor(p);
         Object.assign(push.pilot, r.patch);
-        push.after.push(() => setBase(actor, r.baseAfterPush));
+        actors.forEach((actor, i) => push.after.push(() => setBase(actor, r.baseAfterPush[i])));
       }
       conflicts.push(...r.conflicts.map((c) => `${p.callsign}: ${c}`));
     }
@@ -109,6 +174,7 @@ export async function syncNow({ quiet = true } = {}) {
       const m = p?.mechs.find((x) => x.id === flag(actor, 'mechId'));
       if (!m) continue;
       const appTime = Date.parse(p.updatedAt) || 0;
+      await ensureArtSafe(m.art, m.artId);
 
       const r = mergeFields(MECH_FIELDS, m, actor, appTime);
       const update = { ...artUpdate(m.art, actor), ...(r.update || {}) };
@@ -187,6 +253,56 @@ function restartTimer() {
   syncNow();
 }
 
+// ----- Створення актора з апки -----
+//
+// Файл COMP/CON (у ньому лише цей мех) імпортує сама система Lancer: вона заповнює
+// пілота (таланти, скіли, ліцензії, лоадаут) і створює меха з фреймом, зброєю й
+// системами з компендіумів світу. Модуль лише називає актора, зв'язує пару з апкою і
+// запускає синхронізацію, яка підтягує ХП, стрес, структуру, заряди й арти.
+
+async function createFromApp(p, m) {
+  if (!isSyncGM()) throw new Error('Створювати акторів може лише активний ГМ.');
+  const Sheet = game.lancer?.applications?.LancerPilotSheet;
+  if (typeof Sheet?.prototype?._onPilotJsonParsed !== 'function') {
+    throw new Error('Система Lancer не має імпорту COMP/CON (потрібна Lancer 3.x).');
+  }
+  const { data } = await call({ action: 'profile', pilotId: p.id, mechId: m.id });
+  const ccMechId = (data?.data ?? data)?.mechs?.[0]?.id;
+
+  creating = true;
+  let pilot;
+  try {
+    pilot = await Actor.create({
+      name: profileActorName(p, m.id),
+      type: 'pilot',
+      flags: { [MODULE]: { pilotId: p.id, profileMechId: m.id } },
+    });
+    // Імпорт листа пілота без відкриття самого листа: метод бере лише this.actor і this.render.
+    await Sheet.prototype._onPilotJsonParsed.call({ actor: pilot, render() {} }, JSON.stringify(data));
+
+    const mech = game.actors.find((a) => a.type === 'mech' && ccMechId && get(a, 'system.lid') === ccMechId);
+    if (mech) {
+      // Новий зв'язок — стара база (якщо імпорт оновив уже наявного меха) не про нього.
+      await mech.update({
+        [`flags.${MODULE}.-=base`]: null,
+        [`flags.${MODULE}.pilotId`]: p.id,
+        [`flags.${MODULE}.mechId`]: m.id,
+      }, SYNC_OPTION);
+      const resets = mech.items.filter((i) => i.getFlag(MODULE, 'base') !== undefined)
+        .map((i) => ({ _id: i.id, [`flags.${MODULE}.-=base`]: null }));
+      if (resets.length) await mech.updateEmbeddedDocuments('Item', resets, SYNC_OPTION);
+    }
+    // Імпорт ставить ім'я з файлу — повертаємо наше.
+    await pilot.update({ name: profileActorName(p, m.id) }, SYNC_OPTION);
+    if (!mech) ui.notifications.warn(`Silent Stars: меха «${m.name}» не створено — перевірте, чи є його фрейм у компендіумах світу.`);
+  } finally {
+    creating = false;
+  }
+  await syncNow({ quiet: true });
+  ui.notifications.info(`Silent Stars: створено «${pilot.name}».`);
+  return pilot;
+}
+
 // ----- Вікно зв'язків -----
 
 const { ApplicationV2 } = foundry.applications.api;
@@ -198,7 +314,7 @@ class LinksApp extends ApplicationV2 {
     window: { title: "Silent Stars: зв'язки з апкою", resizable: true },
     position: { width: 720, height: 'auto' },
     form: { handler: LinksApp.#onSubmit, closeOnSubmit: false },
-    actions: { syncNow: LinksApp.#onSyncNow },
+    actions: { syncNow: LinksApp.#onSyncNow, createActor: LinksApp.#onCreateActor },
   };
 
   pilots = null;
@@ -234,11 +350,23 @@ class LinksApp extends ApplicationV2 {
         return `<option value="${v}" ${v === sel ? 'selected' : ''}>${esc(p.callsign)} / ${esc(m.name)}${m.frame ? ` (${esc(m.frame)})` : ''}</option>`;
       })).join('');
 
+    // Мехи, для яких гравець завантажив файл COMP/CON; уже зв'язані з актором — позначені.
+    const linkedMechIds = new Set(mechActors().map((a) => flag(a, 'mechId')).filter(Boolean));
+    const createOpts = pilots.flatMap((p) => p.mechs.filter((m) => m.hasProfile).map((m) =>
+      `<option value="${p.id}|${m.id}">${esc(profileActorName(p, m.id))} — ${esc(m.name)}${m.frame ? ` (${esc(m.frame)})` : ''}${linkedMechIds.has(m.id) ? " · уже є" : ''}</option>`,
+    )).join('');
+
     const row = (actor, select) =>
       `<tr><td style="padding:2px 6px"><img src="${esc(actor.img)}" width="28" height="28" style="vertical-align:middle;border:none"> ${esc(actor.name)}</td><td>${select}</td></tr>`;
 
     div.innerHTML = `
       <p>Статус: ${esc(lastStatus)}</p>
+      <h3>Створити з апки</h3>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select name="create" style="flex:1">${createOpts || '<option value="">Немає мехів з файлом COMP/CON</option>'}</select>
+        <button type="button" data-action="createActor" ${createOpts ? '' : 'disabled'}><i class="fas fa-user-plus"></i> Створити</button>
+      </div>
+      <p style="font-size:12px;opacity:.8">Пілот і мех з файлу, який гравець завантажив в апку, і одразу зв'язок з апкою. Фрейм, зброя й системи беруться з компендіумів світу.</p>
       <h3>Пілоти</h3>
       <table>${pilotActors().map((a) => row(a, `<select name="pilot.${a.id}">${pilotOpts(flag(a, 'pilotId'))}</select>`)).join('') || '<tr><td>Немає акторів-пілотів</td></tr>'}</table>
       <h3>Мехи</h3>
@@ -267,7 +395,8 @@ class LinksApp extends ApplicationV2 {
       await actor.update({
         [`flags.${MODULE}.-=base`]: null,
         [`flags.${MODULE}.pilotId`]: pilotId,
-        ...(isPilot ? {} : { [`flags.${MODULE}.mechId`]: mechId }),
+        // Ім'я профілю веде лише актор, створений з апки, і лише для свого пілота.
+        ...(isPilot ? { [`flags.${MODULE}.-=profileMechId`]: null } : { [`flags.${MODULE}.mechId`]: mechId }),
       }, SYNC_OPTION);
       if (!isPilot) {
         const resets = actor.items.filter((i) => i.getFlag(MODULE, 'base') !== undefined)
@@ -276,6 +405,23 @@ class LinksApp extends ApplicationV2 {
       }
     }
     ui.notifications.info("Silent Stars: зв'язки збережено.");
+    this.render();
+  }
+
+  static async #onCreateActor() {
+    const value = this.element.querySelector('select[name="create"]')?.value;
+    if (!value) return;
+    const [pilotId, mechId] = value.split('|');
+    const p = (this.pilots || []).find((x) => x.id === pilotId);
+    const m = p?.mechs.find((x) => x.id === mechId);
+    if (!m) return;
+    try {
+      await createFromApp(p, m);
+    } catch (err) {
+      console.error(`${MODULE} |`, err);
+      ui.notifications.error(`Silent Stars: ${err.message}`);
+    }
+    this.pilots = null;
     this.render();
   }
 
@@ -314,6 +460,12 @@ Hooks.once('init', () => {
   game.settings.register(MODULE, 'interval', {
     name: 'Інтервал опитування апки (сек)', scope: 'world', config: true, type: Number, default: 20, onChange: restartTimer,
   });
+  game.settings.register(MODULE, 'uploadArt', {
+    name: 'Класти арти з апки в Data цього сервера',
+    hint: 'Портрети й арти мехів завантажуються у Foundry за тим самим шляхом, що й на основному сервері. Потрібно для локальних серверів.',
+    scope: 'world', config: true, type: Boolean, default: true,
+  });
+  game.settings.register(MODULE, 'artFiles', { scope: 'world', config: false, type: Object, default: {} });
   game.settings.register(MODULE, 'autoLink', {
     name: "Автоматично зв'язувати акторів",
     hint: 'Пілот — за позивним, мех — за назвою серед мехів свого пілота.',
@@ -322,7 +474,11 @@ Hooks.once('init', () => {
 });
 
 Hooks.once('ready', () => {
-  game.modules.get(MODULE).api = { syncNow: () => syncNow({ quiet: false }), openLinks: () => new LinksApp().render(true) };
+  game.modules.get(MODULE).api = {
+    syncNow: () => syncNow({ quiet: false }),
+    openLinks: () => new LinksApp().render(true),
+    createFromApp,
+  };
   restartTimer();
 });
 
