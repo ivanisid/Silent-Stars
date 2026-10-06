@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { Msg, useConfirm } from '../components/kit.jsx';
-import { RARE_RANKS, TAG_KINDS, loadRareCatalog } from '../pilot/rareReserves';
+import { RARE_DEFAULT_PRICE_PR, RARE_RANKS, TAG_KINDS, loadRareCatalog } from '../pilot/rareReserves';
 
 // ГМ-редактори каталогу рідкісних резервів: картка резерву і список тегів.
 // Після кожного збереження каталог перечитується з бази — його бачать і редюсер,
@@ -16,7 +16,7 @@ function Field({ label, children, style }) {
   );
 }
 
-const EMPTY = { key: null, rank: 1, name: '', action: '', traits: '', desc: '', flavor: '', tagIds: [] };
+const EMPTY = { key: null, rank: 1, name: '', action: '', traits: '', desc: '', flavor: '', tagIds: [], pricePr: RARE_DEFAULT_PRICE_PR[1] };
 
 // reserve — null для нового резерву.
 export function RareReserveEditor({ reserve, tags, onClose }) {
@@ -30,10 +30,12 @@ export function RareReserveEditor({ reserve, tags, onClose }) {
   async function save(e) {
     e.preventDefault();
     if (!f.name.trim()) return setError('Вкажіть назву резерву.');
+    const price = Number(f.pricePr);
+    if (f.pricePr === '' || !Number.isInteger(price) || price < 0) return setError('Ціна — ціле число від 0.');
     setBusy(true);
     setError('');
     try {
-      await api.gmSaveRareReserve(f);
+      await api.gmSaveRareReserve({ ...f, pricePr: price });
       await loadRareCatalog(true);
       onClose();
     } catch (err) {
@@ -54,11 +56,19 @@ export function RareReserveEditor({ reserve, tags, onClose }) {
             <Field label="РАНГ">
               <div style={{ display: 'flex', gap: 6 }}>
                 {RARE_RANKS.map((rk) => (
-                  <button key={rk} type="button" className={`ss-chip${f.rank === rk ? ' on' : ''}`} onClick={() => setF((cur) => ({ ...cur, rank: rk }))}>
+                  <button key={rk} type="button" className={`ss-chip${f.rank === rk ? ' on' : ''}`} onClick={() => setF((cur) => ({
+                    ...cur,
+                    rank: rk,
+                    // Новому резерву ціна йде за рангом, поки ГМ не ввів свою.
+                    pricePr: !cur.key && Number(cur.pricePr) === RARE_DEFAULT_PRICE_PR[cur.rank] ? RARE_DEFAULT_PRICE_PR[rk] : cur.pricePr,
+                  }))}>
                     РАНГ {rk}
                   </button>
                 ))}
               </div>
+            </Field>
+            <Field label="ЦІНА, PR">
+              <input className="ss-input" type="number" min={0} step={1} value={f.pricePr} onChange={set('pricePr')} style={{ width: 90 }} />
             </Field>
           </div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>

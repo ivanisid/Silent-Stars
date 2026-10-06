@@ -413,7 +413,7 @@ export const api = {
     const [res, tags] = await Promise.all([
       supabase
         .from('rare_reserves')
-        .select('key, rank, name, action, traits, description, flavor, archived, rare_reserve_tags(tag_id)')
+        .select('key, rank, name, action, traits, description, flavor, price_pr, archived, rare_reserve_tags(tag_id)')
         .order('sort')
         .order('key'),
       supabase.from('reserve_tags').select('id, name, kind').order('kind').order('name'),
@@ -429,6 +429,7 @@ export const api = {
         traits: r.traits,
         desc: r.description,
         flavor: r.flavor,
+        pricePr: r.price_pr,
         archived: r.archived,
         tagIds: (r.rare_reserve_tags || []).map((t) => t.tag_id),
       })),
@@ -436,7 +437,7 @@ export const api = {
     };
   },
 
-  gmSaveRareReserve: async ({ key, rank, name, action, traits, desc, flavor, tagIds }) => {
+  gmSaveRareReserve: async ({ key, rank, name, action, traits, desc, flavor, tagIds, pricePr }) => {
     const { data, error } = await supabase.rpc('gm_save_rare_reserve', {
       p_key: key || null,
       p_rank: rank,
@@ -446,6 +447,7 @@ export const api = {
       p_description: desc,
       p_flavor: flavor,
       p_tag_ids: tagIds,
+      p_price_pr: pricePr,
     });
     if (error) throw new Error(error.message);
     return data;
