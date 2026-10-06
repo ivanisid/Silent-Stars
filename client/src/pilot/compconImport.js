@@ -163,7 +163,6 @@ export function mergeMechsByName(existingMechs, importedMechs) {
   (importedMechs || []).forEach((incoming) => {
     const idx = result.findIndex((m) => m.name.trim().toLowerCase() === incoming.name.trim().toLowerCase());
     if (idx >= 0) {
-      // Statblock не має ccId — тоді лишається той, що був (мех той самий, назва однакова).
       result[idx] = { ...incoming, id: result[idx].id, ccId: incoming.ccId || result[idx].ccId || '' };
     } else {
       result.push(incoming);
@@ -279,84 +278,5 @@ export function mapCompconPilot(json) {
     callsign: (d.callsign || d.name || 'PILOT').trim(),
     background: (d.background || '').trim() || 'Бекграунд не вказано.',
     state,
-  };
-}
-
-// ----- Statblock меха з COMP/CON («Copy Statblock» у мех-білді) -----
-//
-// --- HORUS Balor @ LL5 --
-// [ STATS ]   HULL:1 AGI:4 … HP:17 … REPAIR:4 … LIMITED:+0 …
-// [ WEAPONS ] Main Mount: Ferrofluid Lance
-// [ SYSTEMS ] Flicker Field Projector, Armament Redundancy, Hive Drone
-//
-// HP і REPAIR у statblock уже підсумкові (з Grit і Hull), тож беруться як є. Назви меха
-// в statblock немає — її задає гравець. Тегів LIMITED теж немає, тож у зброї й систем
-// не буде лічильника зарядів, а файла COMP/CON для Foundry — теж (лише з JSON).
-export function parseCompconStatblock(text) {
-  const lines = String(text || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const head = lines.map((l) => /^-{2,}\s*(.+?)\s*@\s*LL\s*(\d+)\s*-*$/i.exec(l)).find(Boolean);
-  if (!head) throw new Error('Не схоже на statblock меха з COMP/CON: немає рядка «--- ФРЕЙМ @ LLn --».');
-
-  const [source, ...frameWords] = head[1].split(/\s+/);
-  const sections = {};
-  let current = null;
-  for (const line of lines) {
-    const s = /^\[\s*(.+?)\s*\]$/.exec(line);
-    if (s) {
-      current = s[1].toUpperCase();
-      sections[current] = [];
-    } else if (current) {
-      sections[current].push(line);
-    }
-  }
-
-  const stats = {};
-  for (const m of (sections.STATS || []).join(' ').matchAll(/([A-Z][A-Z ]*?)\s*:\s*([+-]?\d+)/gi)) {
-    stats[m[1].trim().toUpperCase()] = Number(m[2]);
-  }
-  if (!Number.isFinite(stats.HP)) throw new Error('У statblock немає HP у розділі [ STATS ].');
-
-  // Мод зброї COMP/CON дописує в дужках — у назві предмета його не лишаємо.
-  const clean = (name) => name.replace(/\s*\(.*?\)\s*/g, ' ').trim();
-  const items = [];
-  for (const line of sections.WEAPONS || []) {
-    const w = /^(.*?)\s*Mount\s*:\s*(.+)$/i.exec(line) || /^([^:]*):\s*(.+)$/.exec(line);
-    const mount = w ? w[1].trim().toUpperCase() : '';
-    for (const name of (w ? w[2] : line).split(/\s+\/\s+/).map(clean).filter(Boolean)) {
-      items.push({ name, type: 'weapon', mount, destroyed: false });
-    }
-  }
-  for (const name of (sections.SYSTEMS || []).join(', ').split(',').map(clean).filter(Boolean)) {
-    items.push({ name, type: 'system', mount: '', destroyed: false });
-  }
-
-  const frame = frameWords.length ? frameWords.join(' ') : source;
-  return {
-    frame,
-    frameSource: frameWords.length ? source : '',
-    ll: Number(head[2]),
-    hpMax: stats.HP,
-    repairMax: Number.isFinite(stats.REPAIR) ? stats.REPAIR : 0,
-    items,
-  };
-}
-
-// Мех апки зі statblock під назвою, яку дав гравець.
-export function mechFromStatblock(parsed, name) {
-  return {
-    id: Date.now() + Math.floor(Math.random() * 1000),
-    name: String(name || parsed.frame).trim(),
-    ccId: '',
-    frame: parsed.frame,
-    frameSource: parsed.frameSource,
-    hpCurrent: parsed.hpMax,
-    hpMax: parsed.hpMax,
-    repairCurrent: parsed.repairMax,
-    repairMax: parsed.repairMax,
-    structureFilled: 0,
-    reactorFilled: 0,
-    corePower: true,
-    overcharge: 0,
-    items: parsed.items,
   };
 }
