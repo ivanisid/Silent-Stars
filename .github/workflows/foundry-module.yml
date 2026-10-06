@@ -1,0 +1,43 @@
+# Реліз модуля Foundry: коли в main з'являється нова version у module.json, збирає модуль
+# (foundry-module/build.mjs) і публікує реліз sync-v<версія> з module.json і архівом.
+# Foundry дивиться на releases/latest/download/module.json і сам пропонує оновлення.
+name: Foundry module release
+
+on:
+  push:
+    branches: [main]
+    paths: ['foundry-module/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Тести
+        run: node foundry-module/silent-stars-sync/scripts/sync.test.mjs
+      - name: Версія
+        id: v
+        run: |
+          v=$(node -p "require('./foundry-module/silent-stars-sync/module.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if gh release view "sync-v$v" >/dev/null 2>&1; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Збірка і реліз
+        if: steps.v.outputs.exists == 'false'
+        run: |
+          node foundry-module/build.mjs
+          gh release create "sync-v${{ steps.v.outputs.version }}" \
+            foundry-module/dist/module.json foundry-module/dist/silent-stars-sync.zip \
+            --title "Silent Stars Sync ${{ steps.v.outputs.version }}" \
+            --notes "Модуль Foundry. Встановлення за посиланням: https://github.com/${{ github.repository }}/releases/latest/download/module.json" \
+            --latest
+        env:
+          GH_TOKEN: ${{ github.token }}
