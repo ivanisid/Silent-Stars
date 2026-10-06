@@ -24,16 +24,29 @@ export function TagPills({ tagIds, tags }) {
   );
 }
 
+// Кількість резервів на кожен тег: { [tagId]: n, [NO_TAGS]: n, all: n }.
+export function countByTag(reserves) {
+  const counts = { all: reserves.length, [NO_TAGS]: 0 };
+  for (const r of reserves) {
+    const ids = r.tagIds || [];
+    if (ids.length === 0) counts[NO_TAGS] += 1;
+    for (const id of ids) counts[id] = (counts[id] || 0) + 1;
+  }
+  return counts;
+}
+
 // selected — масив id тегів; onChange отримує новий масив.
-export function TagFilter({ tags, selected, onChange, small }) {
+// counts (необовʼязково) — результат countByTag: додає число до кожного чипа.
+export function TagFilter({ tags, selected, onChange, small, counts }) {
   if (tags.length === 0) return null;
+  const n = (key) => (counts ? ` · ${counts[key] || 0}` : '');
   const toggle = (id) => onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
   const chip = small ? 'ss-chip sm' : 'ss-chip';
   return (
     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
       <span style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1, marginRight: 2 }}>ТЕГИ</span>
       <button type="button" className={`${chip}${selected.length === 0 ? ' on' : ''}`} onClick={() => onChange([])}>
-        УСІ
+        УСІ{n('all')}
       </button>
       {tags.map((t) => (
         <button
@@ -43,11 +56,11 @@ export function TagFilter({ tags, selected, onChange, small }) {
           title={t.kind === 'faction' ? 'Фракція' : undefined}
           onClick={() => toggle(t.id)}
         >
-          {t.kind === 'faction' ? '◆ ' : ''}{t.name}
+          {t.kind === 'faction' ? '◆ ' : ''}{t.name}{n(t.id)}
         </button>
       ))}
       <button type="button" className={`${chip}${selected.includes(NO_TAGS) ? ' on' : ''}`} onClick={() => toggle(NO_TAGS)}>
-        БЕЗ ТЕГІВ
+        БЕЗ ТЕГІВ{n(NO_TAGS)}
       </button>
     </div>
   );

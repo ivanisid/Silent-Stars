@@ -3,7 +3,7 @@ import { RESERVES, RESERVE_CATEGORIES } from '../pilot/reserves';
 import { RARE_RANKS, VAULT_CAP_BASE, useRareCatalog, loadRareCatalog } from '../pilot/rareReserves';
 import { Menu, Msg, PageHeader, PageShell } from '../components/kit.jsx';
 import ReserveIcon, { ReserveGlyph, hasReserveIcon } from '../pilot/components/ReserveIcon.jsx';
-import { TagFilter, TagPills, matchTags } from '../pilot/components/ReserveTags.jsx';
+import { TagFilter, TagPills, matchTags, countByTag } from '../pilot/components/ReserveTags.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api';
 import { RareReserveEditor, TagManager } from './RareReserveEditor.jsx';
@@ -178,6 +178,9 @@ function RareList({ q }) {
     );
   }, [q, rank, tagSel, pool]);
 
+  // Лічильники тегів — у межах обраного рангу (без урахування пошуку й вибраних тегів).
+  const tagCounts = useMemo(() => countByTag(pool.filter((r) => rank === 0 || r.rank === rank)), [pool, rank]);
+
   async function setArchived(r, archived) {
     setActionError('');
     try {
@@ -217,7 +220,7 @@ function RareList({ q }) {
         ))}
       </div>
 
-      <TagFilter small tags={tags} selected={tagSel} onChange={setTagSel} />
+      <TagFilter small tags={tags} selected={tagSel} onChange={setTagSel} counts={tagCounts} />
 
       {error && <Msg kind="err">Каталог не завантажився: {error}</Msg>}
       {actionError && <Msg kind="err">{actionError}</Msg>}
