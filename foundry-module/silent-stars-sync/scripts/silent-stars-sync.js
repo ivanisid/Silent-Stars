@@ -579,6 +579,26 @@ Hooks.once('ready', () => {
   restartTimer();
 });
 
+// Кнопка вікна зв'язків у вкладці налаштувань гри на бічній панелі (лише ГМу) — щоб не
+// шукати модуль у списку налаштувань щоразу. Стає після стандартних кнопок налаштувань
+// чи модулів; якщо розмітка вкладки інша — у кінець вкладки.
+Hooks.on('renderSettings', (_app, html) => {
+  if (!game.user.isGM) return;
+  const root = html instanceof HTMLElement ? html : html?.[0];
+  if (!root || root.querySelector(`[data-ss-links]`)) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.dataset.ssLinks = '';
+  button.innerHTML = `<i class="fas fa-link"></i> <span>Silent Stars: зв'язки</span>`;
+  button.addEventListener('click', (e) => {
+    e.preventDefault();
+    new LinksApp().render(true);
+  });
+  const anchor = root.querySelector('[data-action="modules"], [data-action="configure"], button[data-tab="modules"]');
+  if (anchor) anchor.after(button);
+  else root.append(button);
+});
+
 // Активний ГМ змінився (зайшов/вийшов) — таймер має жити рівно в одного.
 Hooks.on('userConnected', () => setTimeout(restartTimer, 1000));
 
