@@ -408,6 +408,67 @@ export const api = {
     return { ok: true };
   },
 
+  // Каталог рідкісних резервів і теги. Читати можуть усі, писати — лише ГМ через gm_*.
+  listRareCatalog: async () => {
+    const [res, tags] = await Promise.all([
+      supabase
+        .from('rare_reserves')
+        .select('key, rank, name, action, traits, description, flavor, archived, rare_reserve_tags(tag_id)')
+        .order('sort')
+        .order('key'),
+      supabase.from('reserve_tags').select('id, name, kind').order('kind').order('name'),
+    ]);
+    if (res.error) throw new Error(res.error.message);
+    if (tags.error) throw new Error(tags.error.message);
+    return {
+      reserves: (res.data || []).map((r) => ({
+        key: r.key,
+        rank: r.rank,
+        name: r.name,
+        action: r.action,
+        traits: r.traits,
+        desc: r.description,
+        flavor: r.flavor,
+        archived: r.archived,
+        tagIds: (r.rare_reserve_tags || []).map((t) => t.tag_id),
+      })),
+      tags: tags.data || [],
+    };
+  },
+
+  gmSaveRareReserve: async ({ key, rank, name, action, traits, desc, flavor, tagIds }) => {
+    const { data, error } = await supabase.rpc('gm_save_rare_reserve', {
+      p_key: key || null,
+      p_rank: rank,
+      p_name: name,
+      p_action: action,
+      p_traits: traits,
+      p_description: desc,
+      p_flavor: flavor,
+      p_tag_ids: tagIds,
+    });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  gmSetRareReserveArchived: async (key, archived) => {
+    const { error } = await supabase.rpc('gm_set_rare_reserve_archived', { p_key: key, p_archived: archived });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
+  gmSaveReserveTag: async ({ id, name, kind }) => {
+    const { data, error } = await supabase.rpc('gm_save_reserve_tag', { p_id: id || null, p_name: name, p_kind: kind });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  gmDeleteReserveTag: async (id) => {
+    const { error } = await supabase.rpc('gm_delete_reserve_tag', { p_id: id });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
   // Locking the line-up and paying for a played game are separate steps: a slot sits in
   // 'approved' in between, where signup is shut but nothing has been awarded yet.
   gmApproveRoster: async (slotId, approvedSignupIds) => {

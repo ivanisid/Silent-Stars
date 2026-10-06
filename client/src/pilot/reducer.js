@@ -32,7 +32,7 @@ import {
 import { mergeMechsByName } from './compconImport';
 import { repairPlan, repairCost, spentText, isLimited, itemRefillPr, KIT_PR, KITS_FULL_PR, MECH_STRUCTURE, MECH_REACTOR } from './repair';
 import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft } from './reserves';
-import { RARE_RESERVES, rareReserveByKey, anyReserveByKey, vaultCap } from './rareReserves';
+import { rareReserveByKey, anyReserveByKey, vaultCap } from './rareReserves';
 
 const ALL_DOWNTIME_DATA = WEEKLY_DOWNTIME_DATA;
 

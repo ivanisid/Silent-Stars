@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Menu, Panel, useConfirm } from '../../components/kit.jsx';
-import { RARE_RESERVES, rareReserveByKey, anyReserveByKey } from '../rareReserves';
+import { rareReserveByKey, anyReserveByKey, useRareCatalog, RARE_RANKS } from '../rareReserves';
+import { TagFilter, TagPills, matchTags } from './ReserveTags.jsx';
 import { derivePilotView } from '../derive';
 import ReserveIcon from './ReserveIcon.jsx';
 import { RESERVES, RESERVE_CATEGORIES, RESERVE_RANK_PR, reserveByKey } from '../reserves';
@@ -9,6 +10,8 @@ import { RESERVES, RESERVE_CATEGORIES, RESERVE_RANK_PR, reserveByKey } from '../
 // гравець записує те, що видали як частину нагороди за місію. На складі резерв лежить
 // і не згорає; «взяти на місію» перекладає його на руки, де він згорить після місії.
 export default function VaultPanel({ state, dispatch }) {
+  // Підписка на каталог: назви резервів на складі з'являються, щойно він завантажився.
+  const { tags } = useRareCatalog();
   // null | 'rare' | 'common' — на якій вкладці відкрито меню вибору.
   const [picking, setPicking] = useState(null);
   const [ask, dialog] = useConfirm();
@@ -65,8 +68,9 @@ export default function VaultPanel({ state, dispatch }) {
                     <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 13, color: 'var(--text-bright)' }}>{def?.name || v.key}</span>
                       <span style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>
-                        РАНГ {def?.rank ?? '?'} · {def?.action || '—'}{def?.tags ? ` · ${def.tags}` : ''}
+                        РАНГ {def?.rank ?? '?'} · {def?.action || '—'}{def?.traits ? ` · ${def.traits}` : ''}
                       </span>
+                      {def && <TagPills tagIds={def.tagIds} tags={tags} />}
                     </div>
                     {def?.desc && <div style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.55 }}>{def.desc}</div>}
                   </div>
@@ -146,15 +150,17 @@ function PickModal({ initialTab = 'rare', vaultFull, onClose, onPick }) {
   const [rank, setRank] = useState(1);
   const [category, setCategory] = useState('all');
   const [q, setQ] = useState('');
+  const [tagSel, setTagSel] = useState([]);
+  const { reserves: rareList, tags } = useRareCatalog();
   const rare = tab === 'rare';
-  const ranks = rare ? [1, 2] : [1, 2, 3];
+  const ranks = rare ? RARE_RANKS : [1, 2, 3];
 
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const match = (r) => needle === '' || r.name.toLowerCase().includes(needle) || r.desc.toLowerCase().includes(needle);
-    if (rare) return RARE_RESERVES.filter((r) => r.rank === rank && match(r));
+    if (rare) return rareList.filter((r) => !r.archived && r.rank === rank && matchTags(r, tagSel) && match(r));
     return RESERVES.filter((r) => r.rank === rank && (category === 'all' || r.category === category) && match(r));
-  }, [rare, rank, category, q]);
+  }, [rare, rank, category, q, tagSel, rareList]);
 
   const blocked = rare && vaultFull;
 
@@ -192,6 +198,7 @@ function PickModal({ initialTab = 'rare', vaultFull, onClose, onPick }) {
               style={{ flex: 1, minWidth: 160 }}
             />
           </div>
+          {rare && <TagFilter small tags={tags} selected={tagSel} onChange={setTagSel} />}
           {!rare && (
             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: -4 }}>
               <button type="button" className={`ss-chip sm${category === 'all' ? ' on' : ''}`} onClick={() => setCategory('all')}>УСІ</button>
@@ -236,9 +243,12 @@ function PickModal({ initialTab = 'rare', vaultFull, onClose, onPick }) {
                   <div style={{ fontSize: 12, color: 'var(--text-bright)' }}>{r.name}</div>
                   <div style={{ fontSize: 10, color: 'var(--text-dimmer)', marginTop: 3 }}>
                     {rare
-                      ? `${r.action}${r.tags ? ` · ${r.tags}` : ''}`
+                      ? `${r.action}${r.traits ? ` · ${r.traits}` : ''}`
                       : RESERVE_CATEGORIES.find((c) => c.key === r.category)?.label || r.category}
                   </div>
+                  {rare && r.tagIds.length > 0 && (
+                    <div style={{ marginTop: 5 }}><TagPills tagIds={r.tagIds} tags={tags} /></div>
+                  )}
                   <div style={{ fontSize: 11, color: 'var(--text-soft-dim)', lineHeight: 1.5, marginTop: 5 }}>{r.desc}</div>
                 </div>
               </button>
