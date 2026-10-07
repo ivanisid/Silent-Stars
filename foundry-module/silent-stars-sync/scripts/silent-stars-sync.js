@@ -14,6 +14,7 @@ import {
   MODULE, PILOT_FIELDS, MECH_FIELDS, get, norm,
   mergeFields, mergeGroup, mergeLimited, mergeDestroyed, combineItemUpdates, mechMaxPatch, pilotIdentityUpdate, artUpdate,
   findAppPilotFor, findAppMechFor, profileActorName, matchGroup, suggestActors, resolveLinks, pendingMechs,
+  idleDecision,
 } from './sync.js';
 
 const DEFAULT_URL = 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/foundry-sync';
@@ -24,6 +25,10 @@ let pending = null;
 let running = false;
 let creating = false; // поки імпорт створює актора, цикл не чіпає напівготові дані
 let lastStatus = 'ще не запускалась';
+// Для пропуску холостих циклів (див. idleDecision у sync.js).
+let lastFingerprint = null;
+let idleSkips = 0;
+let needFull = false;
 
 const setting = (k) => game.settings.get(MODULE, k);
 const isSyncGM = () => game.user.isGM && game.users.activeGM?.id === game.user.id;
@@ -142,12 +147,26 @@ async function autoLink(appPilots) {
 
 // ----- Цикл -----
 
-export async function syncNow({ quiet = true } = {}) {
+// idle: цикл таймера — спершу легкий ping, повний pull лише коли в апці щось змінилось.
+// Зміни у Foundry (хуки) і кнопка ручної синхронізації завжди роблять повний цикл.
+export async function syncNow({ quiet = true, idle = false } = {}) {
   if (!isSyncGM()) return;
   if (running || creating) return;
   running = true;
   try {
-    const { pilots } = await call({ action: 'pull' });
+    if (idle && lastFingerprint) {
+      // Функція без ping (стара версія) чи збій ping — просто повний pull.
+      const fp = await call({ action: 'ping' }).then((r) => r.fingerprint, () => null);
+      if (idleDecision({ last: lastFingerprint, fp, skips: idleSkips, needFull }) === 'skip') {
+        idleSkips++;
+        lastStatus = `${new Date().toLocaleTimeString()} — без змін в апці`;
+        return;
+      }
+    }
+    const { pilots, fingerprint } = await call({ action: 'pull' });
+    lastFingerprint = fingerprint || null;
+    idleSkips = 0;
+    needFull = true; // до кінця циклу: впаде — наступний також повний
     // Помилка на одному акторі (буває, що її кидає сама система Lancer у відповідь на
     // оновлення) не зупиняє решту: її видно в статусі з іменем актора, деталі — у консолі.
     const failures = [];
@@ -254,6 +273,8 @@ export async function syncNow({ quiet = true } = {}) {
       }
     }
 
+    // Цикл дійшов до кінця без помилок і відкладених push — наступний холостий можна пропускати.
+    needFull = failures.length > 0 || stale > 0;
     if (conflicts.length) console.warn(`${MODULE} | змінено з обох боків, взято новіше:`, conflicts);
     lastStatus = `${new Date().toLocaleTimeString()} — у апку: ${sent} змін${stale ? `, ${stale} відкладено` : ''}` +
       (failures.length ? ` · помилки (${failures.length}): ${failures.slice(0, 3).join('; ')}${failures.length > 3 ? '…' : ''}` : '');
@@ -289,7 +310,7 @@ function restartTimer() {
   timer = null;
   if (!isSyncGM() || !setting('enabled')) return;
   const sec = Math.max(5, Number(setting('interval')) || 20);
-  timer = setInterval(() => syncNow(), sec * 1000);
+  timer = setInterval(() => syncNow({ idle: true }), sec * 1000);
   syncNow();
 }
 

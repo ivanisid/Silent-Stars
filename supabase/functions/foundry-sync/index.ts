@@ -6,7 +6,12 @@
 // вирішує модуль (у нього є «база» — останні узгоджені значення в прапорцях актора).
 //
 //   POST { action: 'pull' }
-//     → { pilots: [...] } — усі пілоти з полями, які синхронізуються (див. toSyncPilot).
+//     → { pilots: [...], fingerprint } — усі пілоти з полями, які синхронізуються (див.
+//       toSyncPilot), і відбиток усіх даних, які віддає pull.
+//
+//   POST { action: 'ping' }
+//     → { fingerprint } — той самий відбиток без читання state пілотів. Збігся з відбитком
+//       останнього pull — нових даних для модуля немає, повний pull можна пропустити.
 //
 //   POST { action: 'profile', pilotId, mechId }
 //     → { data } — файл COMP/CON для цього меха (pilot_compcon), з якого модуль створює
@@ -118,12 +123,40 @@ function toSyncPilot(p: any, nicks: Map<string, string>, art: Art, profiles: Set
   };
 }
 
+// Відбиток усього, що віддає pull, але без важкого state: pilots.updated_at міняє тригер
+// на кожну зміну рядка, решта таблиць читається цілком (вони малі). Модуль у холостих
+// циклах питає ping і робить повний pull лише коли відбиток змінився.
+async function fingerprintOf(pilots: any[], users: any[], arts: any[], cc: any[]) {
+  const lines = [
+    ...pilots.map((p) => `p:${p.id}:${p.updated_at}`),
+    ...users.map((u) => `u:${u.id}:${u.nick}`),
+    ...arts.map((a) => `a:${a.id}:${a.pilot_id}:${a.kind}:${a.mech_id}:${a.foundry_path}`),
+    ...cc.map((c) => `c:${c.pilot_id}:${c.mech_id}`),
+  ].sort();
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(lines.join('\n')));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+const loadArts = () =>
+  db.from('art_uploads').select('id, pilot_id, kind, mech_id, foundry_path')
+    .is('deleted_at', null).not('foundry_path', 'is', null);
+
+async function ping() {
+  const [{ data: pilots, error }, { data: users }, { data: arts }, { data: cc }] = await Promise.all([
+    db.from('pilots').select('id, updated_at'),
+    db.from('profiles').select('id, nick'),
+    loadArts(),
+    db.from('pilot_compcon').select('pilot_id, mech_id'),
+  ]);
+  if (error) throw new Error(error.message);
+  return { fingerprint: await fingerprintOf(pilots || [], users || [], arts || [], cc || []) };
+}
+
 async function pull() {
   const [{ data: pilots, error }, { data: users }, { data: arts }, { data: cc }] = await Promise.all([
     db.from('pilots').select('id, user_id, name, callsign, state, updated_at'),
     db.from('profiles').select('id, nick'),
-    db.from('art_uploads').select('id, pilot_id, kind, mech_id, foundry_path')
-      .is('deleted_at', null).not('foundry_path', 'is', null),
+    loadArts(),
     db.from('pilot_compcon').select('pilot_id, mech_id'),
   ]);
   if (error) throw new Error(error.message);
@@ -133,7 +166,10 @@ async function pull() {
     art.set(a.kind === 'portrait' ? `${a.pilot_id}:portrait` : `${a.pilot_id}:mech:${a.mech_id}`, { id: a.id, path: a.foundry_path });
   }
   const profiles = new Set((cc || []).map((r) => `${r.pilot_id}:${r.mech_id}`));
-  return { pilots: (pilots || []).map((p) => toSyncPilot(p, nicks, art, profiles)) };
+  return {
+    pilots: (pilots || []).map((p) => toSyncPilot(p, nicks, art, profiles)),
+    fingerprint: await fingerprintOf(pilots || [], users || [], arts || [], cc || []),
+  };
 }
 
 // ----- profile / art -----
@@ -315,6 +351,7 @@ Deno.serve(async (req) => {
 
   try {
     if (body.action === 'pull') return json(await pull());
+    if (body.action === 'ping') return json(await ping());
     if (body.action === 'profile') {
       const r = await profile(String(body.pilotId || ''), String(body.mechId || ''));
       return json(r, r.error ? 404 : 200);
