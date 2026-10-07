@@ -14,7 +14,7 @@ import {
   MODULE, PILOT_FIELDS, MECH_FIELDS, get, norm,
   mergeFields, mergeGroup, mergeLimited, mergeDestroyed, combineItemUpdates, mechMaxPatch, pilotIdentityUpdate, artUpdate,
   findAppPilotFor, findAppMechFor, profileActorName, matchGroup, suggestActors, resolveLinks, pendingMechs,
-  idleDecision,
+  idleDecision, isFreshCreating,
 } from './sync.js';
 
 const DEFAULT_URL = 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/foundry-sync';
@@ -35,6 +35,16 @@ const isSyncGM = () => game.user.isGM && game.users.activeGM?.id === game.user.i
 const pilotActors = () => game.actors.filter((a) => a.type === 'pilot');
 const mechActors = () => game.actors.filter((a) => a.type === 'mech');
 const flag = (doc, k) => doc.getFlag(MODULE, k);
+
+// Актори, яких цикл синхронізації не чіпає, бо їх зараз створює імпорт (з будь-якого браузера
+// ГМа): сам актор-пілот і мехи, що належать йому. Вікно зв'язків бачить усіх — інакше мех
+// виглядав би «ще не створеним», і друге «Створити» зробило б дубль.
+const isCreatingActor = (a) => isFreshCreating(flag(a, 'creating'));
+const syncPilotActors = () => pilotActors().filter((a) => !isCreatingActor(a));
+const syncMechActors = () => mechActors().filter((a) => {
+  const owner = get(a, 'system.pilot.value');
+  return !(owner && typeof owner.getFlag === 'function' && isCreatingActor(owner));
+});
 
 // ----- Запити до функції foundry-sync -----
 
@@ -122,7 +132,7 @@ async function ensureArtSafe(path, id) {
 // Автозв'язування: пілот — за позивним, мех — за назвою серед мехів його пілота.
 async function autoLink(appPilots) {
   const linkedPilots = new Set(pilotActors().map((a) => flag(a, 'pilotId')).filter(Boolean));
-  for (const actor of pilotActors()) {
+  for (const actor of syncPilotActors()) {
     if (flag(actor, 'pilotId')) continue;
     const p = findAppPilotFor(actor, appPilots, linkedPilots);
     if (!p) continue;
@@ -133,7 +143,7 @@ async function autoLink(appPilots) {
 
   const byId = new Map(appPilots.map((p) => [p.id, p]));
   const linkedMechs = new Set(mechActors().map((a) => flag(a, 'mechId')).filter(Boolean));
-  for (const actor of mechActors()) {
+  for (const actor of syncMechActors()) {
     if (flag(actor, 'mechId')) continue;
     const pilotActor = get(actor, 'system.pilot.value');
     const appPilot = byId.get(pilotActor && flag(pilotActor, 'pilotId'));
@@ -192,7 +202,7 @@ export async function syncNow({ quiet = true, idle = false } = {}) {
     // Кілька акторів одного пілота (профілі з різними талантами й мехами) зводяться
     // разом: ХП і стрес пілота в апці одні.
     const groups = new Map();
-    for (const actor of pilotActors()) {
+    for (const actor of syncPilotActors()) {
       const id = flag(actor, 'pilotId');
       if (!byId.has(id)) continue;
       if (!groups.has(id)) groups.set(id, []);
@@ -217,7 +227,7 @@ export async function syncNow({ quiet = true, idle = false } = {}) {
       });
     }
 
-    for (const actor of mechActors()) {
+    for (const actor of syncMechActors()) {
       const p = byId.get(flag(actor, 'pilotId'));
       const m = p?.mechs.find((x) => x.id === flag(actor, 'mechId'));
       if (!m) continue;
@@ -322,7 +332,7 @@ function restartTimer() {
 // запускає синхронізацію, яка підтягує ХП, стрес, структуру, заряди й арти.
 
 async function createFromApp(p, m) {
-  if (!isSyncGM()) throw new Error('Створювати акторів може лише активний ГМ.');
+  if (!game.user.isGM) throw new Error('Створювати акторів можуть лише ГМи.');
   const Sheet = game.lancer?.applications?.LancerPilotSheet;
   if (typeof Sheet?.prototype?._onPilotJsonParsed !== 'function') {
     throw new Error('Система Lancer не має імпорту COMP/CON (потрібна Lancer 3.x).');
@@ -336,7 +346,8 @@ async function createFromApp(p, m) {
     pilot = await Actor.create({
       name: profileActorName(p, m.id),
       type: 'pilot',
-      flags: { [MODULE]: { pilotId: p.id, profileMechId: m.id } },
+      // creating — щоб цикл активного ГМа (інший браузер) не підхопив напівготового актора.
+      flags: { [MODULE]: { pilotId: p.id, profileMechId: m.id, creating: Date.now() } },
     });
     // Імпорт листа пілота без відкриття самого листа: метод бере лише this.actor і this.render.
     await Sheet.prototype._onPilotJsonParsed.call({ actor: pilot, render() {} }, JSON.stringify(data));
@@ -358,6 +369,9 @@ async function createFromApp(p, m) {
     if (!mech) ui.notifications.warn(`Silent Stars: меха «${m.name}» не створено — перевірте, чи є його фрейм у компендіумах світу.`);
   } finally {
     creating = false;
+    // Без SYNC_OPTION — навмисно: хук оновлення в браузері активного ГМа (інший, ніж цей) запустить
+    // повну синхронізацію за 3 с. З нею ping не бачив би змін в апці, і новий актор чекав би цикл-другий.
+    if (pilot) await pilot.update({ [`flags.${MODULE}.-=creating`]: null }).catch((err) => console.warn(`${MODULE} |`, err));
   }
   await syncNow({ quiet: true });
   ui.notifications.info(`Silent Stars: створено «${pilot.name}».`);

@@ -6,6 +6,8 @@
 // взагалі може міняти. Власна «луна» автозбереження має ту саму позначку, що й локальний
 // стан, і ігнорується — інакше вона відкочувала б ще не збережені локальні зміни.
 
+import { pruneRetainedState } from './mechMerge';
+
 const MECH_KEYS = [
   'hpCurrent', 'hpMax', 'repairCurrent', 'repairMax',
   'structureFilled', 'reactorFilled', 'overcharge', 'corePower',
@@ -43,7 +45,7 @@ export function mergeFoundryState(local, remote) {
   const localLog = local.actionLog || [];
   const fresh = (remote.actionLog || []).filter((e) => !localLog.some((l) => sameEntry(l, e)));
 
-  return {
+  return pruneRetainedState({
     ...local,
     hp: { ...local.hp, current: remote.hp?.current ?? local.hp?.current },
     stress: remote.stress ?? local.stress,
@@ -57,5 +59,5 @@ export function mergeFoundryState(local, remote) {
     mechs,
     actionLog: [...fresh, ...localLog].slice(0, 300),
     foundrySyncAt: remote.foundrySyncAt,
-  };
+  });
 }

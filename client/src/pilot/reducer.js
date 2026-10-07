@@ -30,6 +30,7 @@ import {
   skillCapUsed,
 } from './logic';
 import { mergeMechsByName, isMechNameTaken, mechNameClashes } from './compconImport';
+import { pruneRetainedState } from './mechMerge';
 import { repairPlan, repairCost, spentText, isLimited, itemRefillPr, KIT_PR, KITS_FULL_PR, MECH_STRUCTURE, MECH_REACTOR } from './repair';
 import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft } from './reserves';
 import { rareReserveByKey, anyReserveByKey, vaultCap } from './rareReserves';
@@ -87,7 +88,17 @@ function pushManaHistory(mana, label) {
   return { ...mana, history: [{ label }, ...mana.history].slice(0, 4) };
 }
 
+// Залишені після повторного імпорту системи (зламані / з витраченими зарядами, яких немає в новому
+// файлі) зникають, щойно їх полагодили чи поповнили повністю — після будь-якої дії.
 export function pilotReducer(state, action) {
+  const next = reduce(state, action);
+  const removed = [];
+  let out = pruneRetainedState(next, (m, it) => removed.push(`${m.name} · ${it.name}: прибрано зі збірки (немає в новому файлі COMP/CON, полагоджено / поповнено)`));
+  removed.forEach((msg) => { out = log(out, msg); });
+  return out;
+}
+
+function reduce(state, action) {
   if (action.type === '__INIT__') return action.state;
   // Зміни з Foundry, що прийшли realtime-подією, поки профіль відкритий.
   if (action.type === '__FOUNDRY__') return mergeFoundryState(state, action.state);
