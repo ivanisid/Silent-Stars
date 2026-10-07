@@ -14,11 +14,10 @@ import {
   MODULE, PILOT_FIELDS, MECH_FIELDS, get, norm,
   mergeFields, mergeGroup, mergeLimited, mergeDestroyed, combineItemUpdates, mechMaxPatch, pilotIdentityUpdate, artUpdate,
   findAppPilotFor, findAppMechFor, profileActorName, matchGroup, suggestActors, resolveLinks, pendingMechs,
-  idleDecision, isFreshCreating,
+  idleDecision, isFreshCreating, syncOption, artSrc,
 } from './sync.js';
 
 const DEFAULT_URL = 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/foundry-sync';
-const SYNC_OPTION = { [MODULE]: true }; // позначка наших власних оновлень — не реагувати на них
 
 let timer = null;
 let pending = null;
@@ -86,6 +85,10 @@ async function call(body) {
 
 const FP = () => foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
 const knownDirs = new Set();
+// Невдале завантаження арту (немає права, сервер відмовив) не повторюється кожен цикл: Foundry сам
+// показує червоне повідомлення на кожну спробу. Пам'ятаємо невдачу для пари шлях+арт на 10 хв.
+const artFailures = new Map();
+const ART_RETRY_MS = 10 * 60 * 1000;
 
 async function ensureDir(dir) {
   let parent = '';
@@ -106,6 +109,8 @@ async function ensureArt(path, id) {
   if (!path || !id || !setting('uploadArt')) return;
   const files = setting('artFiles') || {};
   if (files[path] === id) return;
+  const failedAt = artFailures.get(`${path}|${id}`);
+  if (failedAt && Date.now() - failedAt < ART_RETRY_MS) return;
   const { url } = await call({ action: 'art', id });
   const res = await fetch(url);
   if (!res.ok) throw new Error(`арт ${path}: HTTP ${res.status}`);
@@ -123,7 +128,8 @@ async function ensureArtSafe(path, id) {
   try {
     await ensureArt(path, id);
   } catch (err) {
-    console.warn(`${MODULE} |`, err);
+    artFailures.set(`${path}|${id}`, Date.now());
+    console.warn(`${MODULE} | арт ${path}: наступна спроба за 10 хв.`, err);
   }
 }
 
@@ -150,7 +156,7 @@ async function autoLink(appPilots) {
     const m = findAppMechFor(actor, appPilot, linkedMechs);
     if (!m) continue;
     linkedMechs.add(m.id);
-    await actor.update({ [`flags.${MODULE}.pilotId`]: appPilot.id, [`flags.${MODULE}.mechId`]: m.id }, SYNC_OPTION);
+    await actor.update({ [`flags.${MODULE}.pilotId`]: appPilot.id, [`flags.${MODULE}.mechId`]: m.id }, syncOption());
     console.log(`${MODULE} | зв'язано меха ${actor.name} ↔ ${appPilot.callsign} / ${m.name}`);
   }
 }
@@ -216,7 +222,7 @@ export async function syncNow({ quiet = true, idle = false } = {}) {
         const r = mergeGroup(PILOT_FIELDS, p, actors, appTime);
         for (const [i, actor] of actors.entries()) {
           const update = { ...pilotIdentityUpdate(p, actor), ...(r.updates[i] || {}) };
-          if (Object.keys(update).length) await actor.update(update, SYNC_OPTION);
+          if (Object.keys(update).length) await actor.update(update, syncOption());
         }
         if (Object.keys(r.patch).length) {
           const push = pushFor(p);
@@ -236,13 +242,13 @@ export async function syncNow({ quiet = true, idle = false } = {}) {
         await ensureArtSafe(m.art, m.artId);
 
         const r = mergeFields(MECH_FIELDS, m, actor, appTime);
-        const update = { ...artUpdate(m.art, actor), ...(r.update || {}) };
-        if (Object.keys(update).length) await actor.update(update, SYNC_OPTION);
+        const update = { ...artUpdate(m.art, actor, m.artId), ...(r.update || {}) };
+        if (Object.keys(update).length) await actor.update(update, syncOption());
 
         const lim = mergeLimited(m, actor.items.contents, appTime);
         const des = mergeDestroyed(m, actor.items.contents, appTime);
         const itemUpdates = combineItemUpdates(lim.itemUpdates, des.itemUpdates);
-        if (itemUpdates.length) await actor.updateEmbeddedDocuments('Item', itemUpdates, SYNC_OPTION);
+        if (itemUpdates.length) await actor.updateEmbeddedDocuments('Item', itemUpdates, syncOption());
 
         const mechPatch = { ...mechMaxPatch(m, actor), ...r.patch };
         if (Object.keys(lim.patch).length) mechPatch.limited = lim.patch;
@@ -252,10 +258,10 @@ export async function syncNow({ quiet = true, idle = false } = {}) {
           push.mechs[m.id] = mechPatch;
           push.after.push([actor.name, () => setBase(actor, r.baseAfterPush)]);
           for (const { item, value } of lim.baseAfterPush) {
-            push.after.push([actor.name, () => item.update({ [`flags.${MODULE}.base`]: value }, SYNC_OPTION)]);
+            push.after.push([actor.name, () => item.update({ [`flags.${MODULE}.base`]: value }, syncOption())]);
           }
           for (const { item, value } of des.baseAfterPush) {
-            push.after.push([actor.name, () => item.update({ [`flags.${MODULE}.baseDestroyed`]: value }, SYNC_OPTION)]);
+            push.after.push([actor.name, () => item.update({ [`flags.${MODULE}.baseDestroyed`]: value }, syncOption())]);
           }
         }
         conflicts.push(...[...r.conflicts, ...lim.conflicts, ...des.conflicts].map((c) => `${p.callsign} / ${m.name}: ${c}`));
@@ -304,7 +310,7 @@ async function setBase(doc, values) {
   if (!Object.keys(values).length) return;
   const u = {};
   for (const [k, v] of Object.entries(values)) u[`flags.${MODULE}.base.${k}`] = v;
-  await doc.update(u, SYNC_OPTION);
+  await doc.update(u, syncOption());
 }
 
 // Зміна у Foundry — синхронізувати невдовзі, а не чекати таймера. Затримка збирає
@@ -359,17 +365,17 @@ async function createFromApp(p, m) {
         [`flags.${MODULE}.-=base`]: null,
         [`flags.${MODULE}.pilotId`]: p.id,
         [`flags.${MODULE}.mechId`]: m.id,
-      }, SYNC_OPTION);
+      }, syncOption());
       const resets = mech.items.filter((i) => i.getFlag(MODULE, 'base') !== undefined)
         .map((i) => ({ _id: i.id, [`flags.${MODULE}.-=base`]: null }));
-      if (resets.length) await mech.updateEmbeddedDocuments('Item', resets, SYNC_OPTION);
+      if (resets.length) await mech.updateEmbeddedDocuments('Item', resets, syncOption());
     }
     // Імпорт ставить ім'я з файлу — повертаємо наше.
-    await pilot.update({ name: profileActorName(p, m.id) }, SYNC_OPTION);
+    await pilot.update({ name: profileActorName(p, m.id) }, syncOption());
     if (!mech) ui.notifications.warn(`Silent Stars: меха «${m.name}» не створено — перевірте, чи є його фрейм у компендіумах світу.`);
   } finally {
     creating = false;
-    // Без SYNC_OPTION — навмисно: хук оновлення в браузері активного ГМа (інший, ніж цей) запустить
+    // Без syncOption() — навмисно: хук оновлення в браузері активного ГМа (інший, ніж цей) запустить
     // повну синхронізацію за 3 с. З нею ping не бачив би змін в апці, і новий актор чекав би цикл-другий.
     if (pilot) await pilot.update({ [`flags.${MODULE}.-=creating`]: null }).catch((err) => console.warn(`${MODULE} |`, err));
   }
@@ -476,7 +482,7 @@ class LinksApp extends ApplicationV2 {
       const pilotSelects = slots.map((sel, i) => select(`p:${p.id}:${i}`, sel || !i ? "— не зв'язано —" : '+ ще актор-пілот',
         options(pActors, [p.name, p.callsign], preferredPilots, sel, p.id))).join('');
       const head = `<tr data-row data-name="${esc(`${p.name} ${p.callsign}`)}"><td style="padding:6px 6px 2px;vertical-align:top">` +
-        `${thumb(p.portrait, linkedPilots[0]?.img, 32)}<strong>${esc(label(p))}</strong>${p.name && p.name !== p.callsign ? ` <span style="opacity:.6">${esc(p.callsign)}</span>` : ''}` +
+        `${thumb(artSrc(p.portrait, p.portraitId), linkedPilots[0]?.img, 32)}<strong>${esc(label(p))}</strong>${p.name && p.name !== p.callsign ? ` <span style="opacity:.6">${esc(p.callsign)}</span>` : ''}` +
         `${p.status === 'archive' ? ' <span style="opacity:.6">(архів)</span>' : ''}</td>` +
         `<td style="padding:4px 6px;display:flex;flex-direction:column;gap:4px">${pilotSelects}</td></tr>`;
 
@@ -487,7 +493,7 @@ class LinksApp extends ApplicationV2 {
         if (current) preferred.add(current.id);
         return `<tr data-row data-name="${esc(`${m.name} ${m.frame || ''}`)}">` +
           `<td style="padding:2px 6px 2px 28px"><i class="fas fa-turn-up fa-rotate-90" style="opacity:.5;margin-right:6px"></i>` +
-          `${thumb(m.art, current?.img, 24)}${esc(m.name)}${m.frame ? ` <span style="opacity:.6">(${esc(m.frame)})</span>` : ''}</td>` +
+          `${thumb(artSrc(m.art, m.artId), current?.img, 24)}${esc(m.name)}${m.frame ? ` <span style="opacity:.6">(${esc(m.frame)})</span>` : ''}</td>` +
           `<td style="padding:2px 6px">${select(`m:${p.id}:${m.id}`, "— не зв'язано —",
             options(mActors, [m.name], preferred, current?.id, p.id, (a) => (ownerName(a) ? ` — ${ownerName(a)}` : '')))}</td></tr>`;
       }).join('');
@@ -577,11 +583,11 @@ class LinksApp extends ApplicationV2 {
         [`flags.${MODULE}.-=base`]: null,
         [`flags.${MODULE}.pilotId`]: c.pilotId,
         ...(c.type === 'pilot' ? { [`flags.${MODULE}.-=profileMechId`]: null } : { [`flags.${MODULE}.mechId`]: c.mechId }),
-      }, SYNC_OPTION);
+      }, syncOption());
       if (c.type === 'mech') {
         const resets = actor.items.filter((i) => i.getFlag(MODULE, 'base') !== undefined)
           .map((i) => ({ _id: i.id, [`flags.${MODULE}.-=base`]: null }));
-        if (resets.length) await actor.updateEmbeddedDocuments('Item', resets, SYNC_OPTION);
+        if (resets.length) await actor.updateEmbeddedDocuments('Item', resets, syncOption());
       }
     }
     ui.notifications.info(`Silent Stars: зв'язки збережено${changes.length ? ` (змін: ${changes.length})` : ''}.`);

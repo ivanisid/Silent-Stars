@@ -130,6 +130,15 @@ export const MECH_FIELDS = {
   },
 };
 
+// ----- Параметри наших власних оновлень -----
+
+// Позначка «це оновлення зробив модуль — не реагувати на нього» (перевіряють хуки). Кожен виклик
+// Foundry отримує СВІЖИЙ об'єкт: updateEmbeddedDocuments і updateDocuments дописують у переданий
+// об'єкт parent, pack, updates, action та інше, тож спільна константа несла б у наступні виклики
+// чужий parent і список оновлень з попереднього. (Це захисний захід: причину помилки «Actor is
+// not a valid embedded Document within the Actor Document» ним не підтверджено.)
+export const syncOption = () => ({ [MODULE]: true });
+
 // ----- Актор у процесі створення -----
 
 // Створювати акторів може будь-який ГМ, а цикл синхронізації працює в браузері активного ГМа —
@@ -351,15 +360,27 @@ export function pilotIdentityUpdate(p, actor) {
   if (p.callsign && get(actor, 'system.callsign') !== p.callsign) u['system.callsign'] = p.callsign;
   if (int(get(actor, 'system.level')) !== int(p.ll)) u['system.level'] = int(p.ll);
   if (p.player && get(actor, 'system.player_name') !== p.player) u['system.player_name'] = p.player;
-  Object.assign(u, artUpdate(p.portrait, actor));
+  Object.assign(u, artUpdate(p.portrait, actor, p.portraitId));
   return u;
 }
 
-export function artUpdate(path, actor) {
+// Арт, замінений в апці, бот кладе під тим самим шляхом (старий файл прибирається перед
+// записом). Актор лишався б з тією ж адресою, а Foundry і кеш перед ним показували б старий
+// файл. Тому до адреси додається версія — початок id арту: новий арт має інший id, адреса
+// змінюється, актор оновлюється, кеш обходиться. (Шлях з ?... Foundry приймає: так само
+// працює Tokenizer.)
+export function artSrc(path, id) {
+  if (!path) return '';
+  const v = String(id || '').replace(/-/g, '').slice(0, 8);
+  return v ? `${path}?v=${v}` : path;
+}
+
+export function artUpdate(path, actor, id) {
   if (!path) return {};
+  const want = artSrc(path, id);
   const u = {};
-  if (actor.img !== path) u.img = path;
-  if (get(actor, 'prototypeToken.texture.src') !== path) u['prototypeToken.texture.src'] = path;
+  if (actor.img !== want) u.img = want;
+  if (get(actor, 'prototypeToken.texture.src') !== want) u['prototypeToken.texture.src'] = want;
   return u;
 }
 

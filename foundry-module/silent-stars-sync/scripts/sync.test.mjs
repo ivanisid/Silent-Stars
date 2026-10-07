@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   decide, mergeFields, mergeGroup, mergeLimited, mechMaxPatch, profileActorName, pilotIdentityUpdate,
   matchGroup, suggestActors, resolveLinks, pendingMechs, mergeDestroyed, combineItemUpdates, MECH_FIELDS, PILOT_FIELDS, MODULE,
-  idleDecision, MAX_IDLE_SKIPS, isFreshCreating, CREATING_TTL,
+  idleDecision, MAX_IDLE_SKIPS, isFreshCreating, CREATING_TTL, syncOption, artSrc, artUpdate,
 } from './sync.js';
 
 let n = 0;
@@ -305,6 +305,49 @@ test('isFreshCreating: протухла', () => assert.equal(isFreshCreating(100
 test('isFreshCreating: годинник того, хто створює, трохи випереджає — ще свіжа', () => assert.equal(isFreshCreating(1000 + 60_000, 1000), true));
 test('isFreshCreating: порожньо, нуль, сміття', () => {
   for (const v of [undefined, null, 0, '', 'x', false]) assert.equal(isFreshCreating(v, 5000), false);
+});
+
+test('syncOption: позначка модуля є', () => assert.equal(syncOption()[MODULE], true));
+test("syncOption: кожен виклик — свіжий об'єкт, мутація одного не чіпає інших", () => {
+  const a = syncOption();
+  a.parent = 'мех'; // так Foundry дописує parent у переданий об'єкт
+  a.updates = [{ _id: 'x' }];
+  const b = syncOption();
+  assert.notEqual(a, b);
+  assert.deepEqual(Object.keys(b), [MODULE]);
+});
+
+const artActor = (img, src) => ({ img, prototypeToken: { texture: { src } } });
+const ID1 = '3f2a9c10-1111-4222-8333-444455556666';
+const ID2 = '9b7d0e55-1111-4222-8333-444455556666';
+test('artSrc: версія — початок id арту', () => assert.equal(artSrc('pilots/n/A/A.png', ID1), 'pilots/n/A/A.png?v=3f2a9c10'));
+test('artSrc: без id — як є, без шляху — порожньо', () => {
+  assert.equal(artSrc('pilots/n/A/A.png', null), 'pilots/n/A/A.png');
+  assert.equal(artSrc('', ID1), '');
+});
+test('artUpdate: немає шляху — нічого не міняємо', () => assert.deepEqual(artUpdate(null, artActor('x', 'y'), ID1), {}));
+test('artUpdate: той самий арт — нічого не пишемо', () => {
+  const v = artSrc('pilots/n/A/A.png', ID1);
+  assert.deepEqual(artUpdate('pilots/n/A/A.png', artActor(v, v), ID1), {});
+});
+test('artUpdate: арт замінили під тим самим шляхом — адреса нова, актор оновлюється', () => {
+  const old = artSrc('pilots/n/A/A.png', ID1);
+  const u = artUpdate('pilots/n/A/A.png', artActor(old, old), ID2);
+  assert.equal(u.img, 'pilots/n/A/A.png?v=9b7d0e55');
+  assert.equal(u['prototypeToken.texture.src'], 'pilots/n/A/A.png?v=9b7d0e55');
+});
+test('artUpdate: актор ще зі старою адресою без версії — один раз оновлюється', () => {
+  const u = artUpdate('pilots/n/A/A.png', artActor('pilots/n/A/A.png', 'pilots/n/A/A.png'), ID1);
+  assert.equal(u.img, 'pilots/n/A/A.png?v=3f2a9c10');
+});
+test('artUpdate: токен відстав від портрета — оновлюється лише токен', () => {
+  const v = artSrc('pilots/n/A/A.png', ID1);
+  assert.deepEqual(artUpdate('pilots/n/A/A.png', artActor(v, 'icons/old.png'), ID1), { 'prototypeToken.texture.src': v });
+});
+test('pilotIdentityUpdate: портрет іде з версією id', () => {
+  const actor = { ...artActor('', ''), system: { callsign: 'AMON', level: 2, player_name: 'x' }, flags: {} };
+  const u = pilotIdentityUpdate({ name: 'Amon', callsign: 'AMON', ll: 2, player: 'x', portrait: 'pilots/n/AMON/AMON.png', portraitId: ID1 }, actor);
+  assert.equal(u.img, 'pilots/n/AMON/AMON.png?v=3f2a9c10');
 });
 
 console.log(`\n${n} тестів пройдено`);
