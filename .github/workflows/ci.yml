@@ -1,0 +1,52 @@
+# Перевірки на кожен PR і пуш у main: тести й збірка апки, тести модуля Foundry,
+# типи edge-функцій Supabase (Deno). Релізи модуля — окремо, foundry-module.yml.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+        working-directory: client
+      - name: Екшени редюсера
+        run: node src/pilot/__actions.test.mjs
+        working-directory: client
+      - name: Збірка
+        run: npm run build
+        working-directory: client
+
+  foundry-module:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Тести модуля
+        run: node foundry-module/silent-stars-sync/scripts/sync.test.mjs
+      - name: Збірка модуля
+        run: node foundry-module/build.mjs
+
+  functions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: deno check
+        run: deno check --node-modules-dir=none supabase/functions/*/index.ts

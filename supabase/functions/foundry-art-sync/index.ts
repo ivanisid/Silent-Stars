@@ -129,7 +129,7 @@ async function fbLogin() {
 const fbPath = (rel: string) =>
   `${FB_DATA === '/' ? '' : FB_DATA}/${rel}`.split('/').map(encodeURIComponent).join('/');
 
-async function fb(method: string, rel: string, body?: Uint8Array, query = '') {
+async function fb(method: string, rel: string, body?: Uint8Array<ArrayBuffer>, query = '') {
   if (!fbToken) await fbLogin();
   const call = () => fetch(`${FB_URL}/api/resources${fbPath(rel)}${query}`, {
     method,
