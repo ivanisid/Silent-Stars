@@ -337,7 +337,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
               prevGroup = group;
               const lim = isLimited(it);
               const price = lim ? itemRefillPr(it) : 0;
-              const sub = [it.mount, lim ? 'LIMITED' : null].filter(Boolean).join(' · ') || '—';
+              const sub = [it.mount, lim ? 'LIMITED' : null, it.retained ? 'ЛИШИЛАСЬ ДО РЕМОНТУ / ПОПОВНЕННЯ (немає в новому файлі)' : null].filter(Boolean).join(' · ') || '—';
               return (
                 <div key={i}>
                   {head && (

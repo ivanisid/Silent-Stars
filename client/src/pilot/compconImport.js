@@ -1,4 +1,5 @@
 import { createDefaultPilotState } from './pilotDefaults';
+import { mergeMechState } from './mechMerge';
 import { MAX_LL } from './constants';
 import { clamp, nowTs, skillCapMax } from './logic';
 
@@ -53,8 +54,11 @@ function collectItems(mech, bonus = 0) {
   const loadout = mech.loadouts?.[mech.active_loadout_index ?? 0];
   if (!loadout) return results;
 
-  const push = (type, name, mount, tagMax, destroyed) => {
+  // lid — ідентифікатор предмета Lancer: за ним повторний імпорт відрізняє той самий предмет
+  // від іншого з такою ж назвою.
+  const push = (type, name, mount, tagMax, destroyed, lid) => {
     const item = { name, type, mount: (mount || '').toString().toUpperCase(), destroyed: !!destroyed };
+    if (lid) item.lid = String(lid);
     if (tagMax) {
       const max = tagMax + bonus;
       Object.assign(item, { current: max, max, base: tagMax });
@@ -66,14 +70,14 @@ function collectItems(mech, bonus = 0) {
     (mount.slots || []).forEach((slot) => {
       const w = slot.weapon?.data;
       if (!w) return;
-      push('weapon', w.name, w.mount || slot.size, tagValue(w.tags, 'tg_limited'), slot.weapon?.destroyed);
+      push('weapon', w.name, w.mount || slot.size, tagValue(w.tags, 'tg_limited'), slot.weapon?.destroyed, w.id);
     });
   });
 
   (loadout.systems || []).forEach((sys) => {
     const s = sys.data || sys;
     if (!s?.name) return;
-    push('system', s.name, '', tagValue(s.tags, 'tg_limited'), sys.destroyed);
+    push('system', s.name, '', tagValue(s.tags, 'tg_limited'), sys.destroyed, s.id);
   });
 
   return results;
@@ -158,12 +162,15 @@ function mapMech(m, grit, hull, limitedBonus) {
 // pilots per build (same name, different callsign per mech, since COMP/CON ties talents/skills
 // to a single pilot save). Re-importing another such file for an already-known pilot (matched by
 // name) should only add/refresh that mech, not touch anything else already tracked on the pilot.
+// Збірка (фрейм, зброя, системи) береться з файлу, а стан меха — ХП, ремкомплекти, структура,
+// реактор, заряди, «знищено» — лишається з апки; зламані й витрачені системи, яких у новому
+// файлі немає, лишаються до ремонту / поповнення (mechMerge.js).
 export function mergeMechsByName(existingMechs, importedMechs) {
   const result = [...(existingMechs || [])];
   (importedMechs || []).forEach((incoming) => {
     const idx = result.findIndex((m) => m.name.trim().toLowerCase() === incoming.name.trim().toLowerCase());
     if (idx >= 0) {
-      result[idx] = { ...incoming, id: result[idx].id, ccId: incoming.ccId || result[idx].ccId || '' };
+      result[idx] = mergeMechState(result[idx], incoming);
     } else {
       result.push(incoming);
     }

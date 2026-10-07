@@ -25,6 +25,9 @@ jobs:
       - name: Екшени редюсера
         run: node src/pilot/__actions.test.mjs
         working-directory: client
+      - name: Злиття меха при повторному імпорті
+        run: node src/pilot/mechMerge.test.mjs
+        working-directory: client
       - name: Збірка
         run: npm run build
         working-directory: client
