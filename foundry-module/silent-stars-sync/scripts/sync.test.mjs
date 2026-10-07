@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   decide, mergeFields, mergeGroup, mergeLimited, mechMaxPatch, profileActorName, pilotIdentityUpdate,
   matchGroup, suggestActors, resolveLinks, pendingMechs, mergeDestroyed, combineItemUpdates, MECH_FIELDS, PILOT_FIELDS, MODULE,
+  idleDecision, MAX_IDLE_SKIPS,
 } from './sync.js';
 
 let n = 0;
@@ -286,6 +287,17 @@ test('знищене: предмети не меха й без пари в ап�
 
 test('оновлення предметів одного id зливаються', () => {
   assert.deepEqual(combineItemUpdates([{ _id: 'a', x: 1 }], [{ _id: 'a', y: 2 }, { _id: 'b', z: 3 }]), [{ _id: 'a', x: 1, y: 2 }, { _id: 'b', z: 3 }]);
+});
+
+const idle = (over = {}) => idleDecision({ last: 'a', fp: 'a', skips: 0, needFull: false, ...over });
+test('idleDecision: відбиток збігся — пропуск', () => assert.equal(idle(), 'skip'));
+test('idleDecision: відбиток змінився — повний pull', () => assert.equal(idle({ fp: 'b' }), 'full'));
+test('idleDecision: ще не було повного pull — повний', () => assert.equal(idle({ last: null }), 'full'));
+test('idleDecision: ping не вдався — повний', () => assert.equal(idle({ fp: null }), 'full'));
+test('idleDecision: минулий цикл лишив роботу — повний', () => assert.equal(idle({ needFull: true }), 'full'));
+test('idleDecision: ліміт пропусків — повний', () => {
+  assert.equal(idle({ skips: MAX_IDLE_SKIPS - 1 }), 'skip');
+  assert.equal(idle({ skips: MAX_IDLE_SKIPS }), 'full');
 });
 
 console.log(`\n${n} тестів пройдено`);

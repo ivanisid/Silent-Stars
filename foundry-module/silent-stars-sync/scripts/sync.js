@@ -130,6 +130,24 @@ export const MECH_FIELDS = {
   },
 };
 
+// ----- Холості цикли: ping замість повного pull -----
+
+// Скільки циклів поспіль можна пропустити, перш ніж зробити повний pull попри збіг
+// відбитка: страховка на випадок зміни актора, про яку не повідомив жоден хук.
+export const MAX_IDLE_SKIPS = 10;
+
+// Рішення для циклу таймера: 'skip' — у апці нічого не змінилось і в нас нема невиконаної
+// роботи, 'full' — робимо повний pull. Зміни у Foundry (хуки) і кнопка «Синхронізувати
+// зараз» сюди не йдуть — вони завжди повні.
+//   last — відбиток останнього повного pull (null — його ще не було або він невдалий),
+//   fp — відбиток зараз (null — ping не вдався), skips — скільки циклів уже пропущено,
+//   needFull — минулий повний цикл лишив роботу (помилки, відкладені push).
+export function idleDecision({ last, fp, skips, needFull }) {
+  if (!last || !fp || needFull) return 'full';
+  if (skips >= MAX_IDLE_SKIPS) return 'full';
+  return fp === last ? 'skip' : 'full';
+}
+
 // ----- Злиття одного поля -----
 
 export function decide(A, F, B, appTime, foundryTime) {
