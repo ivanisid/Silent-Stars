@@ -83,8 +83,9 @@ async function linkedUserId(discordId: string) {
   return data?.user_id as string | undefined;
 }
 
+// Запис на гру прив'язки не вимагає; вона потрібна лише для пілота й меха та для дій ГМа.
 const NOT_LINKED =
-  'Ваш Discord ще не прив\'язаний до апки.\n' +
+  'Ця дія потребує прив\'язаного акаунта апки.\n' +
   '1. Відкрийте в апці сторінку **«Запис на гру»** і натисніть **«Прив\'язати Discord»**.\n' +
   '2. Введіть тут `/link <код>`.';
 
@@ -95,13 +96,22 @@ async function activePilots(userId: string) {
   return (data || []).filter((p) => p.state?.status !== 'archive');
 }
 
-async function signup(discordId: string, slotId: string, pilot: any, mechId: string | null) {
-  const s = await rpc('discord_signup', { p_discord_id: discordId, p_slot_id: slotId, p_pilot_id: pilot.id, p_mech_id: mechId });
-  const mech = (pilot.state?.mechs || []).find((m: any) => m.id === mechId);
-  const head = `✅ Записано: **${pilot.callsign}**${mech ? ` на ▮ ${mech.name}` : ''}. `;
-  if (s.guaranteed) return head + `🛡 **Гарантоване місце** — бонус +${s.roll_bonus}, кидати не треба.`;
-  const bonus = s.roll_bonus ? ` + бонус ${s.roll_bonus}` : '';
-  return head + `Пріоритет **${s.roll + (s.roll_bonus || 0)}** (d20: ${s.roll}${bonus}).`;
+// pilot = null — запис без пілота й меха: Discord не прив'язаний до апки або в акаунті немає пілотів.
+async function signup(discordId: string, username: string, slotId: string, pilot: any | null, mechId: string | null, linked = true) {
+  const s = await rpc('discord_signup', {
+    p_discord_id: discordId, p_slot_id: slotId, p_pilot_id: pilot?.id ?? null, p_mech_id: mechId, p_username: username,
+  });
+  const mech = (pilot?.state?.mechs || []).find((m: any) => m.id === mechId);
+  const head = pilot ? `✅ Записано: **${pilot.callsign}**${mech ? ` на ▮ ${mech.name}` : ''}. ` : '✅ Записано. ';
+  let tail: string;
+  if (s.guaranteed) tail = `🛡 **Гарантоване місце** — бонус +${s.roll_bonus}, кидати не треба.`;
+  else {
+    const bonus = s.roll_bonus ? ` + бонус ${s.roll_bonus}` : '';
+    tail = `Пріоритет **${s.roll + (s.roll_bonus || 0)}** (d20: ${s.roll}${bonus}).`;
+  }
+  // Підказка лише тим, хто без апки: пілот і мех у записі та бонус за програні контести — через прив'язку.
+  const hint = linked ? '' : '\n_Хочете записуватись із пілотом і мехом та копити бонус пріоритету — прив\'яжіть апку командою `/link`._';
+  return head + tail + hint;
 }
 
 function mechMenu(slotId: string, pilot: any) {
@@ -117,7 +127,7 @@ function mechMenu(slotId: string, pilot: any) {
   }];
 }
 
-async function onComponent(i: any, discordId: string) {
+async function onComponent(i: any, discordId: string, username: string) {
   const [kind, slotId, pilotId] = (i.data.custom_id as string).split(':');
 
   if (kind === 'wd') {
@@ -141,12 +151,13 @@ async function onComponent(i: any, discordId: string) {
 
   if (kind === 'su') {
     const uid = await linkedUserId(discordId);
-    if (!uid) return reply(NOT_LINKED);
+    // Без прив'язки до апки — запис одним натисканням, без пілота й меха.
+    if (!uid) return reply(await signup(discordId, username, slotId, null, null, false));
     const pilots = await activePilots(uid);
-    if (pilots.length === 0) return reply('У вас немає активних пілотів. Створіть пілота в апці.');
+    if (pilots.length === 0) return reply(await signup(discordId, username, slotId, null, null));
     if (pilots.length === 1) {
       const mechs = pilots[0].state?.mechs || [];
-      if (mechs.length <= 1) return reply(await signup(discordId, slotId, pilots[0], mechs[0]?.id ?? null));
+      if (mechs.length <= 1) return reply(await signup(discordId, username, slotId, pilots[0], mechs[0]?.id ?? null));
       return reply(`Пілот **${pilots[0].callsign}**. Яким мехом?`, { components: mechMenu(slotId, pilots[0]) });
     }
     return reply('Яким пілотом записатися?', {
@@ -179,7 +190,7 @@ async function onComponent(i: any, discordId: string) {
     }
     const mechId = kind === 'sm' ? i.data.values[0] : mechs[0]?.id ?? null;
     try {
-      return update(await signup(discordId, slotId, pilot, mechId));
+      return update(await signup(discordId, username, slotId, pilot, mechId));
     } catch (err) {
       return update(errText(err));
     }
@@ -431,7 +442,7 @@ async function onCommand(i: any, discordId: string, username: string) {
   switch (i.data.name) {
     case 'link': {
       const nick = await rpc('discord_link', { p_code: opt(i, 'code'), p_discord_id: discordId, p_username: username });
-      return reply(`🔗 Discord прив'язано до акаунта **${nick}**. Тепер можна записуватися кнопками під оголошеннями.`);
+      return reply(`🔗 Discord прив'язано до акаунта **${nick}**. Тепер під час запису можна обрати пілота й меха.`);
     }
 
     case 'game': {
@@ -484,7 +495,7 @@ Deno.serve(async (req) => {
 
   try {
     if (i.type === 2) return await onCommand(i, discordId, username);
-    if (i.type === 3) return await onComponent(i, discordId);
+    if (i.type === 3) return await onComponent(i, discordId, username);
     if (i.type === 4) return await onAutocomplete(i, discordId);
   } catch (err) {
     return reply(errText(err));

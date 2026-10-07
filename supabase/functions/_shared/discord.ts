@@ -76,12 +76,13 @@ export async function loadSlotView(db: SupabaseClient, slotId: string): Promise<
 
   const { data: rows, error: e2 } = await db
     .from('game_signups')
-    .select('id, user_id, pilot_id, mech_id, mech_name, roll, roll_bonus, guaranteed, released_at, approved, created_at, pilots(callsign, name, state)')
+    .select('id, user_id, pilot_id, discord_user_id, discord_name, mech_id, mech_name, roll, roll_bonus, guaranteed, released_at, approved, created_at, pilots(callsign, name, state)')
     .eq('slot_id', slotId)
     .order('created_at');
   if (e2) throw new Error(e2.message);
 
-  const userIds = [...new Set([slot.created_by, ...(rows || []).map((r) => r.user_id)])];
+  // Запис без акаунта апки (лише Discord) не має user_id — його в запитах нижче немає.
+  const userIds = [...new Set([slot.created_by, ...(rows || []).map((r) => r.user_id)].filter(Boolean))];
   const [{ data: profiles }, { data: links }] = await Promise.all([
     db.from('profiles').select('id, nick').in('id', userIds),
     db.from('discord_links').select('user_id, discord_user_id').in('user_id', userIds),
@@ -95,12 +96,13 @@ export async function loadSlotView(db: SupabaseClient, slotId: string): Promise<
     return {
       id: r.id,
       userId: r.user_id,
-      callsign: r.pilots?.callsign || '—',
+      // Без пілота (запис без прив'язки до апки) позивного немає — не підставляємо прочерк.
+      callsign: r.pilots?.callsign || '',
       pilotName: r.pilots?.name || '',
       ll: r.pilots?.state?.ll,
       mech,
-      nick: nick.get(r.user_id) || '',
-      discordId: discord.get(r.user_id),
+      nick: nick.get(r.user_id) || r.discord_name || 'Discord',
+      discordId: discord.get(r.user_id) ?? r.discord_user_id ?? undefined,
       roll: r.roll,
       rollBonus: r.roll_bonus,
       guaranteed: r.guaranteed === true,
@@ -152,10 +154,11 @@ export function renderSlotMessage({ slot, signups }: SlotView) {
     let mark = '';
     if (settled) mark = g.approved ? '✅ ' : g.released ? '↩️ ' : '❌ ';
     const who = g.discordId ? `<@${g.discordId}>` : g.nick;
-    let line = `${mark}${i + 1}. **${g.callsign}**`;
+    // Запис без пілота — лише хто записався; пілот і мех з'являються, коли Discord прив'язано до апки.
+    let line = g.callsign ? `${mark}${i + 1}. **${g.callsign}**` : `${mark}${i + 1}. ${who}`;
     if (g.ll) line += ` · LL${g.ll}`;
     if (g.mech) line += ` · ▮ ${g.mech}`;
-    line += ` — ${who}`;
+    if (g.callsign) line += ` — ${who}`;
     if (g.guaranteed) line += ' · 🛡 **гарантоване місце**';
     else if (g.priority != null) line += ` · пріоритет **${g.priority}**`;
     return line;

@@ -8,7 +8,8 @@ import { clip, discordFetch, loadSlotView, SlotView } from './discord.ts';
 type Signup = SlotView['signups'][number];
 
 const who = (g: Signup) => (g.discordId ? `<@${g.discordId}>` : `**${g.nick}**`);
-const pilotList = (list: Signup[]) => list.map((g) => `${who(g)} (${g.callsign})`).join(', ');
+const pilotList = (list: Signup[]) => list.map((g) => (g.callsign ? `${who(g)} (${g.callsign})` : who(g))).join(', ');
+const withPilot = (g: Signup) => (g.callsign ? `${who(g)} (${g.callsign})` : who(g));
 const unix = (iso: string) => Math.floor(new Date(iso).getTime() / 1000);
 const titleOf = (slot: any) => `«${slot.title || 'гра'}»`;
 
@@ -52,9 +53,16 @@ export async function notifyStatus(db: SupabaseClient, slotId: string, event: st
       slot.reward_mana > 0 ? `${slot.reward_mana} М` : '',
       slot.reward_pr > 0 ? `${slot.reward_pr} PR` : '',
     ].filter(Boolean).join(' · ');
+    // Що обрав ГМ: ту саму ману чи PR на свого пілота або +3 до пріоритету.
+    const gmReward = ({
+      mana: `${slot.reward_mana} М своєму пілоту`,
+      pr: `${slot.reward_pr} PR своєму пілоту`,
+      priority: '+3 до пріоритету на наступну гру',
+    } as Record<string, string>)[slot.gm_reward];
     await post(
       db, slotId,
-      `🏁 ${titleOf(slot)} зіграно! ${reward ? `Нараховано: **${reward}**` : 'Гру зараховано'} — ${pilotList(going)}`,
+      `🏁 ${titleOf(slot)} зіграно! ${reward ? `Нараховано: **${reward}**` : 'Гру зараховано'} — ${pilotList(going)}` +
+        (gmReward ? `\nНагорода ГМа: **${gmReward}**` : ''),
       going.map((g) => g.discordId),
     );
     return 'notified';
@@ -62,12 +70,13 @@ export async function notifyStatus(db: SupabaseClient, slotId: string, event: st
 
   // Гравець звільнив місце; на нього автоматично зайшов наступний у черзі (або ніхто).
   if (event === 'released') {
-    const gone = signups.find((g) => g.userId === extra.released_user);
-    const inn = signups.find((g) => g.userId === extra.promoted_user);
+    // Запис без акаунта не має user_id, тож шукаємо за id запису (user_id — для подій старого формату).
+    const gone = signups.find((g) => (extra.released_signup ? g.id === extra.released_signup : g.userId === extra.released_user));
+    const inn = signups.find((g) => (extra.promoted_signup ? g.id === extra.promoted_signup : g.userId === extra.promoted_user));
     const gm = slot.gmDiscordId ? `<@${slot.gmDiscordId}>` : `**${slot.gmNick}**`;
-    const lines = [`↩️ ${gone ? `${who(gone)} (${gone.callsign})` : 'Гравець'} звільнив місце в ${titleOf(slot)}.`];
+    const lines = [`↩️ ${gone ? withPilot(gone) : 'Гравець'} звільнив місце в ${titleOf(slot)}.`];
     lines.push(inn
-      ? `На його місце в склад заходить ${who(inn)} (${inn.callsign}) — якщо не зможеш, теж тисни «Звільнити місце».`
+      ? `На його місце в склад заходить ${withPilot(inn)} — якщо не зможеш, теж тисни «Звільнити місце».`
       : `${gm}, у резерві нікого немає — місце вільне.`);
     await post(db, slotId, lines.join('\n'), [inn?.discordId, slot.gmDiscordId]);
     return 'notified';
