@@ -57,11 +57,12 @@
   `.github/workflows/foundry-module.yml` (тести → `build.mjs` → реліз `sync-v<версія>`).
   У Foundry — «Перевірити оновлення». Маніфест:
   `https://github.com/ivanisid/Silent-Stars/releases/latest/download/module.json`.
-  Поточна версія — 0.9.0.
+  Поточна версія — 0.9.0. У `main` без нової версії (випуститься з наступною): створювати
+  акторів може будь-який ГМ, а не лише активний (позначка `creating` на акторі-пілоті).
 
 ## 4. Перевірки
 
-- `node foundry-module/silent-stars-sync/scripts/sync.test.mjs` — 44 тести логіки модуля
+- `node foundry-module/silent-stars-sync/scripts/sync.test.mjs` — 48 тестів логіки модуля
   (запускаються й в Action перед релізом).
 - `node client/src/pilot/__actions.test.mjs` — звіряє дії, які диспатчать компоненти, з
   обробниками редюсера.

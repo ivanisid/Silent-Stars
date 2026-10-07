@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   decide, mergeFields, mergeGroup, mergeLimited, mechMaxPatch, profileActorName, pilotIdentityUpdate,
   matchGroup, suggestActors, resolveLinks, pendingMechs, mergeDestroyed, combineItemUpdates, MECH_FIELDS, PILOT_FIELDS, MODULE,
-  idleDecision, MAX_IDLE_SKIPS,
+  idleDecision, MAX_IDLE_SKIPS, isFreshCreating, CREATING_TTL,
 } from './sync.js';
 
 let n = 0;
@@ -298,6 +298,13 @@ test('idleDecision: минулий цикл лишив роботу — повн
 test('idleDecision: ліміт пропусків — повний', () => {
   assert.equal(idle({ skips: MAX_IDLE_SKIPS - 1 }), 'skip');
   assert.equal(idle({ skips: MAX_IDLE_SKIPS }), 'full');
+});
+
+test('isFreshCreating: свіжа позначка', () => assert.equal(isFreshCreating(1000, 1000 + 30_000), true));
+test('isFreshCreating: протухла', () => assert.equal(isFreshCreating(1000, 1000 + CREATING_TTL), false));
+test('isFreshCreating: годинник того, хто створює, трохи випереджає — ще свіжа', () => assert.equal(isFreshCreating(1000 + 60_000, 1000), true));
+test('isFreshCreating: порожньо, нуль, сміття', () => {
+  for (const v of [undefined, null, 0, '', 'x', false]) assert.equal(isFreshCreating(v, 5000), false);
 });
 
 console.log(`\n${n} тестів пройдено`);
