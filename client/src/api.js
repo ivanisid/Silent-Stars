@@ -490,8 +490,15 @@ export const api = {
     return { ok: true };
   },
 
-  gmCloseGame: async (slotId) => {
-    const { error } = await supabase.rpc('gm_close_game', { p_slot_id: slotId });
+  // Завершення гри: гравцям — нагорода слота, ГМу — одна з трьох на вибір:
+  // 'mana' / 'pr' — стільки ж, скільки гравцям, одному зі своїх пілотів (gmPilotId),
+  // 'priority' — +3 до бонусу пріоритету.
+  gmCloseGame: async (slotId, { gmReward = null, gmPilotId = null } = {}) => {
+    const { error } = await supabase.rpc('gm_close_game', {
+      p_slot_id: slotId,
+      p_gm_reward: gmReward,
+      p_gm_pilot_id: gmReward === 'mana' || gmReward === 'pr' ? gmPilotId : null,
+    });
     if (error) throw new Error(error.message);
     return { ok: true };
   },

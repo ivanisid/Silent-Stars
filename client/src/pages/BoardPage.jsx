@@ -256,6 +256,35 @@ function CreateSlotForm({ onCreated }) {
   );
 }
 
+// Нагорода ГМа за гру: стільки ж мани чи PR, скільки гравцям, одному зі своїх пілотів, або +3 до пріоритету.
+function gmRewardOptions(slot, hasPilots) {
+  const needPilot = hasPilots ? '' : 'Потрібен хоча б один ваш персонаж';
+  return [
+    {
+      key: 'mana',
+      label: `ОТРИМАТИ МАНУ · ${slot.rewardMana} М`,
+      disabled: !hasPilots || slot.rewardMana <= 0,
+      hint: slot.rewardMana <= 0 ? 'У цієї гри немає нагороди мани' : needPilot,
+    },
+    {
+      key: 'pr',
+      label: `ОТРИМАТИ PR · ${slot.rewardPr}`,
+      disabled: !hasPilots || slot.rewardPr <= 0,
+      hint: slot.rewardPr <= 0 ? 'У цієї гри немає нагороди PR' : needPilot,
+    },
+    { key: 'priority', label: 'ОТРИМАТИ ПРІОРИТЕТ · +3', disabled: false, hint: '' },
+  ];
+}
+
+// Текст про нагороду ГМа: для вже завершеної гри береться зі слота, для підтвердження — з вибору.
+function gmRewardText(slot, key = slot.gmReward, pilot = null) {
+  const who = pilot?.callsign || slot.gmRewardPilot;
+  if (key === 'mana') return `${slot.rewardMana} М${who ? ` → ${who}` : ''}`;
+  if (key === 'pr') return `${slot.rewardPr} PR${who ? ` → ${who}` : ''}`;
+  if (key === 'priority') return '+3 до пріоритету';
+  return '—';
+}
+
 function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   const navigate = useNavigate();
   const [pilotId, setPilotId] = useState('');
@@ -268,6 +297,10 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   const [rMana, setRMana] = useState(0);
   const [rPr, setRPr] = useState(0);
   const [rDiff, setRDiff] = useState('');
+  // Завершення гри: ГМ обирає одну нагороду для себе — ману, PR (одному зі своїх пілотів) або пріоритет.
+  const [closing, setClosing] = useState(false);
+  const [gmReward, setGmReward] = useState('');
+  const [gmPilotId, setGmPilotId] = useState('');
   // Збереження нагороди мовчазне: без підтвердження ГМ не відрізняє «зберіг»
   // від «передумав і закрив редактор».
   const [savedNote, setSavedNote] = useState('');
@@ -282,6 +315,8 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   // Played and settled: 'closed' is set by the call that pays the reward out.
   const isDone = slot.status === 'closed';
   const awarded = slot.signups.filter((g) => g.approved === true).length;
+  // Нагороду отримують лише записи з пілотом; запис без прив'язки до апки пілота не має.
+  const rewarded = slot.signups.filter((g) => g.approved === true && g.pilotId).length;
   const mySignup = slot.signups.find((g) => g.userId === user.id);
   const contest = slot.signups.length > slot.seats;
   // Пріоритет (d20 + бонус) кидається під час запису; вищий іде вгору списку, рівні — у порядку запису.
@@ -384,10 +419,11 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', padding: '8px 12px', background: 'var(--success-bg)', border: '1px solid var(--success-border)' }}>
             <span className="title-font" style={{ fontSize: 14, letterSpacing: 2, color: 'var(--success)' }}>✓ ГРА ЗАВЕРШЕНА</span>
             <span style={{ fontSize: 11, color: 'var(--text-soft)', lineHeight: 1.6 }}>
-              {awarded > 0
-                ? `Нагороди нараховано · ${awarded} ${pluralPilots(awarded)} · ${slot.rewardMana} М кожному` +
+              {rewarded > 0
+                ? `Нагороди нараховано · ${rewarded} ${pluralPilots(rewarded)} · ${slot.rewardMana} М кожному` +
                   `${slot.rewardPr > 0 ? ` · ${slot.rewardPr} PR` : ''}`
                 : 'Нікого не затверджено — нагород не нараховано'}
+              {slot.gmReward && ` · ГМ: ${gmRewardText(slot)}`}
             </span>
           </div>
         )}
@@ -462,10 +498,22 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                       {checked ? '✓' : ''}
                     </button>
                   )}
-                  <span className="title-font" style={{ fontSize: 16, letterSpacing: 1, color: 'var(--text-bright)' }}>{g.callsign || '—'}</span>
-                  <span style={{ color: 'var(--text-dimmer)', whiteSpace: 'nowrap' }}>ЛЛ {g.ll} · T{llTier(g.ll)}</span>
-                  {g.mech && <span style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>▮ {g.mech}</span>}
-                  <span style={{ color: 'var(--text-faint)' }}>{g.nick || 'невідомо'}</span>
+                  {/* Запис без прив'язки до апки: лише ім'я з Discord, без пілота й меха. */}
+                  {g.pilotId ? (
+                    <>
+                      <span className="title-font" style={{ fontSize: 16, letterSpacing: 1, color: 'var(--text-bright)' }}>{g.callsign || '—'}</span>
+                      <span style={{ color: 'var(--text-dimmer)', whiteSpace: 'nowrap' }}>ЛЛ {g.ll} · T{llTier(g.ll)}</span>
+                      {g.mech && <span style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>▮ {g.mech}</span>}
+                      <span style={{ color: 'var(--text-faint)' }}>{g.nick || 'невідомо'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="title-font" style={{ fontSize: 16, letterSpacing: 1, color: 'var(--text-bright)' }}>{g.nick || 'невідомо'}</span>
+                      <span style={{ color: 'var(--text-dimmer)', whiteSpace: 'nowrap' }} title="Записався в Discord без прив'язки до апки">
+                        {g.discordOnly ? 'DISCORD · БЕЗ ПІЛОТА' : 'БЕЗ ПІЛОТА'}
+                      </span>
+                    </>
+                  )}
                   {/* Only a GM can read someone else's pilot (RLS), so the link is theirs
                       alone — for anyone else it would land on "пілота не знайдено". */}
                   {isGm && g.pilotId && (
@@ -608,6 +656,67 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                 <button className="btn-ghost" type="button" onClick={() => setEditReward(false)}>СКАСУВАТИ</button>
               </div>
             )}
+            {isApproved && closing && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '10px 12px', border: '1px solid var(--gm-dim)', background: 'var(--panel-sunken)' }}>
+                <div className="title-font" style={{ fontSize: 13, letterSpacing: 2, color: GOLD }}>НАГОРОДА ГМА — ОБЕРІТЬ ОДНУ</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {gmRewardOptions(slot, myPilots.length > 0).map((o) => (
+                    <button
+                      key={o.key}
+                      className={gmReward === o.key ? 'btn-gm' : 'btn-ghost'}
+                      type="button"
+                      disabled={busy || o.disabled}
+                      title={o.hint}
+                      onClick={() => setGmReward(o.key)}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                {(gmReward === 'mana' || gmReward === 'pr') && (
+                  <select className="ss-select" value={gmPilotId} onChange={(e) => setGmPilotId(e.target.value)} style={{ alignSelf: 'flex-start', height: 30, fontSize: 12 }}>
+                    {myPilots.map((p) => (
+                      <option key={p.id} value={p.id}>{p.callsign} ({p.name})</option>
+                    ))}
+                  </select>
+                )}
+                <div style={{ fontSize: 11, color: 'var(--text-grey)', lineHeight: 1.6 }}>
+                  {gmReward === 'mana' && `Обраний персонаж отримає ${slot.rewardMana} М — стільки ж, скільки гравці.`}
+                  {gmReward === 'pr' && `Обраний персонаж отримає ${slot.rewardPr} PR — стільки ж, скільки гравці (надлишок понад кап згорить).`}
+                  {gmReward === 'priority' && '+3 до бонусу пріоритету на наступний запис на гру.'}
+                  {!gmReward && 'Без вибору гру не завершити.'}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    className="btn-gm"
+                    type="button"
+                    disabled={busy || editReward || !gmReward || ((gmReward === 'mana' || gmReward === 'pr') && !gmPilotId)}
+                    onClick={() =>
+                      confirmThen(
+                        {
+                          title: 'ЗАВЕРШИТИ ГРУ?',
+                          tone: 'gm',
+                          question: `Видати нагороду ${rewarded} ${pluralPilots(rewarded)}?`,
+                          lines: [
+                            `кожен отримає ${slot.rewardMana} М`,
+                            `${slot.rewardPr} PR — у його пул PR (надлишок понад кап згорить)`,
+                            `для вас: ${gmRewardText(slot, gmReward, myPilots.find((p) => p.id === gmPilotId))}`,
+                            ...(rewarded < awarded ? [`${awarded - rewarded} без пілота — нагороди не отримають`] : []),
+                            'лічильник зіграних ігор оновиться сам — це не нагорода',
+                            'діє одразу й не скасовується',
+                          ],
+                          yesLabel: 'ЗАВЕРШИТИ',
+                        },
+                        () => api.gmCloseGame(slot.id, { gmReward, gmPilotId }),
+                      )
+                    }
+                  >
+                    ЗАВЕРШИТИ
+                  </button>
+                  <button className="btn-ghost" type="button" disabled={busy} onClick={() => setClosing(false)}>СКАСУВАТИ</button>
+                </div>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               {!editReward && (
                 <button
@@ -651,29 +760,17 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                   ЗАТВЕРДИТИ СКЛАД · {rosterSize}
                 </button>
               )}
-              {isApproved && (
+              {isApproved && !closing && (
                 <button
                   className="btn-gm"
                   type="button"
                   disabled={busy || editReward}
                   title={editReward ? 'Спершу збережіть або скасуйте зміну нагороди' : undefined}
-                  onClick={() =>
-                    confirmThen(
-                      {
-                        title: 'ЗАВЕРШИТИ ГРУ?',
-                        tone: 'gm',
-                        question: `Видати нагороду ${awarded} ${pluralPilots(awarded)}?`,
-                        lines: [
-                          `кожен отримає ${slot.rewardMana} М`,
-                          `${slot.rewardPr} PR — у його пул PR (надлишок понад кап згорить)`,
-                          'лічильник зіграних ігор оновиться сам — це не нагорода',
-                          'діє одразу й не скасовується',
-                        ],
-                        yesLabel: 'ЗАВЕРШИТИ',
-                      },
-                      () => api.gmCloseGame(slot.id),
-                    )
-                  }
+                  onClick={() => {
+                    setGmReward('');
+                    setGmPilotId(myPilots[0]?.id || '');
+                    setClosing(true);
+                  }}
                 >
                   ЗАВЕРШИТИ ГРУ І ВИДАТИ НАГОРОДУ
                 </button>
@@ -791,7 +888,7 @@ function DiscordLink({ user }) {
       {link ? (
         <>
           <span style={{ color: 'var(--success)' }}>прив'язано{link.discord_username ? ` · ${link.discord_username}` : ''}</span>
-          <span style={{ color: 'var(--text-dimmer)', fontSize: 11 }}>— записуйтесь кнопками під оголошеннями</span>
+          <span style={{ color: 'var(--text-dimmer)', fontSize: 11 }}>— у Discord можна записуватись із пілотом і мехом</span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {!hasLogin && (
               <button className="btn-ghost md" type="button" disabled={busy}
@@ -821,7 +918,7 @@ function DiscordLink({ user }) {
         </>
       ) : (
         <>
-          <span style={{ color: 'var(--text-dimmer)' }}>не прив'язано — щоб записуватись прямо з Discord</span>
+          <span style={{ color: 'var(--text-dimmer)' }}>не прив'язано — у Discord можна записатись і так, але без пілота й меха</span>
           {/* Через Discord одним кліком: і прив'язка, і вхід. Код /link — запасний шлях. */}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button className="btn md" type="button" disabled={busy} onClick={() => run(api.linkDiscordLogin)}>

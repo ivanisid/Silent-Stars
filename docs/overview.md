@@ -11,7 +11,7 @@
 | Апка (React + Vite) | `client/` | трекер пілотів кампанії Lancer; розгортається на Vercel з `main` |
 | База й функції | `supabase/` (проєкт `ferum-vox-pilot-tracker`, id `dmqkxxedabawnhznzlmx`) | Postgres з RLS, edge-функції, vault-секрети |
 | Модуль Foundry | `foundry-module/silent-stars-sync/` | двостороння синхронізація пілотів/мехів з акторами системи Lancer 3.x (Foundry 13) |
-| Discord | `supabase/functions/discord-*`, `scripts/discord-register-commands.mjs` | запис на ігри, ролі, вхід через Discord |
+| Discord | `supabase/functions/discord-*`, `scripts/discord-register-commands.mjs` | запис на ігри (прив'язка до апки необов'язкова — без неї запис без пілота й меха), ролі, вхід через Discord |
 
 ## 2. Апка
 
