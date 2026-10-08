@@ -25,7 +25,7 @@ export default function MechsPanel({ state, dispatch, pilotId, mechArt = {}, can
   const nameTaken = isMechNameTaken(state.mechs, d.name);
 
   return (
-    <Panel title="МЕХИ" sub={state.mechs.length}>
+    <Panel title="МЕХ АНГАР" sub={state.mechs.length}>
       {dialog}
       <div className="ss-body" style={{ gap: 14 }}>
         {state.mechs.length === 0 && (
