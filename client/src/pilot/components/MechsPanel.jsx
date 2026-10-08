@@ -100,6 +100,44 @@ function CompconMechImport({ state, dispatch, pilotId }) {
   );
 }
 
+// Згортна секція картки меха.
+function Fold({ title, count, open, onToggle, children }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <button
+        type="button"
+        className="ss-sect"
+        aria-expanded={open}
+        onClick={onToggle}
+        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+      >
+        <span style={{ color: 'var(--accent)', fontSize: 10, width: 10 }}>{open ? '▾' : '▸'}</span>
+        <span className="ss-label">{title}</span>
+        {count != null && <span className="ss-count" style={{ fontSize: 16 }}>{count}</span>}
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
+const EMPTY_BUILD = (
+  <div className="ss-slot" style={{ minHeight: 40, justifyContent: 'flex-start', padding: '0 12px', fontSize: 11, color: 'var(--text-dimmer)' }}>
+    &gt; Немає в даних меха. Завантажте файл COMP/CON цього меха (меню «⋯» у профілі або нижче).
+  </div>
+);
+
+function BuildRow({ name, tag, desc }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: '7px 10px', borderBottom: '1px solid var(--input-border)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ color: 'var(--text)', overflowWrap: 'anywhere' }}>{name}</span>
+        {tag && <span className="ss-tag accent">{tag}</span>}
+      </div>
+      {desc && <span style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.5, textWrap: 'pretty', overflowWrap: 'anywhere', whiteSpace: 'pre-line' }}>{desc}</span>}
+    </div>
+  );
+}
+
 function FieldLabel({ children }) {
   return <div className="ss-label" style={{ lineHeight: '16px' }}>{children}</div>;
 }
@@ -115,6 +153,9 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
   const rx = reactorLeft(m);
   const oc = Math.min(m.overcharge || 0, 3);
   const items = m.items || [];
+  const build = m.build;
+  const [open, setOpen] = useState({ items: false, skills: false, talents: false, core: false });
+  const fold = (key) => ({ open: open[key], onToggle: () => setOpen((o) => ({ ...o, [key]: !o[key] })) });
 
   // Ремонт: вікно з розкладом «ремкомплекти / докупівля за PR», «ТАК» неактивна, коли PR бракує.
   async function repair(what, idx) {
@@ -324,11 +365,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
           </button>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div className="ss-sect">
-            <div className="ss-label">ЗБРОЯ ТА СИСТЕМИ</div>
-            <div className="ss-count" style={{ fontSize: 16 }}>{items.length}</div>
-          </div>
+        <Fold title="ЗБРОЯ ТА СИСТЕМИ" count={items.length} {...fold('items')}>
           <div className="ss-list">
             {items.map((it, i) => {
               const group = it.type === 'weapon' ? 'ЗБРОЯ' : 'СИСТЕМИ';
@@ -423,18 +460,73 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
               <button className="btn sm" type="button" style={{ width: 28, padding: 0, fontSize: 12 }} disabled={!addName.trim()} onClick={addItem} title="Додати">+</button>
             </div>
           </div>
-        </div>
+        </Fold>
+
+        <Fold title="МЕХ СКІЛИ" {...fold('skills')}>
+          {build?.skills ? (
+            <div className="ss-cells" style={{ gridTemplateColumns: 'repeat(4, minmax(0,1fr))' }}>
+              {build.skills.map((s) => (
+                <div key={s.name}>
+                  <span className="k">{s.name}</span>
+                  <span className="ss-count">{s.value}</span>
+                </div>
+              ))}
+            </div>
+          ) : EMPTY_BUILD}
+        </Fold>
+
+        <Fold title="ТАЛАНТИ" count={build?.talents?.length} {...fold('talents')}>
+          {build?.talents ? (
+            build.talents.length ? (
+              <div className="ss-list">
+                {build.talents.map((t) => (
+                  <div key={t.name}>
+                    <BuildRow name={t.name} tag={`РАНГ ${t.rank}`} />
+                    {t.ranks.map((r, i) => (
+                      <div key={i} style={{ paddingLeft: 14 }}>
+                        <BuildRow name={`${i + 1}. ${r.name}`} desc={r.desc} />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : EMPTY_BUILD
+          ) : EMPTY_BUILD}
+        </Fold>
+
+        <Fold title="КОР БОНУСИ" count={build?.coreBonuses?.length} {...fold('core')}>
+          {build?.coreBonuses?.length ? (
+            <div className="ss-list">
+              {build.coreBonuses.map((c) => <BuildRow key={c.name} name={c.name} tag={c.source} desc={c.desc} />)}
+            </div>
+          ) : EMPTY_BUILD}
+        </Fold>
       </div>
-      <ArtSlot
-        className="m-portrait"
-        art={art}
-        label="ЗОБРАЖЕННЯ МЕХА"
-        canEdit={canEditArt}
-        onUpload={onUploadArt}
-        onRemove={onRemoveArt}
-        width={220}
-        height={240}
-      />
+      <div className="m-side" style={{ display: 'flex', flexDirection: 'column', gap: 14, width: 220, maxWidth: '100%', minWidth: 0 }}>
+        <ArtSlot
+          className="m-portrait"
+          art={art}
+          label="ЗОБРАЖЕННЯ МЕХА"
+          canEdit={canEditArt}
+          onUpload={onUploadArt}
+          onRemove={onRemoveArt}
+          width={220}
+          height={240}
+        />
+        {build?.licenses?.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <FieldLabel>ЛІЦЕНЗІЇ</FieldLabel>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {build.licenses.map((l) => (
+                <div key={l.name} className="ss-tile" style={{ minHeight: 34, justifyContent: 'space-between', padding: '0 12px' }}>
+                  <span style={{ fontSize: 12, letterSpacing: 1, color: 'var(--text)', overflowWrap: 'anywhere' }}>{l.name.toUpperCase()}</span>
+                  <span className="big" style={{ fontSize: 18 }}>{l.rank}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
