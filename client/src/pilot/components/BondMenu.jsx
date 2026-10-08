@@ -103,7 +103,6 @@ function BondXp({ state, dispatch }) {
           {/* Лише показ: XP додається тільки через TALLY XP. Клікабельна шкала давала
               випадкові зміни — клік по останній поділці закривав цикл і додавав Bond power. */}
           <Track value={inCycle} max={BOND_XP_PER_POWER} label="Bond XP" />
-          <div style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>УСЬОГО {xp} XP</div>
         </div>
         <div style={{ position: 'relative', border: '1px solid var(--accent-dim)', marginTop: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '14px 10px 6px' }}>
           <div style={{ position: 'absolute', top: -7, left: '50%', transform: 'translateX(-50%)', padding: '0 6px', background: 'var(--panel-sunken)', fontSize: 10, color: 'var(--accent)', letterSpacing: 1, lineHeight: 1.2, whiteSpace: 'nowrap' }}>
@@ -147,6 +146,7 @@ function BondXp({ state, dispatch }) {
         className={count ? 'btn' : 'btn-ghost'}
         disabled={!count}
         style={{ height: 32, letterSpacing: 2, width: '100%' }}
+        title="Додати до Bond XP позначені вище пункти й скинути позначки"
         onClick={() => dispatch({ type: 'TALLY_BOND_XP' })}
       >
         TALLY XP{count ? ` · +${count}` : ''}
@@ -189,6 +189,7 @@ function StressBox({ state, dispatch }) {
           className="btn-ghost"
           type="button"
           style={{ marginLeft: 'auto', ...(state.downAndOut ? { color: 'var(--danger)', borderColor: 'var(--danger-border)' } : {}) }}
+          title={state.downAndOut ? 'Зняти статус Down and Out' : 'Позначити, що пілот у стані Down and Out'}
           onClick={() => dispatch({ type: 'TOGGLE_DOWN_AND_OUT' })}
         >
           {state.downAndOut ? 'ЗНЯТИ DOWN AND OUT' : 'DOWN AND OUT'}
@@ -201,7 +202,7 @@ function StressBox({ state, dispatch }) {
         {next == null ? (
           <span className="ss-tag bad" style={{ marginLeft: 'auto' }}>ЧЕТВЕРТИЙ BURDEN — СМЕРТЬ</span>
         ) : (
-          <button className="btn-ghost sm" type="button" style={{ marginLeft: 'auto' }} onClick={() => dispatch({ type: 'ADD_BURDEN' })}>
+          <button className="btn-ghost sm" type="button" style={{ marginLeft: 'auto' }} title={`Записати новий burden на ${next} сегментів; сегменти заповнюються в міру лікування`} onClick={() => dispatch({ type: 'ADD_BURDEN' })}>
             + BURDEN · {next} СЕГМ.
           </button>
         )}
