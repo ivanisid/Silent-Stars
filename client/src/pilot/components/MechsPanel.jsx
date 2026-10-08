@@ -154,7 +154,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
   const oc = Math.min(m.overcharge || 0, 3);
   const items = m.items || [];
   const build = m.build;
-  const [open, setOpen] = useState({ items: true, skills: true, talents: true, core: true });
+  const [open, setOpen] = useState({ items: false, skills: false, talents: false, core: false });
   const fold = (key) => ({ open: open[key], onToggle: () => setOpen((o) => ({ ...o, [key]: !o[key] })) });
 
   // Ремонт: вікно з розкладом «ремкомплекти / докупівля за PR», «ТАК» неактивна, коли PR бракує.
