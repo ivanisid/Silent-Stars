@@ -1250,6 +1250,7 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
   .m-stack { grid-template-columns: minmax(0, 1fr) !important; gap: 16px !important; }
   .m-pad { padding: 14px !important; }
   .m-one { grid-template-columns: minmax(0, 1fr) !important; }
+  .m-side { order: -1; width: 100% !important; }
   .m-portrait { width: 100% !important; height: 140px !important; order: -1; }
   .m-portrait > div:first-child { height: 140px !important; }
   .m-full { width: 100% !important; margin-left: 0 !important; }

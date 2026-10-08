@@ -125,12 +125,50 @@ function mapSkillTriggers(skills, cap) {
   return triggers;
 }
 
+const text = (v) => (typeof v === 'string' ? v.replace(/<[^>]+>/g, '').trim() : '');
+const nameOf = (x) => text(x?.data?.name) || text(x?.name) || text(x?.id).replace(/^(mf|cb|t)_/, '').replace(/_/g, ' ').toUpperCase();
+
+// Те, що показує картка меха: HASE, таланти (з описом отриманих рангів), кор-бонуси,
+// ліцензії. Тільки читання з файлу; форма запису COMP/CON розбирається обережно — що не
+// знайдено, пропускається, а не вигадується.
+export function mapPilotBuild(d) {
+  const hase = d?.mechSkills || [];
+  return {
+    skills: ['HULL', 'AGILITY', 'SYSTEMS', 'ENGINEERING'].map((name, i) => ({ name, value: Number(hase[i]) || 0 })),
+    talents: (d?.talents || [])
+      .map((t) => {
+        const rank = Number(t?.rank) || 0;
+        const ranks = t?.data?.ranks || t?.ranks || [];
+        return {
+          name: nameOf(t),
+          rank,
+          ranks: ranks.slice(0, rank).map((r) => ({ name: text(r?.name), desc: text(r?.description) })),
+        };
+      })
+      .filter((t) => t.name && t.rank > 0),
+    coreBonuses: (d?.core_bonuses || [])
+      .map((cb) => {
+        const c = cb?.data || cb;
+        return {
+          name: nameOf(cb),
+          source: text(c?.source),
+          desc: text(c?.effect) || text(c?.description),
+        };
+      })
+      .filter((c) => c.name),
+    licenses: (d?.licenses || [])
+      .map((l) => ({ name: nameOf(l), rank: Number(l?.rank) || 0 }))
+      .filter((l) => l.name)
+      .sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name)),
+  };
+}
+
 // Frame stats (frameData.stats.hp/repcap) are only the frame's base values — COMP/CON adds the
 // pilot's HASE (Hull/Agility/Systems/Engineering) mech-skill points and Grit on top at runtime,
 // and the raw export doesn't persist those already-summed totals. Per the Lancer core rules:
 // Mech HP = Frame HP + Grit + 2×Hull; Repair Cap = Frame Repair Cap + floor(Hull÷2).
 // `mechSkills` is the pilot's HASE array in that fixed order, so mechSkills[0] is Hull.
-function mapMech(m, grit, hull, limitedBonus) {
+function mapMech(m, grit, hull, limitedBonus, build) {
   const frameStats = m.frameData?.stats || {};
   const hpMax = (frameStats.hp || 10) + grit + 2 * hull;
   const repairMax = (frameStats.repcap || 0) + Math.floor(hull / 2);
@@ -155,6 +193,9 @@ function mapMech(m, grit, hull, limitedBonus) {
     corePower: m.corePower ?? true,
     overcharge: 0,
     items: collectItems(m, limitedBonus),
+    // Збірка пілота з цього файлу: у COMP/CON скіли, таланти, кор-бонуси й ліцензії належать
+    // пілоту, а не меху; кожен мех = окремий файл, тому зберігаємо їх на мехові.
+    build,
   };
 }
 
@@ -261,7 +302,7 @@ export function mapCompconPilot(json) {
     },
     skillTriggers: mapSkillTriggers(d.skills, skillCapMax(level, 0)),
     mechs: (d.mechs || []).map((m) =>
-      mapMech(m, d.stats?.max?.grit || 0, d.mechSkills?.[0] || 0, limitedBonusFor(d, m).total),
+      mapMech(m, d.stats?.max?.grit || 0, d.mechSkills?.[0] || 0, limitedBonusFor(d, m).total, mapPilotBuild(d)),
     ),
     actionLog: [
       { ts: nowTs(), msg: `Імпортовано з COMP/CON (${d.callsign || d.name || 'пілот'})` },
