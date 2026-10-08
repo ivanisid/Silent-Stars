@@ -125,8 +125,12 @@ function mapSkillTriggers(skills, cap) {
   return triggers;
 }
 
-const text = (v) => (typeof v === 'string' ? v.replace(/<[^>]+>/g, '').trim() : '');
-const nameOf = (x) => text(x?.data?.name) || text(x?.name) || text(x?.id).replace(/^(mf|cb|t)_/, '').replace(/_/g, ' ').toUpperCase();
+// Описи в COMP/CON — HTML (<br>, <ul><li>): розриви рядків зберігаємо, решту тегів прибираємо.
+const text = (v) =>
+  typeof v === 'string'
+    ? v.replace(/<\/(li|p|div)>|<br\s*\/?>|<(ul|ol)>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\n{2,}/g, '\n').trim()
+    : '';
+const nameOf = (x) => text(x?.data?.name) || text(x?.stub?.name) || text(x?.name) || text(x?.id).replace(/^(mf|cb|t)_/, '').replace(/_/g, ' ').toUpperCase();
 
 // Те, що показує картка меха: HASE, таланти (з описом отриманих рангів), кор-бонуси,
 // ліцензії. Тільки читання з файлу; форма запису COMP/CON розбирається обережно — що не
@@ -157,7 +161,7 @@ export function mapPilotBuild(d) {
       })
       .filter((c) => c.name),
     licenses: (d?.licenses || [])
-      .map((l) => ({ name: nameOf(l), rank: Number(l?.rank) || 0 }))
+      .map((l) => ({ name: nameOf(l), rank: Number(l?.rank) || 0, source: text(l?.stub?.source) }))
       .filter((l) => l.name)
       .sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name)),
   };

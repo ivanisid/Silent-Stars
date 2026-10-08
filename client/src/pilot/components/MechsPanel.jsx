@@ -133,7 +133,7 @@ function BuildRow({ name, tag, desc }) {
         <span style={{ color: 'var(--text)', overflowWrap: 'anywhere' }}>{name}</span>
         {tag && <span className="ss-tag accent">{tag}</span>}
       </div>
-      {desc && <span style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.5, textWrap: 'pretty', overflowWrap: 'anywhere' }}>{desc}</span>}
+      {desc && <span style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.5, textWrap: 'pretty', overflowWrap: 'anywhere', whiteSpace: 'pre-line' }}>{desc}</span>}
     </div>
   );
 }
