@@ -170,7 +170,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
                 {/* Рівень не піднімається сам — це явна покупка. Поки мани бракує, кнопка
                     показує залишок, а не неактивну ціну. */}
                 {view.canLevelUp ? (
-                  <button className="btn" type="button" style={{ minWidth: 200, flexShrink: 0 }} onClick={() => dispatch({ type: 'OPEN_LEVEL_UP' })}>
+                  <button className="btn" type="button" style={{ minWidth: 200, flexShrink: 0 }} title={`Відкрити вікно підвищення License Level за ${view.levelCost} М`} onClick={() => dispatch({ type: 'OPEN_LEVEL_UP' })}>
                     ПІДВИЩИТИ ЛЛ — {view.levelCost} М
                   </button>
                 ) : (
@@ -219,10 +219,10 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
       </div>
     </Panel>
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: -8 }}>
-      <button className="btn-ghost" type="button" onClick={() => pickJson('full')} style={{ fontSize: 11, padding: '6px 12px' }}>
+      <button className="btn-ghost" type="button" title="Оновити мехи й бонд із файлу COMP/CON; стан мехів (HP, заряди) зберігається" onClick={() => pickJson('full')} style={{ fontSize: 11, padding: '6px 12px' }}>
         ОНОВИТИ З COMP/CON JSON
       </button>
-      <button className="btn-ghost" type="button" onClick={() => csvRef.current?.click()} style={{ fontSize: 11, padding: '6px 12px' }}>
+      <button className="btn-ghost" type="button" title="Завантажити дані з файлу Adventure League log" onClick={() => csvRef.current?.click()} style={{ fontSize: 11, padding: '6px 12px' }}>
         ADVENTURE LEAGUE LOG (CSV)
       </button>
       <div style={{ flex: '1 1 220px', minWidth: 0, fontSize: 11, lineHeight: 1.5, overflowWrap: 'anywhere', color: importMsg ? (importMsg.ok ? 'var(--success)' : 'var(--danger)') : 'var(--text-dimmer)' }}>

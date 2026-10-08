@@ -27,16 +27,16 @@ export default function PrPanel({ state, dispatch }) {
             Точну суму з коментарем вписують через транзакцію. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <div className="ss-stepper" style={{ background: 'transparent' }}>
-            <button type="button" onClick={() => dispatch({ type: 'PR_SHIFT', dir: -10 })}>−10</button>
-            <button type="button" onClick={() => dispatch({ type: 'PR_SHIFT', dir: -1 })}>−1</button>
+            <button type="button" title="Зменшити PR на 10 (не нижче 0)" onClick={() => dispatch({ type: 'PR_SHIFT', dir: -10 })}>−10</button>
+            <button type="button" title="Зменшити PR на 1 (не нижче 0)" onClick={() => dispatch({ type: 'PR_SHIFT', dir: -1 })}>−1</button>
             <div className="v sunk num" style={{ padding: '0 14px', fontSize: 12 }}>{state.pr}</div>
-            <button type="button" onClick={() => dispatch({ type: 'PR_SHIFT', dir: 1 })}>+1</button>
-            <button type="button" onClick={() => dispatch({ type: 'PR_SHIFT', dir: 10 })}>+10</button>
+            <button type="button" title="Збільшити PR на 1 (не вище капу)" onClick={() => dispatch({ type: 'PR_SHIFT', dir: 1 })}>+1</button>
+            <button type="button" title="Збільшити PR на 10 (не вище капу)" onClick={() => dispatch({ type: 'PR_SHIFT', dir: 10 })}>+10</button>
           </div>
-          <button className="btn" type="button" onClick={() => setTx({ mode: 'deposit', amount: '', comment: '' })}>
+          <button className="btn" type="button" title="Поповнити або списати точну суму PR із коментарем" onClick={() => setTx({ mode: 'deposit', amount: '', comment: '' })}>
             ТРАНЗАКЦІЯ
           </button>
-          <button className="btn-ghost" type="button" style={{ marginLeft: 'auto' }} onClick={() => dispatch({ type: 'OPEN_SHOP_TAB', tab: 'repair' })}>
+          <button className="btn-ghost" type="button" style={{ marginLeft: 'auto' }} title="Відкрити магазин на вкладці ремонту за PR" onClick={() => dispatch({ type: 'OPEN_SHOP_TAB', tab: 'repair' })}>
             РЕМОНТ ЗА PR →
           </button>
         </div>

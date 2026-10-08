@@ -75,7 +75,7 @@ export default function VaultPanel({ state, dispatch }) {
                     {def?.desc && <div style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.55 }}>{def.desc}</div>}
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn-outline md" type="button" onClick={() => dispatch({ type: 'TAKE_VAULT_TO_MISSION', id: v.id })}>
+                    <button className="btn-outline md" type="button" title="Узяти резерв зі складу на місію: він переходить в «Екіпіровано» і згорає після неї" onClick={() => dispatch({ type: 'TAKE_VAULT_TO_MISSION', id: v.id })}>
                       НА МІСІЮ →
                     </button>
                     <Menu small items={[{ label: 'СПИСАТИ…', danger: true, onClick: () => writeOff(v, def) }]} />
@@ -87,17 +87,14 @@ export default function VaultPanel({ state, dispatch }) {
               <div key={i} className="ss-slot" style={{ minHeight: 54 }}>ВІЛЬНЕ МІСЦЕ</div>
             ))}
           </div>
-          <div className="ss-note" style={{ marginTop: 'auto' }}>
-            На складі резерв не згорає. Ціну рідкісного резерву в PR задає ГМ — її видно в довіднику.
-          </div>
         </div>
 
         {/* Резерви «на руках» — і куплені за PR, і взяті зі складу: склад → на руках → згоріло. */}
         <div className="ss-box">
           <div className="ss-sect">
-            <div className="ss-label">НА РУКАХ</div>
+            <div className="ss-label">ЕКІПІРОВАНО</div>
             <div className="ss-count">{onHand.length}</div>
-            <button className="btn-ghost sm" type="button" style={{ marginLeft: 'auto' }} onClick={() => setPicking('common')}>
+            <button className="btn-ghost sm" type="button" style={{ marginLeft: 'auto' }} title="Записати звичайний резерв як екіпірований; PR не списуються" onClick={() => setPicking('common')}>
               + ЗАПИСАТИ РЕЗЕРВ
             </button>
           </div>
@@ -121,8 +118,7 @@ export default function VaultPanel({ state, dispatch }) {
             </div>
           )}
           <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <div className="ss-note" style={{ flex: 1, minWidth: 160 }}>Узяті на місію резерви згорають після неї.</div>
-            <button className="btn-danger" type="button" disabled={onHand.length === 0} onClick={burn}>
+            <button className="btn-danger" type="button" style={{ marginLeft: 'auto' }} disabled={onHand.length === 0} title="Завершити місію: резерви з обмеженим терміном згорають, багатоігрові втрачають одну гру" onClick={burn}>
               КІНЕЦЬ МІСІЇ — СПАЛИТИ
             </button>
           </div>

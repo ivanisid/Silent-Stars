@@ -16,7 +16,7 @@ export default function ManaPanel({ state, dispatch }) {
             {state.mana.balance}
             <span style={{ fontSize: 14, color: 'var(--text-soft-dim)', fontFamily: "'Share Tech Mono',monospace" }}> М</span>
           </div>
-          <button className="btn" type="button" style={{ marginLeft: 'auto' }} onClick={() => dispatch({ type: 'OPEN_TX' })}>
+          <button className="btn" type="button" style={{ marginLeft: 'auto' }} title="Записати надходження або витрату мани із коментарем" onClick={() => dispatch({ type: 'OPEN_TX' })}>
             ТРАНЗАКЦІЯ
           </button>
         </div>

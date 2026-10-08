@@ -52,7 +52,7 @@ export default function MechsPanel({ state, dispatch, pilotId, mechArt = {}, can
           <input className="ss-input" style={{ height: 30, fontSize: 12 }} type="text" value={d.frame || ''} onChange={(e) => dispatch({ type: 'SET_MECH_DRAFT_FIELD', field: 'frame', value: e.target.value })} placeholder="Фрейм (Tortuga)" />
           <input className="ss-input" style={{ height: 30, fontSize: 12 }} type="number" value={d.hpMax} onChange={(e) => dispatch({ type: 'SET_MECH_DRAFT_FIELD', field: 'hpMax', value: e.target.value })} placeholder="HP" />
           <input className="ss-input" style={{ height: 30, fontSize: 12 }} type="number" value={d.repairMax} onChange={(e) => dispatch({ type: 'SET_MECH_DRAFT_FIELD', field: 'repairMax', value: e.target.value })} placeholder="Рем." />
-          <button className="btn" type="button" disabled={!d.name.trim() || nameTaken} onClick={() => dispatch({ type: 'ADD_MECH' })}>+ МЕХ</button>
+          <button className="btn" type="button" disabled={!d.name.trim() || nameTaken} title="Додати меха з указаними назвою, фреймом, HP та ремкомплектами" onClick={() => dispatch({ type: 'ADD_MECH' })}>+ МЕХ</button>
         </div>
         {nameTaken && <div className="error-box">Мех з назвою «{d.name.trim()}» уже є. Назви мехів мають бути різні.</div>}
 
@@ -83,7 +83,7 @@ function CompconMechImport({ state, dispatch, pilotId }) {
     <div className="ss-box" style={{ gap: 10 }}>
       <FieldLabel>ДОДАТИ МЕХА З COMP/CON</FieldLabel>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
-        <button className="btn-ghost" type="button" onClick={() => fileRef.current?.click()} style={{ fontSize: 11, padding: '6px 12px' }}>
+        <button className="btn-ghost" type="button" title="Завантажити файл COMP/CON: додає меха або оновлює меха з такою самою назвою; дані пілота не змінюються" onClick={() => fileRef.current?.click()} style={{ fontSize: 11, padding: '6px 12px' }}>
           ФАЙЛ JSON
         </button>
         <input ref={fileRef} type="file" accept=".json,application/json" onChange={handleFile} style={{ display: 'none' }} />
@@ -108,6 +108,7 @@ function Fold({ title, count, open, onToggle, children }) {
         type="button"
         className="ss-sect"
         aria-expanded={open}
+        title={open ? 'Згорнути секцію' : 'Розгорнути секцію'}
         onClick={onToggle}
         style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
       >
@@ -249,7 +250,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
           <div className="title-font" style={{ fontSize: 20, letterSpacing: 1, color: 'var(--text-bright)' }}>{m.name.toUpperCase()}</div>
           {frameLabel && <span className="ss-tag accent">{frameLabel}</span>}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-            <button className="btn-ghost" type="button" onClick={fullRepair}>ПОВНИЙ РЕМОНТ</button>
+            <button className="btn-ghost" type="button" title="Повністю відновити цього меха: HP, ремкомплекти, структуру, реактор, заряди й знищені системи; Overcharge скидається, Core Power заряджається. PR не списуються" onClick={fullRepair}>ПОВНИЙ РЕМОНТ</button>
             <Menu
               items={[
                 { label: editing ? 'ЗАКРИТИ РЕДАГУВАННЯ' : 'РЕДАГУВАТИ', onClick: () => dispatch({ type: 'TOGGLE_MECH_EDIT', id: m.id }) },
@@ -305,6 +306,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
                 className="btn-ghost sm"
                 type="button"
                 disabled={repFull}
+                title={`Поповнити ремкомплекти до максимуму за ${KITS_FULL_PR} PR`}
                 onClick={() =>
                   spendPr({
                     title: 'КУПІВЛЯ РЕМКОМПЛЕКТІВ',
@@ -327,7 +329,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
             <div className="ss-track-actions">
               <button type="button" className="ss-sq" title="Отримати пошкодження" disabled={st <= 0} onClick={() => dispatch({ type: 'DAMAGE_MECH', id: m.id, what: 'structure' })}>−</button>
               <button type="button" className="ss-sq" title="Відновити 1" disabled={st >= MECH_STRUCTURE} onClick={() => repair('structure')}>+</button>
-              <button className="btn-ghost sm" type="button" disabled={st >= MECH_STRUCTURE} onClick={() => repair('structureMax')}>МАКС</button>
+              <button className="btn-ghost sm" type="button" disabled={st >= MECH_STRUCTURE} title="Відновити структуру до максимуму за ремкомплекти; яких бракує, докуповуються по 10 PR" onClick={() => repair('structureMax')}>МАКС</button>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
@@ -336,12 +338,12 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
             <div className="ss-track-actions">
               <button type="button" className="ss-sq" title="Отримати пошкодження" disabled={rx <= 0} onClick={() => dispatch({ type: 'DAMAGE_MECH', id: m.id, what: 'reactor' })}>−</button>
               <button type="button" className="ss-sq" title="Відновити 1" disabled={rx >= MECH_REACTOR} onClick={() => repair('reactor')}>+</button>
-              <button className="btn-ghost sm" type="button" disabled={rx >= MECH_REACTOR} onClick={() => repair('reactorMax')}>МАКС</button>
+              <button className="btn-ghost sm" type="button" disabled={rx >= MECH_REACTOR} title="Відновити реактор до максимуму за ремкомплекти; яких бракує, докуповуються по 10 PR" onClick={() => repair('reactorMax')}>МАКС</button>
             </div>
           </div>
 
           <div className="ss-tile" style={{ padding: 0 }}>
-            <button type="button" className="ss-sq" style={{ height: '100%', width: 28, border: 'none', borderRight: '1px solid var(--input-border)' }} disabled={oc <= 0} onClick={() => dispatch({ type: 'SHIFT_MECH_OVERCHARGE', id: m.id, dir: -1 })}>−</button>
+            <button type="button" className="ss-sq" style={{ height: '100%', width: 28, border: 'none', borderRight: '1px solid var(--input-border)' }} disabled={oc <= 0} title="Overcharge на крок назад" onClick={() => dispatch({ type: 'SHIFT_MECH_OVERCHARGE', id: m.id, dir: -1 })}>−</button>
             <span style={{ color: 'var(--text-dim)', fontSize: 18, lineHeight: 1 }}>✸</span>
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -354,7 +356,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
                 ))}
               </div>
             </div>
-            <button type="button" className="ss-sq" style={{ height: '100%', width: 28, border: 'none', borderLeft: '1px solid var(--input-border)' }} disabled={oc >= 3} onClick={() => dispatch({ type: 'SHIFT_MECH_OVERCHARGE', id: m.id, dir: 1 })}>+</button>
+            <button type="button" className="ss-sq" style={{ height: '100%', width: 28, border: 'none', borderLeft: '1px solid var(--input-border)' }} disabled={oc >= 3} title="Overcharge на крок уперед: +1 → +1D3 → +1D6 → +1D6+4" onClick={() => dispatch({ type: 'SHIFT_MECH_OVERCHARGE', id: m.id, dir: 1 })}>+</button>
           </div>
           <button type="button" className="ss-tile" onClick={() => dispatch({ type: 'TOGGLE_MECH_CORE', id: m.id })} title="Перемкнути Core power">
             <span style={{ color: m.corePower ? 'var(--success)' : 'var(--text-faint)', fontSize: 16, lineHeight: 1 }}>◈</span>
@@ -392,9 +394,9 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
                       {lim && (
                         <>
                           <div className="ss-stepper sm" style={{ background: 'transparent' }}>
-                            <button type="button" onClick={() => dispatch({ type: 'DEC_ITEM', id: m.id, idx: i })}>−</button>
+                            <button type="button" title="Витратити 1 заряд" onClick={() => dispatch({ type: 'DEC_ITEM', id: m.id, idx: i })}>−</button>
                             <div className="v">{it.current} / {it.max}</div>
-                            <button type="button" onClick={() => dispatch({ type: 'INC_ITEM', id: m.id, idx: i })}>+</button>
+                            <button type="button" title="Повернути 1 заряд без списання PR" onClick={() => dispatch({ type: 'INC_ITEM', id: m.id, idx: i })}>+</button>
                           </div>
                           {it.current < it.max && (
                             <button
@@ -439,8 +441,8 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--input-bg)' }}>
               <span style={{ color: 'var(--accent)' }}>&gt;</span>
               <div className="ss-seg sm">
-                <button type="button" className={addType === 'weapon' ? 'on' : ''} onClick={() => setAddType('weapon')}>ЗБРОЯ</button>
-                <button type="button" className={addType === 'system' ? 'on' : ''} onClick={() => setAddType('system')}>СИСТЕМА</button>
+                <button type="button" className={addType === 'weapon' ? 'on' : ''} title="Додати як зброю" onClick={() => setAddType('weapon')}>ЗБРОЯ</button>
+                <button type="button" className={addType === 'system' ? 'on' : ''} title="Додати як систему" onClick={() => setAddType('system')}>СИСТЕМА</button>
               </div>
               <input
                 value={addName}
@@ -549,7 +551,7 @@ function MechEdit({ mech: m, state, dispatch }) {
           <div className="field-label">ФРЕЙМ</div>
           <input className="ss-input sm" type="text" value={state.mechEdit.frame || ''} onChange={(e) => dispatch({ type: 'SET_EDIT_FRAME', value: e.target.value })} placeholder="Tortuga" style={{ width: 140 }} />
         </div>
-        <button className="btn md" type="button" onClick={() => dispatch({ type: 'SAVE_MECH_EDIT' })}>ЗБЕРЕГТИ</button>
+        <button className="btn md" type="button" title="Зберегти ліміти HP та ремкомплектів і фрейм меха" onClick={() => dispatch({ type: 'SAVE_MECH_EDIT' })}>ЗБЕРЕГТИ</button>
       </div>
       {limited.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
