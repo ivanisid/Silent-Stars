@@ -9,7 +9,10 @@ function sessionToUser(session) {
   // Акаунт, створений входом через Discord, ніка не має — беремо ім'я з Discord.
   const meta = session.user.user_metadata || {};
   const nick = meta.nick || meta.custom_claims?.global_name || meta.full_name || meta.name || '';
-  return { id: session.user.id, nick };
+  // Вхід за ніком і паролем можливий, лише коли адреса акаунта — на нашому домені
+  // (так створює реєстрація). Акаунт лише з Discord пароля не має.
+  const byNick = (session.user.email || '').toLowerCase().endsWith('@ferumvox-pilots.app');
+  return { id: session.user.id, nick, byNick };
 }
 
 export function AuthProvider({ children }) {

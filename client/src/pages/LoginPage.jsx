@@ -43,6 +43,7 @@ export default function LoginPage() {
   const [nick, setNick] = useState('');
   const [pass, setPass] = useState('');
   const [pass2, setPass2] = useState('');
+  const [show, setShow] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [busy, setBusy] = useState(false);
@@ -87,6 +88,7 @@ export default function LoginPage() {
     e.preventDefault();
     if (!nick.trim()) return setError('Введіть нікнейм');
     if (pass.length < 6) return setError('Пароль закороткий (мін. 6 символів)');
+    if (new TextEncoder().encode(pass).length > 72) return setError('Пароль задовгий (макс. 72 байти — приблизно 72 латинські символи)');
     if (isRegister && pass !== pass2) return setError('Паролі не збігаються');
 
     setBusy(true);
@@ -94,11 +96,19 @@ export default function LoginPage() {
     try {
       if (isRegister) {
         await register(nick.trim(), pass);
-        setSuccess(`Пілота «${nick.trim()}» зареєстровано. Тепер увійдіть.`);
-        setPass('');
-        setPass2('');
-        setMode('login');
-        setRev(9);
+        // Одразу входимо тим самим паролем: так він перевіряється одразу, а не при
+        // наступному вході, коли згенерований браузером пароль уже ніхто не пам'ятає.
+        try {
+          await login(nick.trim(), pass);
+          navigate('/pilots');
+          return;
+        } catch (err) {
+          setSuccess('');
+          setMode('login');
+          setRev(9);
+          setPass2('');
+          throw new Error(`Акаунт «${nick.trim()}» створено, але вхід не вдався: ${err.message}`);
+        }
       } else {
         await login(nick.trim(), pass);
         navigate('/pilots');
@@ -132,21 +142,28 @@ export default function LoginPage() {
     );
   };
 
-  const field = (show, last, label, input) =>
-    show && (
-      <div className="lg-row">
-        <span className="lg-tree">{last ? '└─' : '├─'}</span>
-        <span className="lg-lbl">{label}</span>
-        {input}
-      </div>
-    );
+  // Поля в DOM одразу (а не після анімації розгортання): менеджер паролів браузера
+  // шукає їх, щойно форма з'явилась, і пізніше доданих може не заповнити. Розгортання
+  // рядок за рядком — лише видимість.
+  const field = (shown, last, label, input) => (
+    <div className="lg-row" style={{ opacity: shown ? 1 : 0, transition: 'opacity .12s' }}>
+      <span className="lg-tree">{last ? '└─' : '├─'}</span>
+      <span className="lg-lbl">{label}</span>
+      {input}
+    </div>
+  );
+  const eye = (
+    <button type="button" className="lg-eye" onClick={() => setShow((v) => !v)} title={show ? 'Сховати пароль' : 'Показати пароль'} aria-pressed={show}>
+      {show ? '[сховати]' : '[показати]'}
+    </button>
+  );
 
   const tree = (m) =>
     mode === m && (
       <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column' }}>
-        {field(rev >= 1, false, 'НІКНЕЙМ:', <input className="lg-in" type="text" autoFocus autoComplete="username" value={nick} onChange={(e) => setNick(e.target.value)} placeholder="callsign" />)}
-        {field(rev >= 2, false, 'ПАРОЛЬ:', <input className="lg-in" type="password" autoComplete={m === 'register' ? 'new-password' : 'current-password'} value={pass} onChange={(e) => setPass(e.target.value)} placeholder="••••••••" />)}
-        {m === 'register' && field(rev >= 3, false, 'ПОВТОР:', <input className="lg-in" type="password" autoComplete="new-password" value={pass2} onChange={(e) => setPass2(e.target.value)} placeholder="••••••••" />)}
+        {field(rev >= 1, false, 'НІКНЕЙМ:', <input className="lg-in" type="text" name="username" id={`${m}-username`} autoFocus autoComplete="username" autoCapitalize="off" spellCheck={false} value={nick} onChange={(e) => setNick(e.target.value)} placeholder="callsign" />)}
+        {field(rev >= 2, false, 'ПАРОЛЬ:', <><input className="lg-in" type={show ? 'text' : 'password'} name="password" id={`${m}-password`} autoComplete={m === 'register' ? 'new-password' : 'current-password'} autoCapitalize="off" spellCheck={false} value={pass} onChange={(e) => setPass(e.target.value)} placeholder="••••••••" />{eye}</>)}
+        {m === 'register' && field(rev >= 3, false, 'ПОВТОР:', <input className="lg-in" type={show ? 'text' : 'password'} name="password-repeat" id="register-password-repeat" autoComplete="new-password" autoCapitalize="off" spellCheck={false} value={pass2} onChange={(e) => setPass2(e.target.value)} placeholder="••••••••" />)}
         {rev >= (m === 'register' ? 4 : 3) && (
           <div className="lg-row">
             <span className="lg-tree">└─</span>

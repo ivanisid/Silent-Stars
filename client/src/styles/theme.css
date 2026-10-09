@@ -1603,3 +1603,5 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 @media (max-width: 640px) {
   .ss-up-list { max-width: none; border-right: none; border-bottom: 1px solid var(--panel-border); }
 }
+.ss-login .lg-eye { flex: none; background: transparent; border: none; padding: 0 0 0 8px; font-size: 11px; color: var(--text-faint); letter-spacing: 1px; }
+.ss-login .lg-eye:hover { color: var(--accent); }
