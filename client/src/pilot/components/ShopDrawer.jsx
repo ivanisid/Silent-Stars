@@ -16,7 +16,7 @@ import { announceOpen, modalIsOpen, onOpenShop, onOtherOpen, showUpgrade } from 
 
 const TABS = [
   { key: 'repair', title: 'PRINTER' },
-  { key: 'mana', title: 'LUXURY' },
+  { key: 'mana', title: 'SHOP' },
   { key: 'ins', title: 'INSURANCE' },
 ];
 
