@@ -76,7 +76,17 @@ export const api = {
       password,
     });
     if (error) throw mapAuthError(error, 'login');
-    return { token: data.session.access_token, user: { id: data.user.id, nick: trimmedNick } };
+    return { token: data.session.access_token, user: { id: data.user.id, nick: data.user.user_metadata?.nick || trimmedNick, byNick: true } };
+  },
+
+  // Зміна власних даних входу (функція account): { action: 'nick', nick } або
+  // { action: 'password', current, password }. Після успіху сесію оновлюємо, щоб нік і
+  // адреса в ній були вже нові (AuthContext підхопить це з onAuthStateChange).
+  updateAccount: async (payload) => {
+    const { data, error } = await supabase.functions.invoke('account', { body: payload });
+    if (error) throw await readFunctionError(error);
+    await supabase.auth.refreshSession();
+    return data;
   },
 
   logout: async () => {

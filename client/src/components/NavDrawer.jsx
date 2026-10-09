@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api';
 import { THEMES, applyTheme, loadTheme } from '../theme';
 import { announceOpen, modalIsOpen, onOtherOpen } from './overlayBus';
+import AccountDialog from './AccountDialog.jsx';
 
 // Ліва термінальна рейка (інтерфейс 2c). Завжди на екрані: закрита — 64px з іконками,
 // відкрита — 300px з назвами, темою й виходом. Відкривається кліком по блоку
@@ -66,6 +67,7 @@ export default function NavDrawer() {
   const [themeMenu, setThemeMenu] = useState(false);
   const [theme, setTheme] = useState(loadTheme);
   const [railY, setRailY] = useState(null);
+  const [account, setAccount] = useState(false);
   const raf = useRef(0);
   const navigate = useNavigate();
   const location = useLocation();
@@ -180,6 +182,20 @@ export default function NavDrawer() {
           <button
             type="button"
             className="foot theme"
+            title="Змінити нікнейм або пароль"
+            onClick={() => {
+              close();
+              setAccount(true);
+            }}
+          >
+            <span className="ic">
+              <Icon size={16} d="M7 15a4 4 0 1 1 3.5-6H21v3h-2v3h-3v-3h-5.5A4 4 0 0 1 7 15z" />
+            </span>
+            <span className="lbl">акаунт · нік і пароль</span>
+          </button>
+          <button
+            type="button"
+            className="foot theme"
             title="Кольорова тема"
             aria-expanded={open && themeMenu}
             onClick={() => {
@@ -206,6 +222,7 @@ export default function NavDrawer() {
           </button>
         </div>
       </nav>
+      {account && <AccountDialog onClose={() => setAccount(false)} />}
     </>
   );
 }
