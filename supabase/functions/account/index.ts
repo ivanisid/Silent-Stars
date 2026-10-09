@@ -99,7 +99,9 @@ Deno.serve(async (req: Request) => {
     const nick = (body.nick || "").trim();
     if (!nick) return json({ error: "Введіть нікнейм." }, 400);
     if (nick.length > NICK_MAX) return json({ error: `Нікнейм задовгий (макс. ${NICK_MAX} символів).` }, 400);
-    if (nick === curNick) return json({ ok: true, nick });
+    // Нічого не змінилось — лише якщо й логін уже відповідає ніку (у старих акаунтів
+    // профіль і логін іноді розходяться).
+    if (nick === curNick && (!hasPassword(user) || (await nickToEmail(nick)) === user.email)) return json({ ok: true, nick });
     if (await nickTaken(nick, user.id)) return json({ error: `Нікнейм «${nick}» уже зайнятий.` }, 409);
 
     const attrs: Record<string, unknown> = { user_metadata: { ...(user.user_metadata || {}), nick } };
