@@ -1446,3 +1446,129 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 @media (max-width: 640px) {
   .ss-page { padding: 0 0 80px 64px; }
 }
+
+/* ================= Магазин: скошений язичок і напівпрозора панель (інтерфейс 2c) =================
+   Фон панелі — від --panel-sunken, а не темним hex: на світлих темах інакше чорний
+   текст лежав би на майже чорному. */
+.ss-shop {
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --glass: color-mix(in srgb, var(--panel-sunken) 80%, transparent);
+  position: fixed;
+  top: 140px;
+  right: 0;
+  z-index: 45;
+  display: flex;
+  align-items: flex-start;
+  transition: right .35s var(--ease);
+  font-family: 'Share Tech Mono', monospace;
+}
+.ss-shop.open { right: 16px; }
+.ss-shop .line {
+  position: absolute;
+  z-index: 2;
+  width: 2px;
+  left: 0;
+  top: 36px;
+  height: 190px;
+  opacity: .7;
+  background: linear-gradient(transparent, var(--accent) 18%, var(--accent) 82%, transparent);
+  transition: left .4s var(--ease), top .4s var(--ease), height .4s var(--ease), opacity .4s;
+  pointer-events: none;
+}
+.ss-shop.open .line { left: 59px; top: -72px; height: min(480px, calc(100vh - 84px)); opacity: 1; }
+.ss-shop .tabcol { display: flex; flex-direction: column; align-items: flex-end; flex: none; }
+.ss-shop .bev { position: relative; }
+.ss-shop .bev > .b1 { position: absolute; inset: 0; }
+.ss-shop .bev > .b2 { position: absolute; inset: 1px; }
+.ss-shop .bev > .c { position: relative; }
+.ss-shop .toggle > .b1, .ss-shop .toggle > .b2 { clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px); }
+.ss-shop .toggle > .b1 { background: var(--header-border); }
+.ss-shop .toggle > .b2 { background: var(--header); }
+.ss-shop .toggle button { width: 52px; height: 30px; display: flex; align-items: center; justify-content: center; color: var(--btn-text); background: transparent; border: none; padding: 0; }
+.ss-shop .tabsrow { display: flex; align-items: stretch; gap: 5px; margin-top: -1px; }
+.ss-shop .tabs > .b1, .ss-shop .tabs > .b2 { clip-path: polygon(0 0, 100% 0, 100% 100%, 14px 100%, 0 calc(100% - 14px)); }
+.ss-shop .tabs > .b1 { background: var(--panel-border); }
+.ss-shop .tabs > .b2 { background: var(--panel-sunken); }
+.ss-shop .tabs > .c { display: flex; flex-direction: column; padding: 6px 0 16px; }
+.ss-shop .tab {
+  position: relative;
+  width: 52px;
+  height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--text-dimmer);
+}
+.ss-shop .tab.fund { color: var(--success); }
+.ss-shop .tab.on { color: var(--accent); }
+.ss-shop .tab:hover { color: var(--text-bright); }
+.ss-shop .tab .bar { position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; background: var(--accent); opacity: 0; transition: opacity .3s; }
+.ss-shop .tab.on .bar { opacity: 1; }
+.ss-shop .tab .n { font-size: 12px; color: var(--text-bright); font-variant-numeric: tabular-nums; }
+.ss-shop .tab .k { font-size: 8px; letter-spacing: 1px; color: var(--text-dimmer); }
+.ss-shop .wrap { width: 0; margin-top: -72px; overflow: hidden; opacity: 0; transition: width .4s var(--ease), opacity .3s; }
+.ss-shop.open .wrap { width: min(390px, calc(100vw - 84px)); opacity: 1; }
+.ss-shop .body {
+  position: relative;
+  width: min(380px, calc(100vw - 94px));
+  height: min(480px, calc(100vh - 84px));
+  padding: 36px 0 22px;
+  display: flex;
+  flex-direction: column;
+}
+.ss-shop .glass {
+  position: absolute;
+  inset: 0 0 0 1px;
+  background: linear-gradient(transparent, var(--glass) 18%, var(--glass) 82%, transparent);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+.ss-shop .head { position: relative; flex: none; height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 16px 0 18px; margin-bottom: 10px; }
+.ss-shop .head .h { font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 22px; line-height: 1; letter-spacing: 1px; color: var(--text-bright); }
+.ss-shop .list { position: relative; flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 0 10px 0 12px; }
+.ss-shop .row { position: relative; flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
+.ss-shop .row.sub { margin-left: 18px; padding: 8px 12px; }
+.ss-shop .row .bg { position: absolute; inset: 0; border: 1px solid var(--accent-dim); background: var(--panel); transition: opacity .18s; pointer-events: none; }
+.ss-shop .row.sub .bg { border-style: dashed; }
+.ss-shop .row .tx { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ss-shop .row .tt { font-size: 12px; color: var(--text-bright); line-height: 1.4; text-wrap: pretty; overflow-wrap: anywhere; }
+.ss-shop .row.sub .tt { font-size: 11px; }
+.ss-shop .row .nt { font-size: 10px; color: var(--text-dimmer); }
+.ss-shop .row .nt.bad { color: var(--danger); }
+.ss-shop .price {
+  position: relative;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11px;
+  white-space: nowrap;
+  background: var(--header);
+  color: var(--btn-text);
+  border: 1px solid var(--header-border);
+  font-variant-numeric: tabular-nums;
+}
+.ss-shop .price:hover:not(:disabled) { background: var(--btn-hover); }
+.ss-shop .price:disabled { background: transparent; color: var(--text-faint); border: 1px dashed var(--input-border); cursor: not-allowed; }
+.ss-shop .price.na:disabled { color: var(--text-dim); border-style: solid; cursor: default; }
+.ss-shop .lock {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-top: 4px;
+  background: transparent;
+  border: 1px dashed var(--input-border);
+  color: var(--accent);
+  font-size: 11px;
+  text-align: left;
+}
+.ss-shop .lock:hover { border-color: var(--accent); }
+.ss-shop .msg { position: relative; flex: none; margin: 10px 12px 0; font-size: 11px; line-height: 1.5; color: var(--success); }
+.ss-shop-back { position: fixed; inset: 0; z-index: 44; background: linear-gradient(90deg, transparent 20%, var(--overlay)); }

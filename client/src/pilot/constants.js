@@ -133,6 +133,15 @@ export const SHOP_DATA = [
   { key: 'prpack', title: `Printer Requisition · ${PR_PACK_SIZE} шт`, price: 200, needsMech: false },
 ];
 
+// Страхові пакети — вкладка INSURANCE, відкривається покращенням «Страховий фонд».
+// Ціни й правила полісів ще не визначені: у магазині пакети видно, але купити не можна.
+export const INSURANCE_PACKS = [
+  { key: 'hell', title: 'To hell and back', desc: 'Будь-яка шкода чи втрата меха' },
+  { key: 'scratch', title: 'Just a scratch', desc: 'Шкода структури та хп' },
+  { key: 'reactor', title: 'I paid for a whole reactor...', desc: 'Шкода структури та хп' },
+  { key: 'oracle', title: 'Oracle LMG-I', desc: 'Зламані системи та зброя' },
+];
+
 // Щотижневі дії — 1 заряд на тиждень, відновлюється щопонеділка.
 // minTier — з якого тіру дія доступна: чотири дії відкриваються лише на Тірі 2 і
 // потребують заявки в Discord.

@@ -33,8 +33,6 @@ import { usePilotGames } from '../pilot/components/PilotGames.jsx';
 import NarrativeEditor from '../pilot/components/NarrativeEditor.jsx';
 
 import ManaTxModal from '../pilot/components/modals/ManaTxModal.jsx';
-import ShopModal from '../pilot/components/modals/ShopModal.jsx';
-import PrSpendModal from '../pilot/components/modals/PrSpendModal.jsx';
 import LevelUpModal from '../pilot/components/modals/LevelUpModal.jsx';
 import HangarConfirmModal from '../pilot/components/modals/HangarConfirmModal.jsx';
 
@@ -216,8 +214,6 @@ export default function PilotProfilePage() {
       <ShopDrawer state={state} dispatch={dispatch} />
 
       <ManaTxModal state={state} dispatch={dispatch} />
-      <ShopModal state={state} dispatch={dispatch} />
-      <PrSpendModal state={state} dispatch={dispatch} />
       <LevelUpModal state={state} dispatch={dispatch} />
       <HangarConfirmModal state={state} dispatch={dispatch} />
     </PageShell>
