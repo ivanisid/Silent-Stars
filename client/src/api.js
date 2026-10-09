@@ -357,6 +357,22 @@ export const api = {
     return (data || []).filter((g) => g.game_slots);
   },
 
+  // Остання зіграна місія акаунта (будь-яким пілотом) — для рядка LAST MISSION у лівій рейці.
+  // Записів на акаунт небагато, тож сортуємо тут, а не через впорядкування по вкладеній таблиці.
+  lastMission: async (userId) => {
+    const { data, error } = await supabase
+      .from('game_signups')
+      .select('approved, game_slots(title, game_at, status)')
+      .eq('user_id', userId)
+      .eq('approved', true);
+    if (error) throw new Error(error.message);
+    const played = (data || [])
+      .map((g) => g.game_slots)
+      .filter((s) => s && s.status === 'closed')
+      .sort((a, b) => (b.game_at ? Date.parse(b.game_at) : 0) - (a.game_at ? Date.parse(a.game_at) : 0));
+    return played[0] || null;
+  },
+
   // channelName — щоб дошка і профіль пілота не ділили один канал, коли обидва відкриті.
   subscribeBoard: (onChange, channelName = 'board') => {
     const channel = supabase
