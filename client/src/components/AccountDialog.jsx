@@ -29,7 +29,6 @@ export default function AccountDialog({ onClose }) {
   const { user } = useAuth();
   const [nick, setNick] = useState(user?.nick || '');
   const [nickMsg, setNickMsg] = useState(null);
-  const [cur, setCur] = useState('');
   const [pass, setPass] = useState('');
   const [pass2, setPass2] = useState('');
   const [show, setShow] = useState(false);
@@ -65,14 +64,12 @@ export default function AccountDialog({ onClose }) {
 
   async function savePass(e) {
     e.preventDefault();
-    if (byNick && !cur) return setPassMsg({ ok: false, t: 'Введіть поточний пароль.' });
     if (pass.length < 6) return setPassMsg({ ok: false, t: 'Пароль закороткий (мін. 6 символів).' });
     if (pass !== pass2) return setPassMsg({ ok: false, t: 'Паролі не збігаються.' });
     setBusy('pass');
     setPassMsg(null);
     try {
-      const r = await api.updateAccount({ action: 'password', current: cur, password: pass });
-      setCur('');
+      const r = await api.updateAccount({ action: 'password', password: pass });
       setPass('');
       setPass2('');
       setPassMsg({
@@ -126,7 +123,6 @@ export default function AccountDialog({ onClose }) {
                 Акаунт створено через Discord, пароля в нього немає. Задайте пароль — і зможете входити й за ніком «{user?.nick}».
               </div>
             )}
-            {byNick && <PassInput value={cur} onChange={setCur} name="current-password" autoComplete="current-password" show={show} placeholder="поточний пароль" />}
             <PassInput value={pass} onChange={setPass} name="new-password" autoComplete="new-password" show={show} placeholder="новий пароль (мін. 6 символів)" />
             <PassInput value={pass2} onChange={setPass2} name="new-password-repeat" autoComplete="new-password" show={show} placeholder="повтор нового пароля" />
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

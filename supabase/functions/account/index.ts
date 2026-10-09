@@ -12,10 +12,11 @@
 //   Новий нік: profiles.nick і user_metadata.nick. Якщо в акаунта є пароль (вхід за ніком),
 //   міняється й адреса — інакше старий нік лишився б логіном. Нік не може збігатися з
 //   чужим (без урахування регістру).
-// POST { action: 'password', current?, password }
-//   Новий пароль. Якщо пароль уже був — потрібен поточний. Акаунт, створений через
-//   Discord, пароля не має: тут він його отримує, і адреса стає адресою його ніку, тож
-//   далі можна входити й за ніком.
+// POST { action: 'password', password }
+//   Новий пароль. Поточного не питаємо: людина могла увійти через Discord саме тому,
+//   що пароль забула, — сесії достатньо. Акаунт, створений через Discord, пароля не
+//   має: тут він його отримує, і адреса стає адресою його ніку, тож далі можна входити
+//   й за ніком.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type User } from "jsr:@supabase/supabase-js@2";
@@ -85,7 +86,7 @@ Deno.serve(async (req: Request) => {
   if (authErr || !auth?.user) return json({ error: "Сесія недійсна — увійдіть знову." }, 401);
   const user = auth.user;
 
-  let body: { action?: string; nick?: string; current?: string; password?: string };
+  let body: { action?: string; nick?: string; password?: string };
   try {
     body = await req.json();
   } catch {
@@ -130,16 +131,7 @@ Deno.serve(async (req: Request) => {
     if (bad) return json({ error: bad }, 400);
 
     const attrs: Record<string, unknown> = { password };
-    if (hasPassword(user)) {
-      // Поточний пароль перевіряємо окремим входом: лише admin API міняє пароль без
-      // повторної автентифікації, тож без цієї перевірки вистачило б відкритої сесії.
-      const current = body.current || "";
-      if (!current) return json({ error: "Введіть поточний пароль." }, 400);
-      const probe = createClient(URL_, Deno.env.get("SUPABASE_ANON_KEY")!, { auth: { persistSession: false } });
-      const { error: signErr } = await probe.auth.signInWithPassword({ email: user.email!, password: current });
-      if (signErr) return json({ error: "Поточний пароль невірний." }, 403);
-      await probe.auth.signOut({ scope: "local" });
-    } else {
+    if (!hasPassword(user)) {
       // Перший пароль акаунта з Discord: вхід за ніком потребує адреси з ніку.
       if (!curNick) return json({ error: "Спершу задайте нікнейм." }, 400);
       attrs.email = await nickToEmail(curNick);
