@@ -391,6 +391,7 @@ export default function ShopDrawer({ state, dispatch }) {
               <div className="head">
                 <span className="h">{TABS.find((t) => t.key === tab).title}</span>
               </div>
+              {msg && <div className="msg">{msg}</div>}
               <div className="list" ref={listRef}>
                 {shown.map((s, i) => {
                   if (s.kind === 'pack') {
@@ -462,7 +463,6 @@ export default function ShopDrawer({ state, dispatch }) {
                   </button>
                 )}
               </div>
-              {msg && <div className="msg">{msg}</div>}
             </div>
           </div>
         </div>

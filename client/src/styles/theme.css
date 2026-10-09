@@ -1570,7 +1570,7 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
   text-align: left;
 }
 .ss-shop .lock:hover { border-color: var(--accent); }
-.ss-shop .msg { position: relative; flex: none; margin: 10px 12px 0; font-size: 11px; line-height: 1.5; color: var(--success); }
+.ss-shop .msg { position: relative; flex: none; margin: -4px 12px 10px 18px; font-size: 11px; line-height: 1.5; color: var(--success); }
 .ss-shop-back { position: fixed; inset: 0; z-index: 44; background: linear-gradient(90deg, transparent 20%, var(--overlay)); }
 
 /* ================= Особисті покращення (інтерфейс 2c) ================= */
