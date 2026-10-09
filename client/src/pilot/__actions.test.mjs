@@ -26,11 +26,13 @@ const files = walk(srcDir).filter((f) => /\.(jsx?|mjs)$/.test(f) && !f.endsWith(
 const reducer = readFileSync(join(srcDir, 'pilot/reducer.js'), 'utf8');
 const handled = new Set([...reducer.matchAll(/(?:case |action\.type === )'([A-Z_]+)'/g)].map((m) => m[1]));
 
-// Що диспатчать компоненти.
+// Що диспатчать компоненти: будь-який літерал дії { type: 'X' } — і прямо в dispatch(…),
+// і зібраний наперед (action: { type: … }), який диспатчиться після вікна підтвердження.
 const dispatched = new Map();
 for (const file of files) {
+  if (file.endsWith('reducer.js')) continue;
   const text = readFileSync(file, 'utf8');
-  for (const m of text.matchAll(/dispatch\(\s*\{\s*type:\s*'([A-Z_]+)'/g)) {
+  for (const m of text.matchAll(/\{\s*type:\s*'([A-Z_]+)'/g)) {
     if (!dispatched.has(m[1])) dispatched.set(m[1], new Set());
     dispatched.get(m[1]).add(file.slice(srcDir.length + 1));
   }

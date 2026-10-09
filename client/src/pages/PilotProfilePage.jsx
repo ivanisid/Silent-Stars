@@ -24,7 +24,7 @@ import BondMenu from '../pilot/components/BondMenu.jsx';
 // component and its reducer state are untouched, so bringing it back is an import
 // and a line. The projects panel is gone entirely: its slot is now the Get Creative
 // tracker inside the weekly downtime card.
-import HangarPanel from '../pilot/components/HangarPanel.jsx';
+import UpgradesPanel from '../pilot/components/UpgradesPanel.jsx';
 import MechsPanel from '../pilot/components/MechsPanel.jsx';
 import VaultPanel from '../pilot/components/VaultPanel.jsx';
 import OperationsLogPanel from '../pilot/components/OperationsLogPanel.jsx';
@@ -33,10 +33,7 @@ import { usePilotGames } from '../pilot/components/PilotGames.jsx';
 import NarrativeEditor from '../pilot/components/NarrativeEditor.jsx';
 
 import ManaTxModal from '../pilot/components/modals/ManaTxModal.jsx';
-import ShopModal from '../pilot/components/modals/ShopModal.jsx';
-import PrSpendModal from '../pilot/components/modals/PrSpendModal.jsx';
 import LevelUpModal from '../pilot/components/modals/LevelUpModal.jsx';
-import HangarConfirmModal from '../pilot/components/modals/HangarConfirmModal.jsx';
 
 const SAVE_DEBOUNCE_MS = 800;
 
@@ -200,8 +197,8 @@ export default function PilotProfilePage() {
         onUploadMechArt={(mechId, file) => uploadArt('mech', mechId, file)}
         onRemoveArt={removeArt}
       />
-      {/* Ангар — одразу під мехами: стоянка й ліцензування стосуються саме їх. */}
-      <HangarPanel state={state} dispatch={dispatch} />
+      {/* Особисті покращення — одразу під мехами: ангар і ліцензування стосуються саме їх. */}
+      <UpgradesPanel state={state} dispatch={dispatch} />
       {/* <ContactsPanel state={state} dispatch={dispatch} /> — схована, див. імпорт вище */}
       <NarrativeEditor state={state} dispatch={dispatch} games={games} saving={saveStatus === 'saving'} />
       {/* Один журнал для обох ролей: свої операції гравець відкочує сам, чужі —
@@ -216,10 +213,7 @@ export default function PilotProfilePage() {
       <ShopDrawer state={state} dispatch={dispatch} />
 
       <ManaTxModal state={state} dispatch={dispatch} />
-      <ShopModal state={state} dispatch={dispatch} />
-      <PrSpendModal state={state} dispatch={dispatch} />
       <LevelUpModal state={state} dispatch={dispatch} />
-      <HangarConfirmModal state={state} dispatch={dispatch} />
     </PageShell>
   );
 }

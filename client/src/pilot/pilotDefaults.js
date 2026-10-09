@@ -27,11 +27,13 @@ export function createDefaultPilotState() {
     ll: 2,
     status: 'active',
     resourceMode: 'full',
-    hangar: { owned: {}, confirm: null, error: '', open: false },
+    // Особисті покращення: owned — придбані ({key: 1}); deposits — внесене частинами
+    // в ще не придбані ({key: {mana, pr}}), списане з гаманця.
+    hangar: { owned: {}, deposits: {} },
     // Тір 1 стартує з готовим запасом PR (правила: «На старті кожен гравець вже має 30PR»).
     pr: PR_START,
-    shop: { open: false, tab: 'repair', item: null, mechId: null, error: '' },
-    prSpend: { item: null, mechId: null, pick: null, error: '' },
+    // Відкритість і вкладка магазину — стан інтерфейсу (ShopDrawer), у пілоті не зберігаються.
+    shop: { error: '' },
     mana: {
       balance: 0,
       txOpen: false,
@@ -210,11 +212,13 @@ export function normalizePilotState(raw) {
   };
 
   if (raw.pr != null) next.mana = { ...base.mana, ...(raw.mana || {}) };
-  // Старі поля: alloc/picked/qty у магазині та лічильник безкоштовної покупки резерву.
+  // Старі поля: стан вікон магазину (відкритість, вкладка, вибір, розподіл зарядів),
+  // вікно витрати PR і лічильник безкоштовної покупки резерву.
   delete next.reserveFreeBuy;
-  const { alloc: _a, picked: _p, qty: _q, ...shop } = raw.shop || {};
-  next.shop = { ...base.shop, ...shop };
-  next.hangar = { ...base.hangar, ...(raw.hangar || {}) };
+  delete next.prSpend;
+  next.shop = { ...base.shop };
+  // Від старого ангару лишаються лише придбані; стан вікна підтвердження відкидається.
+  next.hangar = { owned: { ...(raw.hangar?.owned || {}) }, deposits: { ...(raw.hangar?.deposits || {}) } };
   next.mechs = (raw.mechs || []).map(({ dc, ...m }) => normalizeMech(m));
 
   // Записник: старий єдиний текст стає першою (закріпленою) нотаткою — один раз.

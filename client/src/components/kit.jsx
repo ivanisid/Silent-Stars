@@ -16,15 +16,11 @@ export function PageShell({ children, narrow = false }) {
   );
 }
 
-// «[≡] [лого] > РОЗДІЛ / НАЗВА … нік». ≡ відкриває навігаційну шухляду.
+// «[лого] > РОЗДІЛ / НАЗВА … нік». Навігація — ліва рейка, яка завжди на екрані.
 export function PageHeader({ section, sectionTo, title, tag, right }) {
   const { user } = useAuth();
-  const [nav, setNav] = useState(false);
   return (
     <div className="ss-head">
-      <button type="button" className="ss-icon" aria-label="Меню" aria-expanded={nav} onClick={() => setNav(true)}>
-        ≡
-      </button>
       <img src="/logo-ferum-vox.webp" alt="" width="28" height="28" style={{ display: 'block' }} />
       {sectionTo ? (
         <Link to={sectionTo} className="crumb">&gt; {section} /</Link>
@@ -37,19 +33,14 @@ export function PageHeader({ section, sectionTo, title, tag, right }) {
         {right}
         <div className="nick">{user?.nick}</div>
       </div>
-      {/* Та сама шухляда — ще й з вкладки на лівому краї, яка не прокручується разом зі сторінкою. */}
-      <button type="button" className="ss-side-tab" aria-label="Меню" onClick={() => setNav(true)}>
-        <span aria-hidden="true">≡</span>
-        <span className="lbl">МЕНЮ</span>
-      </button>
-      <NavDrawer open={nav} onClose={() => setNav(false)} />
+      <NavDrawer />
     </div>
   );
 }
 
-export function Panel({ title, sub, right, tone, className = '', children, style }) {
+export function Panel({ id, title, sub, right, tone, className = '', children, style }) {
   return (
-    <div className={`ss-panel${tone === 'gm' ? ' gm' : ''} ${className}`} style={style}>
+    <div id={id} className={`ss-panel${tone === 'gm' ? ' gm' : ''} ${className}`} style={style}>
       {title != null && (
         <div className={`ss-bar${tone ? ` ${tone}` : ''}`}>
           <div className="dot" />

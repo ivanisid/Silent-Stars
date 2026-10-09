@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Panel } from '../../components/kit.jsx';
 import { derivePilotView } from '../derive';
+import { openShop } from '../../components/overlayBus';
 
 // Лічильник PR. Самі покупки за PR — і ремонт, і резерви — живуть у магазині,
 // щоб не було двох місць, де можна витратити те саме.
@@ -36,7 +37,7 @@ export default function PrPanel({ state, dispatch }) {
           <button className="btn" type="button" title="Поповнити або списати точну суму PR із коментарем" onClick={() => setTx({ mode: 'deposit', amount: '', comment: '' })}>
             ТРАНЗАКЦІЯ
           </button>
-          <button className="btn-ghost" type="button" style={{ marginLeft: 'auto' }} title="Відкрити магазин на вкладці ремонту за PR" onClick={() => dispatch({ type: 'OPEN_SHOP_TAB', tab: 'repair' })}>
+          <button className="btn-ghost" type="button" style={{ marginLeft: 'auto' }} title="Відкрити магазин на вкладці ремонту за PR" onClick={() => openShop('repair')}>
             РЕМОНТ ЗА PR →
           </button>
         </div>

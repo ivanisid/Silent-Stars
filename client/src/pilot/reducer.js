@@ -1,7 +1,7 @@
 import {
   SHOP_DATA,
   PR_PACK_SIZE,
-  HANGAR_DATA,
+  UPGRADES,
   WEEKLY_DOWNTIME_DATA,
   PR_SERVICES,
   PR_CAP_BASE,
@@ -46,6 +46,20 @@ function restoreItems(items) {
   return (items || []).map((it) => (isLimited(it) ? { ...it, current: it.max, destroyed: false } : { ...it, destroyed: false }));
 }
 
+// Повний ремонт / передрук: усе до максимуму, Overcharge скинуто, Core Power заряджено.
+function fullyRepaired(m) {
+  return {
+    ...m,
+    hpCurrent: m.hpMax,
+    repairCurrent: m.repairMax,
+    structureFilled: 0,
+    reactorFilled: 0,
+    overcharge: 0,
+    corePower: true,
+    items: restoreItems(m.items),
+  };
+}
+
 function updateItem(state, id, idx, fn) {
   return updateMech(state, id, (m) => ({ ...m, items: m.items.map((it, i) => (i === idx ? fn(it) : it)) }));
 }
@@ -73,15 +87,10 @@ function vCap(state) {
   return vaultCap(state.hangar.owned);
 }
 
-// Ціна послуги за PR. Для поповнення зарядів однієї системи вона залежить від самої
-// системи, тож рахується з обраної в модалці, а не береться зі списку.
-function prServiceCost(key, mech, alloc) {
-  const svc = PR_SERVICES.find((x) => x.key === key);
-  if (!svc) return null;
-  if (key !== 'refillone') return svc.cost;
-  const idx = Object.keys(alloc || {})[0];
-  const it = idx == null ? null : mech?.items?.[idx];
-  return isLimited(it) ? itemRefillPr(it) : null;
+// Скільки вже внесено в покращення.
+function upgradeDeposit(state, key) {
+  const d = state.hangar.deposits?.[key];
+  return { mana: d?.mana || 0, pr: d?.pr || 0 };
 }
 
 function pushManaHistory(mana, label) {
@@ -673,45 +682,71 @@ function reduce(state, action) {
       return log({ ...state, mana }, `Мана: ${label}`);
     }
 
-    // ---------- Hangar ----------
-    case 'TOGGLE_HANGAR_OPEN':
-      return { ...state, hangar: { ...state.hangar, open: !state.hangar.open } };
-    case 'OPEN_HANGAR_CONFIRM':
-      return { ...state, hangar: { ...state.hangar, confirm: action.key, error: '' } };
-    case 'CLOSE_HANGAR_CONFIRM':
-      return { ...state, hangar: { ...state.hangar, confirm: null, error: '' } };
-    case 'CONFIRM_HANGAR_BUY': {
-      const key = state.hangar.confirm;
-      const item = HANGAR_DATA.find((h) => h.key === key);
-      const owned = state.hangar.owned[key] || 0;
-      if (!item || owned >= item.prices.length) {
-        return { ...state, hangar: { ...state.hangar, confirm: null } };
-      }
-      const price = item.prices[owned];
-      const prPrice = item.pr?.[owned] || 0;
-      if (item.requires && !state.hangar.owned[item.requires]) {
-        const req = HANGAR_DATA.find((h) => h.key === item.requires);
-        return { ...state, hangar: { ...state.hangar, error: `Спершу потрібне «${req?.title || item.requires}».` } };
-      }
-      if (price > state.mana.balance) {
-        return { ...state, hangar: { ...state.hangar, error: 'Недостатньо мани.' } };
-      }
-      if (prPrice > state.pr) {
-        return { ...state, hangar: { ...state.hangar, error: 'Недостатньо PR.' } };
-      }
-      const lvl = item.prices.length > 1 ? ' рів.' + (owned + 1) : '';
-      const mana = pushManaHistory(
-        { ...state.mana, balance: state.mana.balance - price },
-        `−${price} · ${item.title}${lvl}`,
-      );
+    // ---------- Особисті покращення ----------
+    // Внесок списується з гаманця одразу й лежить на покращенні; не більше залишку ціни
+    // і наявних коштів. amount — число або 'all' («Все можливе»).
+    case 'UPGRADE_DEPOSIT': {
+      const up = UPGRADES.find((u) => u.key === action.key);
+      if (!up || state.hangar.owned[up.key]) return state;
+      const cur = action.currency === 'pr' ? 'pr' : 'mana';
+      const price = up[cur];
+      const dep = upgradeDeposit(state, up.key);
+      const wallet = cur === 'pr' ? state.pr : state.mana.balance;
+      const want = action.amount === 'all' ? Infinity : Math.floor(Number(action.amount));
+      const v = Math.max(0, Math.min(want, wallet, price - dep[cur]));
+      if (!(v > 0)) return state;
+      const unit = cur === 'pr' ? 'PR' : 'М';
+      let next = {
+        ...state,
+        hangar: { ...state.hangar, deposits: { ...state.hangar.deposits, [up.key]: { ...dep, [cur]: dep[cur] + v } } },
+      };
+      if (cur === 'pr') next = { ...next, pr: state.pr - v };
+      else next = { ...next, mana: pushManaHistory({ ...state.mana, balance: state.mana.balance - v }, `−${v} · внесок «${up.title}»`) };
+      return log(next, `Покращення «${up.title}»: внесок ${v} ${unit} (${dep[cur]} → ${dep[cur] + v} / ${price} ${unit})`, true);
+    }
+    // Повертає внесене на гаманець. PR повертаються лише в межах капу — що не влазить,
+    // лишається внеском (не згорає), і про це сказано в журналі.
+    case 'UPGRADE_REFUND': {
+      const up = UPGRADES.find((u) => u.key === action.key);
+      if (!up || state.hangar.owned[up.key]) return state;
+      const dep = upgradeDeposit(state, up.key);
+      const cap = prCap(state);
+      const prBack = Math.min(dep.pr, Math.max(0, cap - state.pr));
+      const prLeft = dep.pr - prBack;
+      if (!dep.mana && !prBack) return state;
+      const deposits = { ...state.hangar.deposits };
+      if (prLeft) deposits[up.key] = { mana: 0, pr: prLeft };
+      else delete deposits[up.key];
+      let next = { ...state, pr: state.pr + prBack, hangar: { ...state.hangar, deposits } };
+      if (dep.mana) next = { ...next, mana: pushManaHistory({ ...state.mana, balance: state.mana.balance + dep.mana }, `+${dep.mana} · повернення внеску «${up.title}»`) };
+      const back = [dep.mana ? `${dep.mana} М` : '', prBack ? `${prBack} PR` : ''].filter(Boolean).join(' і ');
       return log(
-        {
-          ...state,
-          mana,
-          pr: state.pr - prPrice,
-          hangar: { ...state.hangar, owned: { ...state.hangar.owned, [key]: owned + 1 }, confirm: null, error: '' },
-        },
-        `Ангар: придбано «${item.title}»${lvl} за ${price} мани${prPrice ? ` і ${prPrice} PR` : ''}`,
+        next,
+        `Покращення «${up.title}»: внесок повернено — ${back}` + (prLeft ? `; ${prLeft} PR лишились у внеску (кап PR ${cap})` : ''),
+        true,
+      );
+    }
+    // Покупка: доплачується решта ціни, внесок зараховується.
+    case 'UPGRADE_BUY': {
+      const up = UPGRADES.find((u) => u.key === action.key);
+      if (!up || state.hangar.owned[up.key]) return state;
+      const dep = upgradeDeposit(state, up.key);
+      const restM = Math.max(0, up.mana - dep.mana);
+      const restP = Math.max(0, up.pr - dep.pr);
+      if (restM > state.mana.balance || restP > state.pr) return state;
+      const deposits = { ...state.hangar.deposits };
+      delete deposits[up.key];
+      let next = {
+        ...state,
+        pr: state.pr - restP,
+        hangar: { ...state.hangar, owned: { ...state.hangar.owned, [up.key]: 1 }, deposits },
+      };
+      if (restM) next = { ...next, mana: pushManaHistory({ ...state.mana, balance: state.mana.balance - restM }, `−${restM} · ${up.title}`) };
+      const paid = [restM ? `${restM} М` : '', restP ? `${restP} PR` : ''].filter(Boolean).join(' і ');
+      return log(
+        next,
+        `Покращення «${up.title}» придбано за ${up.mana} М${up.pr ? ` + ${up.pr} PR` : ''}` + (paid ? ` (доплачено ${paid})` : ' (з внеску)'),
+        true,
       );
     }
 
@@ -741,56 +776,17 @@ function reduce(state, action) {
       );
     }
 
-    // ---------- Витрата PR на додатковий ремонт (prSpend) ----------
-    case 'OPEN_PR_SPEND':
-      return { ...state, prSpend: { item: action.key, mechId: null, pick: null, error: '' } };
-    case 'CLOSE_PR_SPEND':
-      return { ...state, prSpend: { item: null, mechId: null, pick: null, error: '' } };
-    case 'SET_PR_SPEND_MECH':
-      return { ...state, prSpend: { ...state.prSpend, mechId: action.mechId, pick: null } };
-    // Поповнення зарядів тепер бере систему цілком, а не розподіляє окремі заряди:
-    // ціна залежить від базового запасу саме цієї системи.
-    case 'SET_PR_SPEND_PICK':
-      return { ...state, prSpend: { ...state.prSpend, pick: action.idx, error: '' } };
-    case 'PR_SPEND_CONFIRM': {
-      const { item: key, mechId, pick } = state.prSpend;
-      const mech = findMech(state, mechId);
-      if (!mech) return { ...state, prSpend: { ...state.prSpend, error: 'Оберіть меха.' } };
-      if (key === 'refillone' && pick == null) {
-        return { ...state, prSpend: { ...state.prSpend, error: 'Оберіть систему.' } };
-      }
-      const cost = prServiceCost(key, mech, pick == null ? {} : { [pick]: 1 });
-      if (cost == null) return state;
-      if (cost > state.pr) return { ...state, prSpend: { ...state.prSpend, error: 'Недостатньо PR.' } };
-
-      const svc = PR_SERVICES.find((x) => x.key === key);
-      let nextState = updateMech(state, mechId, (m) => {
-        if (key === 'kit') return { ...m, repairCurrent: Math.min(m.repairMax, m.repairCurrent + 1) };
-        if (key === 'kitsfull') return { ...m, repairCurrent: m.repairMax };
-        if (key === 'refillone') {
-          return {
-            ...m,
-            items: m.items.map((it, i) => (i === pick ? { ...it, current: it.max, destroyed: false } : it)),
-          };
-        }
-        if (key === 'fullrepair') {
-          return {
-            ...m,
-            hpCurrent: m.hpMax,
-            repairCurrent: m.repairMax,
-            structureFilled: 0,
-            reactorFilled: 0,
-            overcharge: 0,
-            corePower: true,
-            items: restoreItems(m.items),
-          };
-        }
-        return m;
-      });
-
+    // ---------- Повний ремонт / передрук за PR (магазин, вкладка PRINTER) ----------
+    // Та сама послуга є в LUXURY за ману (SHOP_BUY 'fullrepair') — це альтернативні ціни.
+    case 'PR_FULL_REPAIR': {
+      const m = findMech(state, action.id);
+      const svc = PR_SERVICES.find((x) => x.key === 'fullrepair');
+      if (!m || !svc || svc.cost > state.pr) return state;
       const before = state.pr;
-      nextState = { ...nextState, pr: before - cost, prSpend: { item: null, mechId: null, pick: null, error: '' } };
-      return log(nextState, `${mech.name}: «${svc.title}» за ${cost} PR (PR ${before} → ${before - cost})`);
+      return log(
+        { ...updateMech(state, m.id, fullyRepaired), pr: before - svc.cost },
+        `${m.name}: «${svc.title}» за ${svc.cost} PR (PR ${before} → ${before - svc.cost})`,
+      );
     }
 
     // ---------- Get Creative ----------
@@ -854,11 +850,6 @@ function reduce(state, action) {
     }
 
     // ---------- Резерви ----------
-    case 'SET_SHOP_TAB':
-      return { ...state, shop: { ...state.shop, tab: action.tab, item: null, error: '' } };
-    // Відкрити шухляду одразу на потрібній вкладці — з панелі PR, щоб не шукати її вручну.
-    case 'OPEN_SHOP_TAB':
-      return { ...state, shop: { ...state.shop, open: true, tab: action.tab, item: null, error: '' } };
     // ---------- Склад рідкісних резервів ----------
     // Рідкісні резерви не купуються: вони приходять як частина нагороди за місію,
     // і гравець записує їх сюди сам. На складі резерв НЕ згорає — згорає тільки те,
@@ -968,43 +959,25 @@ function reduce(state, action) {
       );
     }
 
-    // ---------- Shop (mana store) ----------
-    case 'TOGGLE_SHOP_DRAWER':
-      return { ...state, shop: { ...state.shop, open: !state.shop.open } };
-    // Кількість, розподіл зарядів і вибір системи більше не потрібні: усе, що їх
-    // вимагало, переїхало на PR.
-    case 'OPEN_SHOP_MODAL':
-      return { ...state, shop: { ...state.shop, item: action.key, mechId: null, error: '' } };
-    case 'CLOSE_SHOP_MODAL':
-      return { ...state, shop: { ...state.shop, item: null, error: '' } };
-    case 'SET_SHOP_MECH':
-      return { ...state, shop: { ...state.shop, mechId: action.mechId, error: '' } };
-    case 'SHOP_CONFIRM': {
-      const s = state.shop;
-      const item = SHOP_DATA.find((it) => it.key === s.item);
+    // ---------- Магазин за ману (вкладка LUXURY) ----------
+    // Ціль приходить разом з дією: магазин сам показує список мехів, тож проміжного
+    // вікна з вибором меха більше немає. Недоступне сюди не доходить (кнопка неактивна),
+    // перевірки нижче — запобіжник.
+    case 'SHOP_BUY': {
+      const item = SHOP_DATA.find((it) => it.key === action.key);
       if (!item) return state;
-
       const price = shopPrice(item);
-      if (price > state.mana.balance) return { ...state, shop: { ...s, error: 'Недостатньо мани.' } };
+      if (price > state.mana.balance) return state;
 
       const spend = (st, note) => {
-        const mana = pushManaHistory(
-          { ...st.mana, balance: st.mana.balance - price },
-          `−${price} · ${item.title}`,
-        );
-        return log(
-          { ...st, mana, shop: { ...s, item: null, error: '' } },
-          `Магазин: придбано «${item.title}» за ${price} мани${note ? ` (${note})` : ''}`,
-        );
+        const mana = pushManaHistory({ ...st.mana, balance: st.mana.balance - price }, `−${price} · ${item.title}`);
+        return log({ ...st, mana }, `Магазин: придбано «${item.title}» за ${price} мани${note ? ` (${note})` : ''}`);
       };
 
-      // Пачка PR іде пілоту, не меху. Надлишок понад кап не нараховується, і про це
-      // краще сказати до покупки, ніж мовчки з'їсти ману.
+      // Пачка PR іде пілоту, не меху. Надлишок понад кап не нараховується.
       if (item.key === 'prpack') {
         const cap = prCap(state);
-        if (state.pr >= cap) {
-          return { ...state, shop: { ...s, error: `PR уже на капі (${cap}).` } };
-        }
+        if (state.pr >= cap) return state;
         const next = Math.min(state.pr + PR_PACK_SIZE, cap);
         const gained = next - state.pr;
         return spend(
@@ -1013,27 +986,14 @@ function reduce(state, action) {
         );
       }
 
-      const mech = findMech(state, s.mechId);
-      if (item.needsMech && !mech) return { ...state, shop: { ...s, error: 'Оберіть меха.' } };
-
-      const nextState = updateMech(state, s.mechId, (m) => {
-        if (item.key === 'core') return { ...m, corePower: true };
-        if (item.key === 'fullrepair') {
-          return {
-            ...m,
-            hpCurrent: m.hpMax,
-            repairCurrent: m.repairMax,
-            structureFilled: 0,
-            reactorFilled: 0,
-            overcharge: 0,
-            corePower: true,
-            items: restoreItems(m.items),
-          };
-        }
-        return m;
-      });
-
-      return spend(nextState, mech?.name);
+      const mech = findMech(state, action.mechId);
+      if (!mech) return state;
+      if (item.key === 'core') {
+        if (mech.corePower) return state;
+        return spend(updateMech(state, mech.id, (m) => ({ ...m, corePower: true })), mech.name);
+      }
+      if (item.key === 'fullrepair') return spend(updateMech(state, mech.id, fullyRepaired), mech.name);
+      return state;
     }
 
     // ---------- Mechs ----------

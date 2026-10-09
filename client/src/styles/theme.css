@@ -806,7 +806,8 @@ button {
   position: relative;
   isolation: isolate;
   min-height: 100vh;
-  padding-bottom: 80px;
+  /* Бічні відступи — під ліву рейку (64px) і язичок магазину праворуч. */
+  padding: 0 64px 80px;
   color: var(--text);
 }
 .ss-grid {
@@ -1236,14 +1237,6 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 /* Портрет-заглушка */
 .ss-hatch { background: repeating-linear-gradient(135deg, var(--panel-sunken) 0 6px, var(--input-bg) 6px 12px); }
 
-/* Навігаційна шухляда */
-.ss-drawer-back { position: fixed; inset: 0; z-index: 45; background: var(--overlay); }
-.ss-drawer {
-  position: fixed; top: 0; left: 0; z-index: 46; width: 280px; max-width: 85vw; height: 100vh; overflow-y: auto;
-  background: var(--panel); border-right: 1px solid var(--header-border); box-shadow: 8px 0 30px var(--shadow);
-  display: flex; flex-direction: column;
-}
-
 /* Мобільний (≤640px) */
 @media (max-width: 640px) {
   .ss-wrap { padding: 14px 12px 0; gap: 16px; }
@@ -1308,28 +1301,305 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 .gm-row { color: inherit; }
 .gm-row:hover { background: var(--panel-inset); color: inherit; }
 
-/* Бокова вкладка меню: завжди на екрані, по центру лівого краю */
-.ss-side-tab {
-  /* Розмір — як у вкладки «МАГАЗИН» праворуч (30 × ~125). */
+/* ================= Ліва термінальна рейка (інтерфейс 2c) =================
+   Закрита — 64px, відкрита — 300px; вміст завжди 300px, ширина його обрізає.
+   Напівпрозорі накладки — через color-mix від змінних теми, а не білим/чорним hex:
+   на світлих темах (GMS Light, IPS-N, SSC) білі риски зникали б, а темний фон списку
+   тем робив би чорний текст нечитабельним. На темних темах вигляд той самий. */
+.ss-rail {
+  --hair: color-mix(in srgb, var(--text-bright) 6%, transparent);
   position: fixed;
+  top: 0;
   left: 0;
+  bottom: 0;
+  z-index: 45;
+  width: 64px;
+  overflow: hidden;
+  background: var(--panel-sunken);
+  transition: width .35s cubic-bezier(.2, .8, .2, 1);
+  font-family: 'Share Tech Mono', monospace;
+}
+.ss-rail.open {
+  width: 300px;
+  background: linear-gradient(90deg, var(--panel-sunken) 0, var(--panel-sunken) calc(100% - 90px), color-mix(in srgb, var(--panel-sunken) 40%, transparent) 100%);
+}
+.ss-rail .fx { position: absolute; pointer-events: none; }
+.ss-rail .gloss { inset: 0; background: linear-gradient(180deg, #ffffff04, transparent 40%, #00000030); }
+.ss-rail .aurora { inset: 0; overflow: hidden; }
+.ss-rail .aurora i { position: absolute; left: 0; top: 0; border-radius: 50%; filter: blur(26px); }
+.ss-rail .aurora i:first-child { width: 110px; height: 160px; background: #dd55620d; animation: railAuroraA 20s ease-in-out infinite; }
+.ss-rail .aurora i:last-child { width: 90px; height: 140px; background: #5a8bdd09; animation: railAuroraB 26s ease-in-out infinite; }
+.ss-rail .scale { right: 4px; top: 0; bottom: 0; width: 4px; background: repeating-linear-gradient(180deg, color-mix(in srgb, var(--text-bright) 8%, transparent) 0 1px, transparent 1px 12px); }
+.ss-rail .runwrap { inset: 0; overflow: hidden; transition: opacity .3s; }
+.ss-rail .ticks {
+  right: 4px;
+  width: 4px;
+  height: 60px;
+  background: repeating-linear-gradient(180deg, var(--accent) 0 1px, transparent 1px 12px);
+  -webkit-mask-image: linear-gradient(transparent, #000, transparent);
+  mask-image: linear-gradient(transparent, #000, transparent);
+}
+.ss-rail .runwrap .ticks { top: 0; animation: railTicks 4.5s linear infinite; }
+.ss-rail .ticks.follow { transition: top .15s ease-out, opacity .3s; }
+.ss-rail .edge { right: 0; top: 0; bottom: 0; width: 1px; background: linear-gradient(transparent, var(--accent-dim) 10%, var(--accent-dim) 90%, transparent); transition: opacity .3s; }
+.ss-rail.open .edge { opacity: 0; }
+.ss-rail .arrow {
+  right: 10px;
   top: 50%;
-  transform: translateY(-50%);
-  z-index: 40;
-  width: 30px;
-  min-height: 125px;
-  padding: 16px 8px;
+  z-index: 1;
+  margin-top: -14px;
+  width: 20px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity .2s, transform .2s;
+}
+.ss-rail:hover .arrow { opacity: 1; transform: none; }
+.ss-rail .col { position: relative; width: 300px; height: 100%; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
+.ss-rail .lbl { opacity: 0; transition: opacity .25s; white-space: nowrap; }
+.ss-rail.open .lbl { opacity: 1; }
+.ss-rail.open .nav .lbl { transition-delay: .12s; }
+.ss-rail .sep { flex: none; border-top: 1px dashed var(--hair); margin: 0 10px; }
+.ss-rail .user {
+  min-height: 64px;
+  padding: 12px 0 12px 18px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  text-align: left;
+  color: var(--text-dimmer);
+  cursor: e-resize;
+}
+.ss-rail.open .user { cursor: w-resize; }
+.ss-rail .user .grid { display: grid; grid-template-columns: 92px auto; gap: 5px 8px; font-size: 10px; }
+.ss-rail .user .k { color: var(--text-faint); letter-spacing: 1px; }
+.ss-rail .nav {
+  position: relative;
+  height: 60px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: var(--text-dimmer);
+  border-bottom: 1px dashed var(--hair);
+}
+.ss-rail .nav:hover { color: var(--text-dimmer); background: linear-gradient(90deg, color-mix(in srgb, var(--text-bright) 4%, transparent), transparent 85%); }
+.ss-rail .nav.on, .ss-rail .nav.on:hover { color: var(--accent); background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 13%, transparent), transparent 85%); }
+.ss-rail .nav.gm, .ss-rail .nav.gm:hover { color: var(--gm); }
+.ss-rail .nav .mark { position: absolute; left: 0; top: 14px; bottom: 14px; width: 2px; background: var(--accent); box-shadow: 0 0 8px var(--accent); opacity: 0; }
+.ss-rail .nav.on .mark { opacity: 1; }
+.ss-rail .nav .ic { width: 64px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.ss-rail .nav .code { font-size: 8px; letter-spacing: 1px; color: var(--text-faint); transition: opacity .2s; }
+.ss-rail.open .nav .code { opacity: 0; }
+.ss-rail .nav .txt { display: flex; flex-direction: column; gap: 3px; }
+.ss-rail .nav .t { font-size: 12px; letter-spacing: 2px; color: var(--text); }
+.ss-rail .nav.on .t { color: var(--text-bright); }
+.ss-rail .nav.gm .t { color: var(--gm); }
+.ss-rail .nav .d { font-size: 10px; color: var(--text-faint); }
+.ss-rail .spacer { flex: 1; min-height: 20px; cursor: e-resize; }
+.ss-rail.open .spacer { cursor: w-resize; }
+.ss-rail .themes {
+  flex: none;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0 10px 6px;
+  border: 1px solid color-mix(in srgb, var(--text-bright) 8%, transparent);
+  background: color-mix(in srgb, var(--panel-sunken) 80%, transparent);
+}
+.ss-rail .themes button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-top: 1px dashed var(--hair);
+  color: var(--text-dim);
+  font-size: 11px;
+  text-align: left;
+}
+.ss-rail .themes button:first-child { border-top: none; }
+.ss-rail .themes button.on, .ss-rail .themes button:hover { background: var(--panel-inset); color: var(--text-bright); }
+.ss-rail .themes .tag { margin-left: auto; font-size: 9px; color: var(--text-dimmer); }
+.ss-rail .foot { height: 46px; flex: none; display: flex; align-items: center; background: transparent; border: none; padding: 0; text-align: left; color: var(--text-dimmer); font-size: 11px; }
+.ss-rail .foot .ic { width: 64px; flex: none; display: flex; justify-content: center; }
+.ss-rail .foot.theme:hover { color: var(--accent); }
+.ss-rail .foot.out { margin-bottom: 8px; letter-spacing: 1px; }
+.ss-rail .foot.out:hover { color: var(--danger); }
+.ss-rail-back { position: fixed; inset: 0; z-index: 44; background: linear-gradient(270deg, transparent 20%, var(--overlay)); }
+
+@keyframes railAuroraA { 0%, 100% { transform: translate(-30px, 40px); } 50% { transform: translate(20px, 40vh); } }
+@keyframes railAuroraB { 0%, 100% { transform: translate(20px, 70vh); } 50% { transform: translate(-20px, 25vh); } }
+@keyframes railTicks { 0% { transform: translateY(-60px); } 100% { transform: translateY(100vh); } }
+@media (prefers-reduced-motion: reduce) {
+  .ss-rail .aurora i, .ss-rail .runwrap .ticks { animation: none; }
+}
+/* На телефоні справа відступу немає: 128px з 360 — забагато; язичок магазину лежить
+   поверх вмісту. */
+@media (max-width: 640px) {
+  .ss-page { padding: 0 0 80px 64px; }
+}
+
+/* ================= Магазин: скошений язичок і напівпрозора панель (інтерфейс 2c) =================
+   Фон панелі — від --panel-sunken, а не темним hex: на світлих темах інакше чорний
+   текст лежав би на майже чорному. */
+.ss-shop {
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --glass: color-mix(in srgb, var(--panel-sunken) 80%, transparent);
+  position: fixed;
+  top: 140px;
+  right: 0;
+  z-index: 45;
+  display: flex;
+  align-items: flex-start;
+  transition: right .35s var(--ease);
+  font-family: 'Share Tech Mono', monospace;
+}
+.ss-shop.open { right: 16px; }
+.ss-shop .line {
+  position: absolute;
+  z-index: 2;
+  width: 2px;
+  left: 0;
+  top: 36px;
+  height: 190px;
+  opacity: .7;
+  background: linear-gradient(transparent, var(--accent) 18%, var(--accent) 82%, transparent);
+  transition: left .4s var(--ease), top .4s var(--ease), height .4s var(--ease), opacity .4s;
+  pointer-events: none;
+}
+.ss-shop.open .line { left: 59px; top: -72px; height: min(480px, calc(100vh - 84px)); opacity: 1; }
+.ss-shop .tabcol { display: flex; flex-direction: column; align-items: flex-end; flex: none; }
+.ss-shop .bev { position: relative; }
+.ss-shop .bev > .b1 { position: absolute; inset: 0; }
+.ss-shop .bev > .b2 { position: absolute; inset: 1px; }
+.ss-shop .bev > .c { position: relative; }
+.ss-shop .toggle > .b1, .ss-shop .toggle > .b2 { clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px); }
+.ss-shop .toggle > .b1 { background: var(--header-border); }
+.ss-shop .toggle > .b2 { background: var(--header); }
+.ss-shop .toggle button { width: 52px; height: 30px; display: flex; align-items: center; justify-content: center; color: var(--btn-text); background: transparent; border: none; padding: 0; }
+.ss-shop .tabsrow { display: flex; align-items: stretch; gap: 5px; margin-top: -1px; }
+.ss-shop .tabs > .b1, .ss-shop .tabs > .b2 { clip-path: polygon(0 0, 100% 0, 100% 100%, 14px 100%, 0 calc(100% - 14px)); }
+.ss-shop .tabs > .b1 { background: var(--panel-border); }
+.ss-shop .tabs > .b2 { background: var(--panel-sunken); }
+.ss-shop .tabs > .c { display: flex; flex-direction: column; padding: 6px 0 16px; }
+.ss-shop .tab {
+  position: relative;
+  width: 52px;
+  height: 64px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  background: var(--header);
-  color: var(--header-text);
-  border: 1px solid var(--header-border);
-  border-left: none;
-  font-size: 14px;
-  line-height: 1;
+  gap: 3px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--text-dimmer);
 }
-.ss-side-tab:hover { background: var(--btn-hover); }
-.ss-side-tab .lbl { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; letter-spacing: 3px; }
+.ss-shop .tab.fund { color: var(--success); }
+.ss-shop .tab.on { color: var(--accent); }
+.ss-shop .tab:hover { color: var(--text-bright); }
+.ss-shop .tab .bar { position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; background: var(--accent); opacity: 0; transition: opacity .3s; }
+.ss-shop .tab.on .bar { opacity: 1; }
+.ss-shop .tab .n { font-size: 12px; color: var(--text-bright); font-variant-numeric: tabular-nums; }
+.ss-shop .tab .k { font-size: 8px; letter-spacing: 1px; color: var(--text-dimmer); }
+.ss-shop .wrap { width: 0; margin-top: -72px; overflow: hidden; opacity: 0; transition: width .4s var(--ease), opacity .3s; }
+.ss-shop.open .wrap { width: min(390px, calc(100vw - 84px)); opacity: 1; }
+.ss-shop .body {
+  position: relative;
+  width: min(380px, calc(100vw - 94px));
+  height: min(480px, calc(100vh - 84px));
+  padding: 36px 0 22px;
+  display: flex;
+  flex-direction: column;
+}
+.ss-shop .glass {
+  position: absolute;
+  inset: 0 0 0 1px;
+  background: linear-gradient(transparent, var(--glass) 18%, var(--glass) 82%, transparent);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+.ss-shop .head { position: relative; flex: none; height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 16px 0 18px; margin-bottom: 10px; }
+.ss-shop .head .h { font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 22px; line-height: 1; letter-spacing: 1px; color: var(--text-bright); }
+.ss-shop .list { position: relative; flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 0 10px 0 12px; }
+.ss-shop .row { position: relative; flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
+.ss-shop .row.sub { margin-left: 18px; padding: 8px 12px; }
+.ss-shop .row .bg { position: absolute; inset: 0; border: 1px solid var(--accent-dim); background: var(--panel); transition: opacity .18s; pointer-events: none; }
+.ss-shop .row.sub .bg { border-style: dashed; }
+.ss-shop .row .tx { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ss-shop .row .tt { font-size: 12px; color: var(--text-bright); line-height: 1.4; text-wrap: pretty; overflow-wrap: anywhere; }
+.ss-shop .row.sub .tt { font-size: 11px; }
+.ss-shop .row .nt { font-size: 10px; color: var(--text-dimmer); }
+.ss-shop .row .nt.bad { color: var(--danger); }
+.ss-shop .price {
+  position: relative;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11px;
+  white-space: nowrap;
+  background: var(--header);
+  color: var(--btn-text);
+  border: 1px solid var(--header-border);
+  font-variant-numeric: tabular-nums;
+}
+.ss-shop .price:hover:not(:disabled) { background: var(--btn-hover); }
+.ss-shop .price:disabled { background: transparent; color: var(--text-faint); border: 1px dashed var(--input-border); cursor: not-allowed; }
+.ss-shop .price.na:disabled { color: var(--text-dim); border-style: solid; cursor: default; }
+.ss-shop .lock {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-top: 4px;
+  background: transparent;
+  border: 1px dashed var(--input-border);
+  color: var(--accent);
+  font-size: 11px;
+  text-align: left;
+}
+.ss-shop .lock:hover { border-color: var(--accent); }
+.ss-shop .msg { position: relative; flex: none; margin: -4px 12px 10px 18px; font-size: 11px; line-height: 1.5; color: var(--success); }
+.ss-shop-back { position: fixed; inset: 0; z-index: 44; background: linear-gradient(90deg, transparent 20%, var(--overlay)); }
+
+/* ================= Особисті покращення (інтерфейс 2c) ================= */
+.ss-up-list {
+  flex: 1 1 230px;
+  max-width: 280px;
+  border-right: 1px solid var(--panel-border);
+  background: var(--panel-sunken);
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 8px;
+}
+.ss-up-item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  gap: 3px 10px;
+  align-items: center;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-left: 3px solid transparent;
+  text-align: left;
+  color: var(--text);
+}
+.ss-up-item:hover { background: var(--panel-inset); }
+.ss-up-item.on { background: var(--panel); border-left-color: var(--accent); }
+.ss-up-refund { margin-left: auto; background: transparent; border: none; padding: 0; font-size: 10px; color: var(--text-dim); }
+.ss-up-refund:hover { color: var(--accent); }
+/* Вузький екран: список над деталями на всю ширину. */
+@media (max-width: 640px) {
+  .ss-up-list { max-width: none; border-right: none; border-bottom: 1px solid var(--panel-border); }
+}
