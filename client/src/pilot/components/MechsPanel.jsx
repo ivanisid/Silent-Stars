@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { OC_STEPS } from '../constants';
+import { OC_STEPS, mechSlots } from '../constants';
+import { showUpgrade } from '../../components/overlayBus';
 import {
   KIT_PR,
   KITS_FULL_PR,
@@ -23,11 +24,28 @@ export default function MechsPanel({ state, dispatch, pilotId, mechArt = {}, can
   const d = state.mechDraft;
   const [ask, dialog] = useConfirm();
   const nameTaken = isMechNameTaken(state.mechs, d.name);
+  // Слотів у ангарі: 1, з «Розширеним ангаром» — 2. Не блокуємо: мехів понад слоти могли
+  // додати раніше (або для іншого профілю COMP/CON) — лише попереджаємо.
+  const slots = mechSlots(state.hangar.owned);
+  const over = state.mechs.length > slots;
 
   return (
-    <Panel title="МЕХ АНГАР" sub={state.mechs.length}>
+    <Panel title="МЕХ АНГАР" sub={`${state.mechs.length} / ${slots}`}>
       {dialog}
       <div className="ss-body" style={{ gap: 14 }}>
+        {over && (
+          <div className="warn-box" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ flex: 1, minWidth: 200 }}>
+              :: Мехів {state.mechs.length}, а слотів в ангарі {slots}.{' '}
+              {slots < 2 ? 'Другий слот дає покращення «Розширений ангар».' : 'Більше слотів жодне покращення не дає.'}
+            </span>
+            {slots < 2 && (
+              <button type="button" className="btn-ghost sm" onClick={() => showUpgrade('parking')}>
+                ОСОБИСТІ ПОКРАЩЕННЯ →
+              </button>
+            )}
+          </div>
+        )}
         {state.mechs.length === 0 && (
           <div className="ss-slot" style={{ minHeight: 54, justifyContent: 'flex-start', padding: '0 16px', fontSize: 12, color: 'var(--text-dimmer)' }}>
             &gt; Мехів ще немає. Додайте вручну нижче або з COMP/CON JSON (меню «⋯» у профілі).

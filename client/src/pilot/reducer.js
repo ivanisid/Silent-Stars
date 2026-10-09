@@ -1,7 +1,7 @@
 import {
   SHOP_DATA,
   PR_PACK_SIZE,
-  HANGAR_DATA,
+  UPGRADES,
   WEEKLY_DOWNTIME_DATA,
   PR_SERVICES,
   PR_CAP_BASE,
@@ -85,6 +85,12 @@ function prCap(state) {
 // Кап складу рідкісних резервів — завжди базовий (див. vaultCap у rareReserves.js).
 function vCap(state) {
   return vaultCap(state.hangar.owned);
+}
+
+// Скільки вже внесено в покращення.
+function upgradeDeposit(state, key) {
+  const d = state.hangar.deposits?.[key];
+  return { mana: d?.mana || 0, pr: d?.pr || 0 };
 }
 
 function pushManaHistory(mana, label) {
@@ -676,45 +682,71 @@ function reduce(state, action) {
       return log({ ...state, mana }, `Мана: ${label}`);
     }
 
-    // ---------- Hangar ----------
-    case 'TOGGLE_HANGAR_OPEN':
-      return { ...state, hangar: { ...state.hangar, open: !state.hangar.open } };
-    case 'OPEN_HANGAR_CONFIRM':
-      return { ...state, hangar: { ...state.hangar, confirm: action.key, error: '' } };
-    case 'CLOSE_HANGAR_CONFIRM':
-      return { ...state, hangar: { ...state.hangar, confirm: null, error: '' } };
-    case 'CONFIRM_HANGAR_BUY': {
-      const key = state.hangar.confirm;
-      const item = HANGAR_DATA.find((h) => h.key === key);
-      const owned = state.hangar.owned[key] || 0;
-      if (!item || owned >= item.prices.length) {
-        return { ...state, hangar: { ...state.hangar, confirm: null } };
-      }
-      const price = item.prices[owned];
-      const prPrice = item.pr?.[owned] || 0;
-      if (item.requires && !state.hangar.owned[item.requires]) {
-        const req = HANGAR_DATA.find((h) => h.key === item.requires);
-        return { ...state, hangar: { ...state.hangar, error: `Спершу потрібне «${req?.title || item.requires}».` } };
-      }
-      if (price > state.mana.balance) {
-        return { ...state, hangar: { ...state.hangar, error: 'Недостатньо мани.' } };
-      }
-      if (prPrice > state.pr) {
-        return { ...state, hangar: { ...state.hangar, error: 'Недостатньо PR.' } };
-      }
-      const lvl = item.prices.length > 1 ? ' рів.' + (owned + 1) : '';
-      const mana = pushManaHistory(
-        { ...state.mana, balance: state.mana.balance - price },
-        `−${price} · ${item.title}${lvl}`,
-      );
+    // ---------- Особисті покращення ----------
+    // Внесок списується з гаманця одразу й лежить на покращенні; не більше залишку ціни
+    // і наявних коштів. amount — число або 'all' («Все можливе»).
+    case 'UPGRADE_DEPOSIT': {
+      const up = UPGRADES.find((u) => u.key === action.key);
+      if (!up || state.hangar.owned[up.key]) return state;
+      const cur = action.currency === 'pr' ? 'pr' : 'mana';
+      const price = up[cur];
+      const dep = upgradeDeposit(state, up.key);
+      const wallet = cur === 'pr' ? state.pr : state.mana.balance;
+      const want = action.amount === 'all' ? Infinity : Math.floor(Number(action.amount));
+      const v = Math.max(0, Math.min(want, wallet, price - dep[cur]));
+      if (!(v > 0)) return state;
+      const unit = cur === 'pr' ? 'PR' : 'М';
+      let next = {
+        ...state,
+        hangar: { ...state.hangar, deposits: { ...state.hangar.deposits, [up.key]: { ...dep, [cur]: dep[cur] + v } } },
+      };
+      if (cur === 'pr') next = { ...next, pr: state.pr - v };
+      else next = { ...next, mana: pushManaHistory({ ...state.mana, balance: state.mana.balance - v }, `−${v} · внесок «${up.title}»`) };
+      return log(next, `Покращення «${up.title}»: внесок ${v} ${unit} (${dep[cur]} → ${dep[cur] + v} / ${price} ${unit})`, true);
+    }
+    // Повертає внесене на гаманець. PR повертаються лише в межах капу — що не влазить,
+    // лишається внеском (не згорає), і про це сказано в журналі.
+    case 'UPGRADE_REFUND': {
+      const up = UPGRADES.find((u) => u.key === action.key);
+      if (!up || state.hangar.owned[up.key]) return state;
+      const dep = upgradeDeposit(state, up.key);
+      const cap = prCap(state);
+      const prBack = Math.min(dep.pr, Math.max(0, cap - state.pr));
+      const prLeft = dep.pr - prBack;
+      if (!dep.mana && !prBack) return state;
+      const deposits = { ...state.hangar.deposits };
+      if (prLeft) deposits[up.key] = { mana: 0, pr: prLeft };
+      else delete deposits[up.key];
+      let next = { ...state, pr: state.pr + prBack, hangar: { ...state.hangar, deposits } };
+      if (dep.mana) next = { ...next, mana: pushManaHistory({ ...state.mana, balance: state.mana.balance + dep.mana }, `+${dep.mana} · повернення внеску «${up.title}»`) };
+      const back = [dep.mana ? `${dep.mana} М` : '', prBack ? `${prBack} PR` : ''].filter(Boolean).join(' і ');
       return log(
-        {
-          ...state,
-          mana,
-          pr: state.pr - prPrice,
-          hangar: { ...state.hangar, owned: { ...state.hangar.owned, [key]: owned + 1 }, confirm: null, error: '' },
-        },
-        `Ангар: придбано «${item.title}»${lvl} за ${price} мани${prPrice ? ` і ${prPrice} PR` : ''}`,
+        next,
+        `Покращення «${up.title}»: внесок повернено — ${back}` + (prLeft ? `; ${prLeft} PR лишились у внеску (кап PR ${cap})` : ''),
+        true,
+      );
+    }
+    // Покупка: доплачується решта ціни, внесок зараховується.
+    case 'UPGRADE_BUY': {
+      const up = UPGRADES.find((u) => u.key === action.key);
+      if (!up || state.hangar.owned[up.key]) return state;
+      const dep = upgradeDeposit(state, up.key);
+      const restM = Math.max(0, up.mana - dep.mana);
+      const restP = Math.max(0, up.pr - dep.pr);
+      if (restM > state.mana.balance || restP > state.pr) return state;
+      const deposits = { ...state.hangar.deposits };
+      delete deposits[up.key];
+      let next = {
+        ...state,
+        pr: state.pr - restP,
+        hangar: { ...state.hangar, owned: { ...state.hangar.owned, [up.key]: 1 }, deposits },
+      };
+      if (restM) next = { ...next, mana: pushManaHistory({ ...state.mana, balance: state.mana.balance - restM }, `−${restM} · ${up.title}`) };
+      const paid = [restM ? `${restM} М` : '', restP ? `${restP} PR` : ''].filter(Boolean).join(' і ');
+      return log(
+        next,
+        `Покращення «${up.title}» придбано за ${up.mana} М${up.pr ? ` + ${up.pr} PR` : ''}` + (paid ? ` (доплачено ${paid})` : ' (з внеску)'),
+        true,
       );
     }
 

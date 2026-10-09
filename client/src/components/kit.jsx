@@ -38,9 +38,9 @@ export function PageHeader({ section, sectionTo, title, tag, right }) {
   );
 }
 
-export function Panel({ title, sub, right, tone, className = '', children, style }) {
+export function Panel({ id, title, sub, right, tone, className = '', children, style }) {
   return (
-    <div className={`ss-panel${tone === 'gm' ? ' gm' : ''} ${className}`} style={style}>
+    <div id={id} className={`ss-panel${tone === 'gm' ? ' gm' : ''} ${className}`} style={style}>
       {title != null && (
         <div className={`ss-bar${tone ? ` ${tone}` : ''}`}>
           <div className="dot" />

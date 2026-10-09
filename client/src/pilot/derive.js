@@ -1,4 +1,4 @@
-import { HANGAR_DATA, PR_CAP_BASE, PR_CAP_BUFFER } from './constants';
+import { PR_CAP_BASE, PR_CAP_BUFFER } from './constants';
 import { llTier, manaLevelCost, skillCapMax, skillCapUsed } from './logic';
 import { vaultCap } from './rareReserves';
 
@@ -43,21 +43,3 @@ export function derivePilotView(state) {
     skillCapUsed: capUsed,
   };
 }
-
-// «500 М + 75 PR» — ціна рівня в обох валютах (PR лише якщо він є).
-export function hangarPriceText(item, level) {
-  const i = Math.min(level, item.prices.length - 1);
-  const pr = item.pr?.[i] || 0;
-  return `${item.prices[i]} М${pr ? ` + ${pr} PR` : ''}`;
-}
-
-export function hangarBuyLabel(item, owned) {
-  const max = item.prices.length;
-  return `ПРИДБАТИ${max > 1 ? ' РІВ. ' + (owned + 1) : ''} — ${hangarPriceText(item, owned)}`;
-}
-
-export function hangarPrice(item, owned) {
-  return item.prices[Math.min(owned, item.prices.length - 1)];
-}
-
-export { HANGAR_DATA };
