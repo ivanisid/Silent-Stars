@@ -182,20 +182,6 @@ export default function NavDrawer() {
           <button
             type="button"
             className="foot theme"
-            title="Змінити нікнейм або пароль"
-            onClick={() => {
-              close();
-              setAccount(true);
-            }}
-          >
-            <span className="ic">
-              <Icon size={16} d="M7 15a4 4 0 1 1 3.5-6H21v3h-2v3h-3v-3h-5.5A4 4 0 0 1 7 15z" />
-            </span>
-            <span className="lbl">акаунт · нік і пароль</span>
-          </button>
-          <button
-            type="button"
-            className="foot theme"
             title="Кольорова тема"
             aria-expanded={open && themeMenu}
             onClick={() => {
@@ -215,6 +201,20 @@ export default function NavDrawer() {
             <span className="lbl" style={{ color: 'var(--text)' }}>
               тема: {current.label} <span style={{ color: 'var(--accent)' }}>{themeMenu && open ? '▾' : '▸'}</span>
             </span>
+          </button>
+          <button
+            type="button"
+            className="foot theme"
+            title="Змінити нікнейм або пароль"
+            onClick={() => {
+              close();
+              setAccount(true);
+            }}
+          >
+            <span className="ic">
+              <Icon size={16} d="M7 15a4 4 0 1 1 3.5-6H21v3h-2v3h-3v-3h-5.5A4 4 0 0 1 7 15z" />
+            </span>
+            <span className="lbl">Account manager</span>
           </button>
           <button type="button" className="foot out" title="Вийти" onClick={logout}>
             <span className="ic"><Icon size={16} d="M14 4h6v16h-6M10 8l-4 4 4 4M6 12h10" /></span>
