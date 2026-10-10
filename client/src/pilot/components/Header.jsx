@@ -205,7 +205,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
           <PilotGames games={games} />
         </div>
         <ArtSlot
-          className="m-portrait"
+          className="m-portrait ss-portrait"
           art={portrait}
           label="ПОРТРЕТ"
           compact

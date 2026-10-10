@@ -39,9 +39,9 @@ export function PageHeader({ section, sectionTo, title, tag, right }) {
     <div className="ss-head">
       <HeaderMark />
       {sectionTo ? (
-        <Link to={sectionTo} className="crumb">&gt; {section} /</Link>
+        <Link to={sectionTo} className="crumb"><span className="pre">&gt; </span>{section}<span className="sep"> /</span></Link>
       ) : (
-        <span className="crumb">&gt; {section} /</span>
+        <span className="crumb"><span className="pre">&gt; </span>{section}<span className="sep"> /</span></span>
       )}
       <div className="h1">{title}</div>
       {tag}
@@ -229,7 +229,13 @@ export function SyncBadge({ saving, at }) {
   return (
     <span className={`ss-sync${saving ? ' saving' : ''}`}>
       <i />
-      {saving ? 'SYNC…' : `SYNC ■ ${at || '—'}`}
+      {saving ? (
+        <span className="lbl">SYNC…</span>
+      ) : (
+        <>
+          <span className="lbl">SYNC</span> <span className="sq">■</span> <span className="time">{at || '—'}</span>
+        </>
+      )}
     </span>
   );
 }

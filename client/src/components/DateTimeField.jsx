@@ -84,6 +84,7 @@ export default function DateTimeField({ label, value, onChange, placeholder = 'Ð
 
       {open && (
         <div
+          className="ss-overlay"
           onClick={() => setOpen(false)}
           style={{
             position: 'fixed',

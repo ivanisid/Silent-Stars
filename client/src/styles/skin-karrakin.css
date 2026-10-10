@@ -1,0 +1,561 @@
+/* ================= KARRAKIN — скіни (handoff «themes», розділ 3) =================
+   Геральдика замість терміналу: Cinzel для заголовків і кнопок, Forum для тексту в
+   панелях, Cormorant Garamond курсивом для приміток. Кольори — лише з --kf/--kt/--ka/--kht
+   дому (theme.css) і змінних теми. Хуки — класи ss-* базового інтерфейсу. */
+
+:root[data-theme='karrakin'] {
+  --k-cinzel: 'Cinzel', 'Forum', serif;
+  --k-forum: 'Forum', 'Cormorant Garamond', serif;
+  --k-corm: 'Cormorant Garamond', serif;
+}
+
+/* ---------- Фон: сяйво кольору дому згори й ґратка під 45°. Хрестиків немає. ---------- */
+:root[data-theme='karrakin'] body {
+  background-image:
+    radial-gradient(ellipse at 50% 0%, color-mix(in oklch, var(--kf) 30%, transparent), transparent 60%),
+    repeating-linear-gradient(45deg, color-mix(in oklch, var(--kt) 8%, transparent) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(-45deg, color-mix(in oklch, var(--kt) 8%, transparent) 0 1px, transparent 1px 24px);
+}
+:root[data-theme='karrakin'] .ss-grid { display: none; }
+
+/* ---------- Скошені кути ----------
+   Один набір правил для всіх скошених форм: --kc — розмір скосу, --kb — колір рамки.
+   Скіс робить clip-path, а діагональні лінії рамки на зрізаних кутах — чотири градієнти. */
+:root[data-theme='karrakin'] :is(
+  .ss-panel:not(.gm), .card,
+  .btn, .ss-chip, .ss-seg:not(.on-bar) button, .ss-shop .price:not(:disabled),
+  .ss-box, .ss-tile, .ss-slot, .ss-list,
+  .ss-icon:not(.ghost), .ss-sq, .ss-stepper
+),
+:root[data-theme='karrakin'] :is(.ss-panel:not(.gm), .card)::after,
+:root[data-theme='karrakin'] :is(.btn, .ss-chip.on, .ss-seg:not(.on-bar) button.on, .ss-shop .price:not(:disabled))::after {
+  border-color: var(--kb);
+  clip-path: polygon(var(--kc) 0, calc(100% - var(--kc)) 0, 100% var(--kc), 100% calc(100% - var(--kc)), calc(100% - var(--kc)) 100%, var(--kc) 100%, 0 calc(100% - var(--kc)), 0 var(--kc));
+  background-image:
+    linear-gradient(to bottom right, transparent 50%, var(--kb) 50%, var(--kb) calc(50% + 1.2px), transparent calc(50% + 1.2px)),
+    linear-gradient(to bottom left, transparent 50%, var(--kb) 50%, var(--kb) calc(50% + 1.2px), transparent calc(50% + 1.2px)),
+    linear-gradient(to top right, transparent 50%, var(--kb) 50%, var(--kb) calc(50% + 1.2px), transparent calc(50% + 1.2px)),
+    linear-gradient(to top left, transparent 50%, var(--kb) 50%, var(--kb) calc(50% + 1.2px), transparent calc(50% + 1.2px)) !important;
+  background-origin: border-box !important;
+  background-position: top left, top right, bottom left, bottom right !important;
+  background-size: var(--kc) var(--kc), var(--kc) var(--kc), var(--kc) var(--kc), var(--kc) var(--kc) !important;
+  background-repeat: no-repeat !important;
+}
+/* Спливне меню, модальне вікно чи вибір дати всередині скошеного блоку обрізалися б
+   його clip-path — поки вони відкриті, блок лишається прямокутним. */
+:root[data-theme='karrakin'] :is(.ss-panel, .card, .ss-box, .ss-tile, .ss-list):has(.ss-menu, .modal-backdrop, .ss-overlay) { clip-path: none !important; }
+
+/* ---------- Панель: скошена подвійна рамка, стрічка заголовка крізь лівий край ---------- */
+:root[data-theme='karrakin'] :is(.ss-panel:not(.gm), .card) {
+  --kc: 14px;
+  --kb: color-mix(in oklch, var(--kt) 50%, #2a1e14);
+  position: relative;
+  font-family: var(--k-forum);
+  font-size-adjust: .5;
+  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 53px, -11px 53px, -11px 12px, 2px 12px);
+}
+:root[data-theme='karrakin'] :is(.ss-panel:not(.gm), .card)::after {
+  --kc: 10.5px;
+  --kb: color-mix(in oklch, var(--kt) 42%, transparent);
+  content: '';
+  position: absolute;
+  inset: 4px;
+  pointer-events: none;
+  border: 1px solid var(--kb);
+}
+/* Загин стрічки під лівим краєм — лише там, де панель має заголовок. */
+:root[data-theme='karrakin'] :is(.ss-panel:not(.gm), .card):has(> :is(.ss-bar, .card-header):not(.gm):not(.done))::before {
+  content: '';
+  position: absolute;
+  left: -11px;
+  top: 46px;
+  width: 11px;
+  height: 7px;
+  background: color-mix(in oklch, var(--kf) 55%, #000);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+:root[data-theme='karrakin'] :is(.ss-panel:not(.gm), .card) :is(input, select, textarea) { font-family: var(--k-forum); font-size-adjust: .5; }
+:root[data-theme='karrakin'] :is(.ss-panel, .card) button { font-family: var(--k-cinzel); }
+
+/* Заголовок: стрічка поля дому, «ластівчин хвіст», внутрішня окантовка, ромб. */
+:root[data-theme='karrakin'] :is(.ss-panel, .card) > :is(.ss-bar, .card-header):not(.gm):not(.done) {
+  position: relative;
+  z-index: 1;
+  margin: 12px 28px 0 -11px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 42px 0 20px;
+  font-family: var(--k-cinzel);
+  letter-spacing: 2px;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 16px) 50%, 100% 100%, 0 100%);
+  background-image: repeating-linear-gradient(0deg, #0000001a 0 1px, transparent 1px 3px);
+  box-shadow: inset 0 0 0 3px var(--kf), inset 0 0 0 4px var(--kt);
+}
+:root[data-theme='karrakin'] :is(.ss-bar, .card-header):not(.gm):not(.done) .dot {
+  width: 9px;
+  height: 9px;
+  margin: 0 3px;
+  transform: rotate(45deg);
+  outline: 1px solid var(--kt);
+  outline-offset: 1px;
+}
+:root[data-theme='karrakin'] :is(.ss-bar, .card-header):not(.gm):not(.done) .sub {
+  color: var(--kht);
+  opacity: .75;
+  font-family: var(--k-corm);
+  font-style: italic;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: .3px;
+}
+:root[data-theme='karrakin'] .ss-bar button { font-family: var(--k-cinzel); letter-spacing: 2px; }
+:root[data-theme='karrakin'] .ss-seg.on-bar button.on { background: var(--kt); color: var(--kf); }
+
+/* ---------- Кнопки ---------- */
+/* Основна й вибрана: прозора, рамка кольору оздоблення, внутрішній контур; hover — заливка поля. */
+:root[data-theme='karrakin'] :is(.btn, .ss-chip.on, .ss-seg:not(.on-bar) button.on, .ss-shop .price:not(:disabled)) {
+  --kc: 7px;
+  --kb: var(--kt);
+  position: relative;
+  background-color: transparent;
+  color: var(--kt);
+  border: 1px solid var(--kt);
+  font-family: var(--k-cinzel);
+  letter-spacing: 2.5px;
+  transition: background-color .18s, color .18s;
+}
+:root[data-theme='karrakin'] :is(.btn, .ss-chip.on, .ss-seg:not(.on-bar) button.on, .ss-shop .price:not(:disabled))::after {
+  --kc: 5px;
+  --kb: color-mix(in oklch, var(--kt) 42%, transparent);
+  content: '';
+  position: absolute;
+  inset: 2px;
+  pointer-events: none;
+  border: 1px solid var(--kb);
+}
+:root[data-theme='karrakin'] :is(.btn, .ss-chip.on, .ss-shop .price):hover:not(:disabled) { background-color: var(--kf); color: var(--kht); }
+
+/* Невибрані чіпи й перемикачі: та сама форма, тонка рамка кольору дому. */
+:root[data-theme='karrakin'] :is(.ss-chip:not(.on), .ss-seg:not(.on-bar) button:not(.on)) {
+  --kc: 7px;
+  --kb: color-mix(in oklch, var(--kt) 38%, transparent);
+  position: relative;
+  background-color: transparent;
+  border: 1px solid var(--kb);
+  color: var(--text-soft-dim);
+  font-family: var(--k-cinzel);
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+:root[data-theme='karrakin'] :is(.ss-chip:not(.on), .ss-seg:not(.on-bar) button:not(.on)):hover { --kb: var(--kt); color: var(--text-bright); }
+
+:root[data-theme='karrakin'] .btn-ghost {
+  font-family: var(--k-cinzel);
+  letter-spacing: 2px;
+  color: var(--text);
+  border-color: color-mix(in oklch, var(--kt) 40%, transparent);
+}
+:root[data-theme='karrakin'] .btn-ghost:hover:not(:disabled) { border-color: var(--kt); color: var(--text-bright); }
+:root[data-theme='karrakin'] .btn-outline {
+  font-family: var(--k-cinzel);
+  letter-spacing: 2px;
+  color: var(--ka);
+  border-color: color-mix(in oklch, var(--ka) 70%, transparent);
+  outline: 1px solid color-mix(in oklch, var(--ka) 35%, transparent);
+  outline-offset: -4px;
+}
+:root[data-theme='karrakin'] .btn-outline:hover:not(:disabled) { border-color: var(--ka); outline-color: var(--ka); }
+:root[data-theme='karrakin'] .btn-danger {
+  font-family: var(--k-cinzel);
+  letter-spacing: 2px;
+  border-style: solid;
+  outline: 1px solid var(--danger-border);
+  outline-offset: -4px;
+}
+:root[data-theme='karrakin'] .btn-danger:hover:not(:disabled) { outline-color: var(--danger); }
+:root[data-theme='karrakin'] :is(.btn-remain, .ss-shop .price:disabled) {
+  font-family: var(--k-corm);
+  font-style: italic;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: .5px;
+  color: var(--text-dimmer);
+  border-style: solid;
+  border-color: color-mix(in oklch, var(--text-dimmer) 45%, transparent);
+  background: transparent;
+}
+/* Текстові кнопки — курсивом і підкресленням. */
+:root[data-theme='karrakin'] .ss-up-refund {
+  font-family: var(--k-corm);
+  font-style: italic;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: .5px;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in oklch, currentColor 45%, transparent);
+}
+:root[data-theme='karrakin'] :is(.ss-icon:not(.ghost), .ss-sq) { --kc: 6px; --kb: color-mix(in oklch, var(--kt) 35%, transparent); }
+
+/* ---------- Вкладені блоки, списки, слоти, степери ---------- */
+:root[data-theme='karrakin'] :is(.ss-box, .ss-tile) { --kc: 8px; --kb: color-mix(in oklch, var(--kt) 30%, transparent); }
+:root[data-theme='karrakin'] .ss-list { --kc: 8px; --kb: color-mix(in oklch, var(--kt) 28%, transparent); }
+:root[data-theme='karrakin'] .ss-list > .row + .row { border-top-color: color-mix(in oklch, var(--kt) 16%, transparent); }
+:root[data-theme='karrakin'] .ss-slot {
+  --kc: 8px;
+  --kb: color-mix(in oklch, var(--kt) 22%, transparent);
+  gap: 10px;
+  border-style: solid;
+}
+:root[data-theme='karrakin'] .ss-slot::before { content: ''; flex: none; width: 6px; height: 6px; border: 1px solid currentColor; transform: rotate(45deg); }
+:root[data-theme='karrakin'] .ss-stepper { --kc: 6px; --kb: color-mix(in oklch, var(--kt) 35%, transparent); }
+:root[data-theme='karrakin'] .ss-stepper > * { font-family: var(--k-cinzel); font-weight: 600; font-size-adjust: none; }
+:root[data-theme='karrakin'] .ss-stepper > * + * { border-left-color: color-mix(in oklch, var(--kt) 25%, transparent) !important; }
+:root[data-theme='karrakin'] .ss-rowlist > * + * { border-top-color: color-mix(in oklch, var(--kt) 16%, transparent); }
+
+/* ---------- Смуги й треки ---------- */
+:root[data-theme='karrakin'] .ss-track .segs > .on { background-color: var(--ka); background-image: repeating-linear-gradient(-45deg, #00000040 0 1px, transparent 1px 4px); }
+:root[data-theme='karrakin'] .ss-track .segs > :not(.on) { background: transparent; box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--kt) 28%, transparent); }
+:root[data-theme='karrakin'] .ss-track.green .segs > .on { background-color: var(--success); }
+:root[data-theme='karrakin'] .ss-track .tick {
+  width: 9px;
+  height: 9px;
+  align-self: center;
+  margin: 0 8px 0 4px;
+  background: var(--ka);
+  transform: rotate(45deg);
+  outline: 1px solid color-mix(in oklch, var(--ka) 50%, transparent);
+  outline-offset: 2px;
+}
+:root[data-theme='karrakin'] .ss-meter { padding: 1px; border-color: color-mix(in oklch, var(--kt) 55%, transparent) !important; }
+:root[data-theme='karrakin'] .ss-meter > div { background-color: var(--ka) !important; background-image: repeating-linear-gradient(-45deg, #00000040 0 1px, transparent 1px 4px); }
+
+/* ---------- Шапка сторінки: крихти капітеллю, лінія з ромбом по центру ---------- */
+:root[data-theme='karrakin'] .ss-head {
+  position: relative;
+  border-bottom-color: transparent;
+  background-image: linear-gradient(90deg, transparent, color-mix(in oklch, var(--kt) 55%, transparent) 20%, color-mix(in oklch, var(--kt) 55%, transparent) 80%, transparent);
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+}
+:root[data-theme='karrakin'] .ss-head::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 9px;
+  height: 9px;
+  margin-left: -5px;
+  background: var(--bg);
+  border: 1px solid var(--kt);
+  transform: rotate(45deg);
+  box-shadow: -14px 14px 0 -3px var(--kt), 14px -14px 0 -3px var(--kt);
+}
+:root[data-theme='karrakin'] .ss-head .crumb { display: inline-flex; align-items: center; gap: 8px; font-family: var(--k-cinzel); font-size: 11px; letter-spacing: 2.5px; }
+:root[data-theme='karrakin'] .ss-head .crumb .sep { display: inline-block; font-size: 0; width: 5px; height: 5px; background: var(--kt); transform: rotate(45deg); opacity: .8; }
+:root[data-theme='karrakin'] .ss-head .h1 { font-family: var(--k-cinzel); font-weight: 500; font-size: 28px; letter-spacing: 3px; }
+:root[data-theme='karrakin'] .ss-head .nick { font-family: var(--k-corm); font-style: italic; font-weight: 600; font-size: 16px; letter-spacing: .3px; color: var(--text); }
+:root[data-theme='karrakin'] .ss-sync { gap: 8px; }
+:root[data-theme='karrakin'] .ss-sync .lbl { font-family: var(--k-cinzel); font-size: 10px; letter-spacing: 2px; }
+:root[data-theme='karrakin'] .ss-sync i { width: 7px; height: 7px; transform: rotate(45deg); outline: 1px solid color-mix(in oklch, var(--success) 50%, transparent); outline-offset: 1px; }
+:root[data-theme='karrakin'] .ss-sync .sq { display: none; }
+:root[data-theme='karrakin'] .ss-sync .time { font-family: var(--k-corm); font-style: italic; font-weight: 600; font-size: 15px; letter-spacing: .3px; }
+
+/* ---------- Типографіка, поля, мітки ---------- */
+/* Термінальні префікси («> », «▸ », «// ») — не для геральдики. */
+:root[data-theme='karrakin'] .pre { display: none; }
+:root[data-theme='karrakin'] :is(.title-font, .ss-count, .ss-track .val b, .ss-tile .big) { font-family: var(--k-cinzel); font-weight: 600; letter-spacing: .5px; font-size-adjust: none; }
+:root[data-theme='karrakin'] :is(.ss-input, .ss-select) { border-color: color-mix(in oklch, var(--kt) 30%, var(--input-border)); }
+:root[data-theme='karrakin'] :is(input, select, textarea):focus { border-color: var(--kt); box-shadow: inset 0 0 0 2px var(--input-bg), inset 0 0 0 3px color-mix(in oklch, var(--ka) 55%, transparent); }
+:root[data-theme='karrakin'] :is(input, textarea)::placeholder { font-family: var(--k-corm); font-style: italic; font-weight: 500; font-size: 14px; color: var(--text-dimmer); opacity: 1; }
+:root[data-theme='karrakin'] .ss-tag { font-family: var(--k-cinzel); font-weight: 600; font-size: 9.5px; letter-spacing: 1.5px; font-size-adjust: none; }
+:root[data-theme='karrakin'] :is(.ss-label, .field-label, .ss-field > .lbl) { font-family: var(--k-cinzel); font-weight: 600; font-size: 10.5px; letter-spacing: 2.5px; color: var(--ka); font-size-adjust: none; }
+:root[data-theme='karrakin'] :is(.ss-cells .k, .ss-tile .cap, .ss-track .val small) { font-family: var(--k-cinzel); font-size: 9.5px; letter-spacing: 2px; font-size-adjust: none; }
+:root[data-theme='karrakin'] .ss-note { font-family: var(--k-corm); font-style: italic; font-weight: 500; font-size: 15px; line-height: 1.45; font-size-adjust: none; }
+:root[data-theme='karrakin'] .success-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--k-corm);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 16px;
+  border-width: 0 0 0 3px;
+  border-color: var(--success);
+}
+:root[data-theme='karrakin'] .success-box::before { content: ''; flex: none; width: 6px; height: 6px; background: var(--success); transform: rotate(45deg); }
+:root[data-theme='karrakin'] .ss-cells { border-color: color-mix(in oklch, var(--kt) 22%, transparent); }
+:root[data-theme='karrakin'] .ss-cells > div { border-color: color-mix(in oklch, var(--kt) 22%, transparent); }
+
+/* ---------- Меню «⋯»: подвійна рамка, пункти Forum ---------- */
+:root[data-theme='karrakin'] .ss-menu {
+  padding: 4px;
+  border-color: color-mix(in oklch, var(--kt) 50%, transparent);
+  box-shadow: inset 0 0 0 3px var(--panel), inset 0 0 0 4px color-mix(in oklch, var(--kt) 35%, transparent), 0 10px 26px #000a;
+}
+:root[data-theme='karrakin'] .ss-menu .mh { font-family: var(--k-cinzel); font-size: 9.5px; letter-spacing: 2.5px; color: var(--ka); }
+:root[data-theme='karrakin'] .ss-menu button.mi { font-family: var(--k-forum); font-size: 14px; letter-spacing: .3px; }
+
+/* ---------- Модальні вікна: пергамент ---------- */
+:root[data-theme='karrakin'] .modal-box:not(.gm) {
+  --text-bright: #1e160c;
+  --text: #2e2416;
+  --text-soft: #3e3428;
+  --text-dim: #5a4a34;
+  --text-dimmer: #6a5a44;
+  --input-border: #b8a47c;
+  --input-bg: #f6eedb;
+  --panel: #fbf5e4;
+  --panel-sunken: #ecdfc0;
+  --panel-inset: #e6d6b2;
+  --danger: #a8231c;
+  --success: #2e6b2a;
+  --accent: color-mix(in oklch, var(--kf) 65%, #2a1a0a);
+  --ka: color-mix(in oklch, var(--kf) 65%, #2a1a0a);
+  --kt: color-mix(in oklch, var(--kf) 60%, #5a4228);
+  color: var(--text);
+  background-color: color-mix(in oklch, var(--kl, var(--kf)) 10%, #efe4c8);
+  background-image: radial-gradient(ellipse at 30% 10%, #fffaf0aa, transparent 55%), repeating-linear-gradient(0deg, #6a4a2a08 0 1px, transparent 1px 4px);
+  border: 1px solid #5a4228;
+  box-shadow: inset 0 0 0 4px #efe4c8, inset 0 0 0 5px color-mix(in oklch, var(--kf) 60%, #5a4228), 0 16px 40px #000a;
+  font-family: var(--k-forum);
+}
+:root[data-theme='karrakin'] .modal-box:not(.gm) .modal-header { margin: 6px 6px 0; font-family: var(--k-cinzel); letter-spacing: 2px; box-shadow: inset 0 0 0 3px var(--kf), inset 0 0 0 4px color-mix(in oklch, var(--kf) 60%, #5a4228); }
+:root[data-theme='karrakin'] .modal-box:not(.gm) .modal-header::before { transform: rotate(45deg); background: var(--kht); }
+:root[data-theme='karrakin'] .modal-box:not(.gm) .modal-body > div:first-child:not([class]) { font-family: var(--k-corm); font-style: italic; font-weight: 500; font-size: 20px !important; }
+:root[data-theme='karrakin'] .modal-box button { font-family: var(--k-cinzel); }
+
+/* ---------- Ліва рейка: мармур на полі дому, іконки в ромбах ---------- */
+:root[data-theme='karrakin'] .ss-rail {
+  --mb: color-mix(in oklch, var(--kf) 14%, #24221e);
+  --vn: #ffffff10;
+  --vn2: #ffffff08;
+  --text-faint: color-mix(in oklch, var(--text) 55%, transparent);
+  font-family: var(--k-forum);
+  background-color: var(--mb);
+  background-image:
+    radial-gradient(ellipse 160% 55% at 130% 18%, transparent 59.4%, var(--vn) 60%, transparent 60.8%),
+    radial-gradient(ellipse 120% 70% at -40% 62%, transparent 64.5%, var(--vn2) 65%, transparent 65.6%),
+    radial-gradient(ellipse 200% 40% at 60% 105%, transparent 69.5%, color-mix(in oklch, var(--kt) 10%, transparent) 70%, transparent 70.6%),
+    radial-gradient(ellipse 70% 30% at 20% 30%, #ffffff0a, transparent 70%),
+    radial-gradient(ellipse 80% 40% at 85% 70%, #ffffff07, transparent 70%),
+    radial-gradient(ellipse 60% 25% at 40% 88%, var(--kblob, #00000040), transparent 70%),
+    linear-gradient(180deg, #ffffff06, transparent 40%, #00000030);
+  background-size: 300px 100%;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  box-shadow: inset -1px 0 0 color-mix(in oklch, var(--kt) 55%, transparent), inset -5px 0 0 #00000040;
+}
+:root[data-theme='karrakin'] .ss-rail .fx:not(.arrow) { display: none; }
+:root[data-theme='karrakin'] .ss-rail :is(.nav, .sep) { border: none; }
+:root[data-theme='karrakin'] .ss-rail :is(a, button) span { text-shadow: -1px -1px 0 #000000e6, 1px 1px 0 #ffffff38, 0 0 1px #00000080; }
+:root[data-theme='karrakin'] .ss-rail svg { filter: drop-shadow(-1px -1px 0 #000000e6) drop-shadow(1px 1px 0 #ffffff38); }
+:root[data-theme='karrakin'] .ss-rail .nav .t {
+  font-family: var(--k-cinzel);
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  color: color-mix(in oklch, currentColor 62%, var(--mb));
+  text-shadow: -1px -1px 0 #000, 1px 1px 0 #ffffff4a, -2px -2px 2px #00000080;
+}
+:root[data-theme='karrakin'] .ss-rail .nav,
+:root[data-theme='karrakin'] .ss-rail .nav:hover { background: transparent; }
+:root[data-theme='karrakin'] .ss-rail .nav :is(.mark, .code, .d) { display: none; }
+:root[data-theme='karrakin'] .ss-rail .nav .ic { position: relative; transition: width .3s cubic-bezier(.2, .8, .2, 1), opacity .2s; }
+:root[data-theme='karrakin'] .ss-rail .nav .ic::before {
+  content: '';
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  left: calc(50% - 15px);
+  top: calc(50% - 15px);
+  transform: rotate(45deg);
+  border: 1px solid color-mix(in oklch, var(--kt) 30%, transparent);
+  background: color-mix(in oklch, #000 22%, transparent);
+  box-shadow: inset 1px 1px 2px #000000b0, inset -1px -1px 0 #ffffff1a, 1px 1px 0 #ffffff12;
+  transition: background .2s, border-color .2s;
+}
+:root[data-theme='karrakin'] .ss-rail .nav .ic svg { position: relative; width: 16px; height: 16px; margin: 2px 0; }
+:root[data-theme='karrakin'] .ss-rail .nav:hover .ic::before { border-color: color-mix(in oklch, var(--kt) 60%, transparent); }
+:root[data-theme='karrakin'] .ss-rail .nav.on .ic::before { background: var(--kf); border-color: var(--kt); box-shadow: inset 0 0 0 2px var(--kf), inset 0 0 0 3px var(--kt), 0 2px 4px #0009; }
+:root[data-theme='karrakin'] .ss-rail .nav.on .ic svg { color: var(--kht); filter: none; }
+:root[data-theme='karrakin'] .ss-rail .nav.on .t { color: var(--text-bright); }
+/* Відкрита рейка: іконки ховаються, активний пункт — смуга оздоблення й підсвічування полем дому. */
+:root[data-theme='karrakin'] .ss-rail.open .nav .ic { width: 40px; opacity: 0; }
+:root[data-theme='karrakin'] .ss-rail .nav.on::after { content: ''; position: absolute; left: 22px; top: 12px; bottom: 12px; width: 4px; background: var(--kt); opacity: 0; transition: opacity .2s; }
+:root[data-theme='karrakin'] .ss-rail.open .nav.on::after { opacity: 1; }
+:root[data-theme='karrakin'] .ss-rail.open .nav.on { background: linear-gradient(90deg, color-mix(in oklch, var(--kf) 45%, transparent), transparent 85%); }
+/* Блок користувача: ключі капітеллю, значення курсивом. */
+:root[data-theme='karrakin'] .ss-rail .user { padding-top: 16px; padding-bottom: 16px; }
+:root[data-theme='karrakin'] .ss-rail .user .grid { grid-template-columns: 124px auto; gap: 8px 10px; align-items: baseline; }
+:root[data-theme='karrakin'] .ss-rail .user .k { font-family: var(--k-cinzel); font-weight: 700; font-size: 9px; letter-spacing: 1.5px; white-space: nowrap; color: color-mix(in oklch, var(--kt) 55%, var(--mb)); }
+:root[data-theme='karrakin'] .ss-rail .user .grid > span:not(.k) { font-family: var(--k-corm); font-style: italic; font-weight: 600; font-size: 15px; letter-spacing: .3px; }
+
+/* ---------- Магазин: пергамент ---------- */
+:root[data-theme='karrakin'] .ss-shop {
+  --text-bright: #1e160c;
+  --text: #2e2416;
+  --text-dimmer: #6a5a44;
+  --text-faint: #8a7a60;
+  --text-muted: #6a5a44;
+  --success: #2e6b2a;
+  --danger: #a8231c;
+  --accent: color-mix(in oklch, var(--kf) 65%, #2a1a0a);
+  --accent-dim: color-mix(in oklch, var(--kf) 45%, #8a6a3a);
+  --input-border: #b8a47c;
+  --panel: #fbf5e4;
+  --panel-border: #5a4228;
+  --panel-sunken: color-mix(in oklch, var(--kl, var(--kf)) 10%, #ecdfc0);
+}
+:root[data-theme='karrakin'] .ss-shop .line { display: none; }
+:root[data-theme='karrakin'] .ss-shop .glass {
+  background-color: color-mix(in oklch, var(--kl, var(--kf)) 10%, #efe4c8);
+  background-image:
+    radial-gradient(ellipse at 30% 10%, #fffaf0aa, transparent 55%),
+    radial-gradient(ellipse at 90% 95%, #9a7a4a33, transparent 60%),
+    repeating-linear-gradient(0deg, #6a4a2a08 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(87deg, #6a4a2a06 0 1px, transparent 1px 7px);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid #5a4228;
+  box-shadow: inset 0 0 0 4px color-mix(in oklch, var(--kl, var(--kf)) 10%, #efe4c8), inset 0 0 0 5px color-mix(in oklch, var(--kf) 60%, #5a4228), inset 0 0 40px #8a6a3a30, 0 10px 28px #0006;
+}
+:root[data-theme='karrakin'] .ss-shop .head .h { font-family: var(--k-cinzel); font-size: 19px; letter-spacing: 3px; }
+:root[data-theme='karrakin'] .ss-shop .toggle > .b1 { clip-path: none; background: var(--kt); }
+:root[data-theme='karrakin'] .ss-shop .toggle > .b2 { clip-path: none; inset: 1px; background-image: repeating-linear-gradient(0deg, #0000001a 0 1px, transparent 1px 3px); box-shadow: inset 0 0 0 2px var(--kf), inset 0 0 0 3px var(--kt); }
+:root[data-theme='karrakin'] .ss-shop .toggle button { color: var(--kht); }
+:root[data-theme='karrakin'] .ss-shop .tabs > :is(.b1, .b2) { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), 50% 100%, 0 calc(100% - 16px)); }
+:root[data-theme='karrakin'] .ss-shop .tabs > .b1 { background: var(--kf); }
+:root[data-theme='karrakin'] .ss-shop .tabs > .b2 { inset: 3px; background-color: color-mix(in oklch, var(--kl, var(--kf)) 10%, #efe4c8); background-image: repeating-linear-gradient(0deg, #6a4a2a08 0 1px, transparent 1px 4px); }
+:root[data-theme='karrakin'] .ss-shop .tabs > .c { padding-bottom: 30px; }
+:root[data-theme='karrakin'] .ss-shop .tab .n { font-family: var(--k-cinzel); font-weight: 600; font-size: 13px; letter-spacing: .5px; }
+:root[data-theme='karrakin'] .ss-shop .tab .k { font-family: var(--k-cinzel); font-weight: 700; font-size: 8px; letter-spacing: 1.5px; }
+:root[data-theme='karrakin'] .ss-shop .tab .bar {
+  inset: 4px;
+  width: auto;
+  background: color-mix(in oklch, var(--kf) 13%, transparent);
+  border-top: 1px solid color-mix(in oklch, var(--kf) 45%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, var(--kf) 45%, transparent);
+}
+:root[data-theme='karrakin'] .ss-shop .row .bg {
+  border: 1px solid color-mix(in oklch, var(--kf) 45%, #8a6a3a);
+  background: #fffaf0aa;
+  box-shadow: inset 0 0 0 2px #fffaf0, inset 0 0 0 3px color-mix(in oklch, var(--kf) 35%, #b8a47c);
+}
+:root[data-theme='karrakin'] .ss-shop .row .tt { font-family: var(--k-corm); font-weight: 600; font-size: 16px; line-height: 1.25; }
+:root[data-theme='karrakin'] .ss-shop .row .nt { font-family: var(--k-corm); font-style: italic; font-weight: 500; font-size: 14px; }
+:root[data-theme='karrakin'] .ss-shop .price { font-weight: 600; font-size: 11px; letter-spacing: 1.5px; }
+:root[data-theme='karrakin'] .ss-shop .price:disabled { font-size: 14px; letter-spacing: .3px; }
+:root[data-theme='karrakin'] .ss-shop .msg { font-family: var(--k-corm); font-style: italic; font-size: 15px; }
+/* Замок «Страховий фонд» — сургучна печатка. */
+:root[data-theme='karrakin'] .ss-shop .lock {
+  font-family: var(--k-cinzel);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--danger);
+  border: 1px solid color-mix(in oklch, var(--danger) 55%, transparent);
+  outline: 1px solid color-mix(in oklch, var(--danger) 30%, transparent);
+  outline-offset: -4px;
+  background: color-mix(in oklch, var(--danger) 5%, transparent);
+  padding: 14px 16px;
+  gap: 12px;
+}
+:root[data-theme='karrakin'] .ss-shop .lock:hover { border-color: var(--danger); }
+:root[data-theme='karrakin'] .ss-shop .lock > svg:first-child {
+  width: 30px;
+  height: 30px;
+  padding: 7px;
+  border-radius: 50%;
+  color: #f4e2c0;
+  background: radial-gradient(circle at 35% 30%, color-mix(in oklch, var(--danger) 80%, #fff), var(--danger) 60%, color-mix(in oklch, var(--danger) 70%, #000));
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--danger) 35%, transparent), 0 1px 2px #0005;
+}
+:root[data-theme='karrakin'] .ss-shop .lock > span { font-family: var(--k-corm); font-style: italic; font-weight: 600; font-size: 16px; letter-spacing: 0; }
+
+/* ---------- Записник ---------- */
+:root[data-theme='karrakin'] .ss-notes .nb-prompt { display: none; }
+:root[data-theme='karrakin'] .ss-notes :is(.nb-write, .nb-search) {
+  font-family: var(--k-corm);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 17px;
+  font-size-adjust: none;
+  color: var(--text-bright);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid color-mix(in oklch, var(--kt) 30%, transparent);
+  height: 32px;
+  padding: 0 2px;
+  box-shadow: none;
+}
+:root[data-theme='karrakin'] .ss-notes :is(.nb-write, .nb-search):focus { border-bottom-color: var(--kt); box-shadow: none; }
+:root[data-theme='karrakin'] .ss-notes .ss-chip { font-size: 10px; letter-spacing: 2px; padding: 0 11px; transition: border-color .15s, color .15s; }
+:root[data-theme='karrakin'] .ss-notes .nb-row { position: relative; border-top-color: color-mix(in oklch, var(--kt) 16%, transparent) !important; }
+:root[data-theme='karrakin'] .ss-notes .nb-row.pinned { background: linear-gradient(90deg, color-mix(in oklch, var(--kf) 22%, transparent), transparent 70%) !important; }
+:root[data-theme='karrakin'] .ss-notes .nb-pin { font-size: 0; }
+:root[data-theme='karrakin'] .ss-notes .nb-row.pinned .nb-pin::before { content: ''; position: absolute; left: 19px; top: 0; width: 9px; height: 20px; background: var(--ka); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); }
+:root[data-theme='karrakin'] .ss-notes .nb-date { font-family: var(--k-corm); font-style: italic; font-weight: 500; font-size: 15px; font-size-adjust: none; }
+:root[data-theme='karrakin'] .ss-notes .nb-meta { font-family: var(--k-cinzel); font-size: 10px; letter-spacing: 1.5px; color: var(--ka) !important; font-size-adjust: none; }
+:root[data-theme='karrakin'] .ss-notes .nb-text { font-family: var(--k-corm); font-style: italic; font-weight: 500; font-size: 16px; line-height: 1.45 !important; color: var(--text) !important; font-size-adjust: none; }
+
+/* ---------- Профіль: портрет-прапор, мехи, ігри, журнал операцій, покращення ---------- */
+/* Порожній портрет — вимпел кольору дому; з картинкою — лише подвійна рамка. */
+:root[data-theme='karrakin'] .ss-portrait .ss-art { border-color: color-mix(in oklch, var(--kt) 45%, transparent) !important; box-shadow: inset 0 0 0 3px var(--panel-sunken), inset 0 0 0 4px color-mix(in oklch, var(--kt) 35%, transparent); }
+:root[data-theme='karrakin'] .ss-portrait .ss-art:has(.ss-hatch) {
+  background: var(--kf) !important;
+  border: none !important;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 18px), 0 100%);
+  box-shadow: inset 0 0 0 3px var(--kf), inset 0 0 0 4px var(--kt);
+}
+:root[data-theme='karrakin'] .ss-portrait .ss-hatch { background: transparent; padding-bottom: 30px !important; }
+:root[data-theme='karrakin'] .ss-portrait .ss-hatch > div { color: var(--kht) !important; font-family: var(--k-cinzel); letter-spacing: 3px !important; }
+:root[data-theme='karrakin'] .ss-portrait .ss-hatch::after { content: ''; position: absolute; left: 50%; bottom: 30px; width: 9px; height: 9px; margin-left: -5px; background: var(--kt); transform: rotate(45deg); }
+:root[data-theme='karrakin'] .ss-mechimg .ss-art { border-color: color-mix(in oklch, var(--kt) 45%, transparent) !important; box-shadow: inset 0 0 0 3px var(--panel-sunken), inset 0 0 0 4px color-mix(in oklch, var(--kt) 35%, transparent); }
+:root[data-theme='karrakin'] .ss-mechimg .ss-hatch > div { font-family: var(--k-cinzel); letter-spacing: 2.5px !important; font-size-adjust: none; }
+/* Картка меха: вимпел замість лівої смуги акценту. */
+:root[data-theme='karrakin'] .ss-mech { position: relative; border-left-width: 1px !important; border-color: color-mix(in oklch, var(--kt) 35%, transparent) !important; padding-left: 34px !important; }
+:root[data-theme='karrakin'] .ss-mech::before { content: ''; position: absolute; left: 10px; top: 0; width: 12px; height: 58px; background: var(--kf); box-shadow: inset 0 0 0 1px var(--kt); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%); }
+:root[data-theme='karrakin'] .m-item { border-bottom-color: color-mix(in oklch, var(--kt) 15%, transparent) !important; }
+:root[data-theme='karrakin'] .m-item button { letter-spacing: 1px; }
+:root[data-theme='karrakin'] .m-game { border-top-color: color-mix(in oklch, var(--kt) 18%, transparent) !important; }
+:root[data-theme='karrakin'] .m-game > span:first-child { font-family: var(--k-corm); font-style: italic; font-weight: 500; font-size: 15px; font-size-adjust: none; }
+:root[data-theme='karrakin'] .m-op { border-top-color: color-mix(in oklch, var(--kt) 15%, transparent) !important; }
+:root[data-theme='karrakin'] .m-op > span:first-child { font-family: var(--k-corm); font-style: italic; font-weight: 500; font-size: 15px; font-size-adjust: none; }
+:root[data-theme='karrakin'] .ss-up-list { border-right-color: color-mix(in oklch, var(--kt) 35%, transparent); }
+:root[data-theme='karrakin'] .ss-up-item > span:first-child { transform: rotate(45deg) scale(.9); }
+:root[data-theme='karrakin'] .ss-up-item > span:nth-child(2) { font-family: var(--k-forum); font-size: 15px; }
+:root[data-theme='karrakin'] .ss-up-item.on { border-left-color: var(--kt); }
+
+/* ================= Світлі доми (Скло, Обіцянка) =================
+   Активні вкладки, фільтри й вибрані кнопки залиті полем дому з темним текстом. */
+:root[data-theme='karrakin']:is([data-house='glass'], [data-house='promise']) :is(.btn, .ss-chip.on, .ss-seg:not(.on-bar) button.on, .ss-shop .price:not(:disabled)) { background-color: var(--kf); color: var(--kht); }
+:root[data-theme='karrakin']:is([data-house='glass'], [data-house='promise']) :is(.btn, .ss-chip.on, .ss-shop .price):hover:not(:disabled) { background-color: color-mix(in oklch, var(--kf) 82%, #000); }
+:root[data-theme='karrakin']:is([data-house='glass'], [data-house='promise']) .ss-rail {
+  --mb: color-mix(in oklch, var(--kl) 10%, #e7e3da);
+  --vn: #4a42362a;
+  --vn2: #4a42361a;
+  --kblob: transparent;
+  --gm: #8a5a00;
+  --gm-ink: #8a5a00;
+}
+:root[data-theme='karrakin']:is([data-house='glass'], [data-house='promise']) .ss-rail :is(a, button) span,
+:root[data-theme='karrakin']:is([data-house='glass'], [data-house='promise']) .ss-rail .nav .t { text-shadow: 1px 1px 0 #ffffffc0, -1px -1px 0 #00000040; }
+:root[data-theme='karrakin']:is([data-house='glass'], [data-house='promise']) .ss-rail svg { color: #3e3428; filter: drop-shadow(1px 1px 0 #ffffffc0) drop-shadow(-1px -1px 0 #00000040); }
+:root[data-theme='karrakin']:is([data-house='glass'], [data-house='promise']) .ss-rail .nav .ic::before { background: #ffffff40; border-color: color-mix(in oklch, var(--kf) 45%, #6a5e4e); box-shadow: inset 1px 1px 2px #0000003a, inset -1px -1px 0 #ffffffa0; }
+:root[data-theme='karrakin']:is([data-house='glass'], [data-house='promise']) .ss-rail .nav.on .ic::before { background: var(--kf); border-color: var(--kt); box-shadow: inset 0 0 0 2px var(--kf), inset 0 0 0 3px var(--kt), 0 2px 4px #0004; }
+:root[data-theme='karrakin']:is([data-house='glass'], [data-house='promise']) .ss-rail .nav.on .ic svg { color: var(--kht); filter: none; }
+:root[data-theme='karrakin']:is([data-house='glass'], [data-house='promise']) .ss-rail .nav.on .t { color: color-mix(in oklch, var(--kf) 70%, #000); }
+:root[data-theme='karrakin']:is([data-house='glass'], [data-house='promise']) .ss-rail .foot { color: var(--text-soft); }
+:root[data-theme='karrakin']:is([data-house='glass'], [data-house='promise']) .ss-rail .foot span { color: var(--text-soft) !important; }
+
+/* ================= Дім Миттєвостей =================
+   Оздоблення (--kt) майже чорне: вибрані кнопки залиті полем, а рамки беруть акцент. */
+:root[data-theme='karrakin'][data-house='moments'] :is(.ss-panel, .card, .ss-menu, .ss-mechimg, .ss-portrait, .ss-mech) { --kt: var(--ka); }
+:root[data-theme='karrakin'][data-house='moments'] :is(.btn, .ss-chip.on, .ss-seg:not(.on-bar) button.on, .ss-shop .price:not(:disabled)) { background-color: var(--kf); color: var(--kht); border-color: var(--ka); }
+:root[data-theme='karrakin'][data-house='moments'] :is(.btn, .ss-chip.on, .ss-seg:not(.on-bar) button.on, .ss-shop .price:not(:disabled))::after { --kb: color-mix(in oklch, var(--kht) 45%, transparent); }
+:root[data-theme='karrakin'][data-house='moments'] :is(.btn, .ss-chip.on, .ss-shop .price):hover:not(:disabled) { background-color: color-mix(in oklch, var(--kf) 80%, #fff); }
+:root[data-theme='karrakin'][data-house='moments'] :is(.ss-chip:not(.on), .ss-seg:not(.on-bar) button:not(.on)) { --kb: color-mix(in oklch, var(--ka) 40%, transparent); }
+:root[data-theme='karrakin'][data-house='moments'] :is(.ss-chip:not(.on), .ss-seg:not(.on-bar) button:not(.on)):hover { --kb: var(--ka); }
+:root[data-theme='karrakin'][data-house='moments'] .btn-ghost { border-color: color-mix(in oklch, var(--ka) 40%, transparent); }
+:root[data-theme='karrakin'][data-house='moments'] .btn-ghost:hover:not(:disabled) { border-color: var(--ka); }

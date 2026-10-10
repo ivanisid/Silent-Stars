@@ -260,7 +260,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
 
   return (
     <div
-      className="m-stack m-pad"
+      className="m-stack m-pad ss-mech"
       style={{ border: '1px solid var(--input-border)', borderLeft: '3px solid var(--accent)', background: 'var(--panel-sunken)', padding: 14, display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 220px', gap: 20 }}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
@@ -524,7 +524,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
       </div>
       <div className="m-side" style={{ display: 'flex', flexDirection: 'column', gap: 14, width: 220, maxWidth: '100%', minWidth: 0 }}>
         <ArtSlot
-          className="m-portrait"
+          className="m-portrait ss-mechimg"
           art={art}
           label="ЗОБРАЖЕННЯ МЕХА"
           canEdit={canEditArt}

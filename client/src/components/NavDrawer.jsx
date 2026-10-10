@@ -153,8 +153,8 @@ export default function NavDrawer() {
                   <span className="code">{it.code}</span>
                 </div>
                 <div className="lbl txt">
-                  <span className="t">{on ? '▸ ' : ''}{it.label}</span>
-                  <span className="d">// {it.desc}</span>
+                  <span className="t">{on && <span className="pre">▸ </span>}{it.label}</span>
+                  <span className="d"><span className="pre">// </span>{it.desc}</span>
                 </div>
               </a>
             );
