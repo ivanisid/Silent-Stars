@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-// Colour themes. Most are ported from COMP/CON; FERUM//VOX and KARRAKIN are ours. Each one
+// Colour themes. Most are ported from COMP/CON; FERUM//VOX, CASCADING and KARRAKIN are ours. Each one
 // is a set of CSS variable overrides in styles/theme.css, selected by a data-theme attribute
 // on <html>; KARRAKIN additionally reads data-house, which picks the banner its colours are
 // mixed from. The swatch hexes are literal on purpose — they preview a theme other than the
@@ -20,6 +20,7 @@ export const THEMES = [
   { id: 'hc-dark', label: 'High Contrast Dark', dark: true, swatch: ['#1b212b', '#4b0c13', '#ffabb3'] },
   { id: 'mono', label: 'Monochrome', dark: true, swatch: ['#131313', '#2a2a2a', '#d6d6d6'] },
   { id: 'ferum', label: 'FERUM//VOX', dark: true, swatch: ['#0c1117', '#2a3e54', '#6ea4d8'] },
+  { id: 'cascading', label: 'CASCADING', dark: true, swatch: ['#04050a', '#141933', '#a6e4ff'] },
   { id: 'karrakin', label: 'KARRAKIN', dark: true, swatch: ['#1a1814', '#5fa883', '#f0f0ea'] },
 ];
 

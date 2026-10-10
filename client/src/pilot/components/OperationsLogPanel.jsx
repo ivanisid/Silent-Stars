@@ -107,7 +107,7 @@ export default function OperationsLogPanel({ pilotId, refreshKey, onReverted, ow
       <div style={{ display: 'flex', flexDirection: 'column', fontSize: 12 }}>
         {error && <div className="error-box" style={{ margin: 14 }}>!! {error}</div>}
         {rows !== null && rows.length === 0 && !error && (
-          <div className="ss-note" style={{ padding: '12px 14px' }}>&gt; Операцій ще не зафіксовано.</div>
+          <div className="ss-note" style={{ padding: '12px 14px' }}><span className="pre">&gt; </span>Операцій ще не зафіксовано.</div>
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 480, overflowY: 'auto' }}>

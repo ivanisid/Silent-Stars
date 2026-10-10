@@ -156,7 +156,7 @@ export default function PilotProfilePage() {
     return (
       <PageShell>
         <PageHeader section="ROSTER" sectionTo="/pilots" title="…" />
-        <div className="ss-note">&gt; Завантаження…</div>
+        <div className="ss-note"><span className="pre">&gt; </span>Завантаження…</div>
       </PageShell>
     );
   }

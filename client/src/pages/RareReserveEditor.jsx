@@ -181,7 +181,7 @@ export function TagManager({ tags, reserves, onClose }) {
           </form>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {tags.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>&gt; Тегів ще немає.</div>}
+            {tags.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}><span className="pre">&gt; </span>Тегів ще немає.</div>}
             {tags.map((t) => {
               const used = reserves.filter((r) => r.tagIds.includes(t.id)).length;
               const isEditing = editing?.id === t.id;

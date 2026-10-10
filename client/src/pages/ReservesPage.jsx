@@ -58,7 +58,7 @@ function ListPanel({ shown, total, children }) {
       <div style={{ padding: '7px 14px', borderBottom: '1px solid var(--panel-border)', fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>
         {shown === total ? `${total} ПОЗИЦІЙ` : `${shown} З ${total}`}
       </div>
-      {shown === 0 && <div style={{ padding: '18px 14px', fontSize: 12, color: 'var(--text-dimmer)' }}>&gt; Нічого не знайдено.</div>}
+      {shown === 0 && <div style={{ padding: '18px 14px', fontSize: 12, color: 'var(--text-dimmer)' }}><span className="pre">&gt; </span>Нічого не знайдено.</div>}
       {children}
     </div>
   );
@@ -74,7 +74,7 @@ function Row({ i, icon, name, meta, desc, flavor, price, extra, dim }) {
           <span style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>{meta}</span>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.6, textWrap: 'pretty' }}>{desc}</div>
-        {flavor && <div style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.6, fontStyle: 'italic' }}>&gt; {flavor}</div>}
+        {flavor && <div style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.6, fontStyle: 'italic' }}><span className="pre">&gt; </span>{flavor}</div>}
         {extra}
       </div>
       <div style={{ fontSize: 11, color: 'var(--text-info)', letterSpacing: 1, whiteSpace: 'nowrap' }}>{price}</div>
@@ -226,7 +226,7 @@ function RareList({ q }) {
       {actionError && <Msg kind="err">{actionError}</Msg>}
 
       {!loaded && !error ? (
-        <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>&gt; Завантаження каталогу…</div>
+        <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}><span className="pre">&gt; </span>Завантаження каталогу…</div>
       ) : (
         <ListPanel shown={list.length} total={pool.length}>
           {list.map((r, i) => (

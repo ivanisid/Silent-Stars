@@ -249,7 +249,7 @@ function PickModal({ initialTab = 'rare', vaultFull, onClose, onPick }) {
                 </div>
               </button>
             ))}
-            {list.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}>&gt; Нічого не знайдено.</div>}
+            {list.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}><span className="pre">&gt; </span>Нічого не знайдено.</div>}
           </div>
 
           <button className="btn-ghost" type="button" onClick={onClose} style={{ alignSelf: 'flex-end', flexShrink: 0 }}>

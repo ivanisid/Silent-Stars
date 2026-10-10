@@ -95,7 +95,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
                     {pilot.name}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: 2 }}>
-                    &gt; {pilot.callsign}
+                    <span className="pre">&gt; </span>{pilot.callsign}
                     {state.mechs.length > 0 && <> · ▮ {mechsLine(state.mechs)}</>}
                   </div>
                   {pilot.background && (

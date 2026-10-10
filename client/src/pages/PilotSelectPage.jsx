@@ -256,10 +256,10 @@ export default function PilotSelectPage() {
       </div>
 
       <div className="ss-panel" style={{ display: 'flex', flexDirection: 'column' }}>
-        {loading && <div className="ss-note" style={{ padding: 14 }}>&gt; Завантаження…</div>}
+        {loading && <div className="ss-note" style={{ padding: 14 }}><span className="pre">&gt; </span>Завантаження…</div>}
         {!loading && shown.length === 0 && (
           <div className="ss-slot" style={{ margin: 10, padding: 18, justifyContent: 'flex-start', gap: 10, flexWrap: 'wrap', fontSize: 12, color: 'var(--text-dimmer)' }}>
-            <span style={{ flex: 1 }}>&gt; {pilots.length === 0 ? 'Пілотів ще немає.' : 'Нічого не знайдено.'}</span>
+            <span style={{ flex: 1 }}><span className="pre">&gt; </span>{pilots.length === 0 ? 'Пілотів ще немає.' : 'Нічого не знайдено.'}</span>
             {pilots.length === 0 && <button className="btn" type="button" onClick={() => setFormOpen(true)}>+ НОВИЙ ПІЛОТ</button>}
           </div>
         )}
