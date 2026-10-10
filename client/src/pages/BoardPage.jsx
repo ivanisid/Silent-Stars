@@ -551,13 +551,13 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
             })}
           </div>
         )}
-        {slot.signups.length === 0 && <div className="ss-note" style={{ fontSize: 12 }}>&gt; Ще ніхто не записався.</div>}
+        {slot.signups.length === 0 && <div className="ss-note" style={{ fontSize: 12 }}><span className="pre">&gt; </span>Ще ніхто не записався.</div>}
 
         {error && <Msg kind="err">{error}</Msg>}
 
         {/* Player actions — the GM running this game does not play in it */}
         {ownsSlot && isOpen && (
-          <div style={{ fontSize: 11, color: 'var(--text-grey)', letterSpacing: 1 }}>&gt; Ви ведете цю гру — запис власним персонажем недоступний.</div>
+          <div style={{ fontSize: 11, color: 'var(--text-grey)', letterSpacing: 1 }}><span className="pre">&gt; </span>Ви ведете цю гру — запис власним персонажем недоступний.</div>
         )}
         {isOpen && !mySignup && !ownsSlot && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -813,8 +813,8 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                 СКАСУВАТИ СЛОТ
               </button>
             </div>
-            {savedNote && <div style={{ fontSize: 11, color: 'var(--success)' }}>&gt;&gt; {savedNote}</div>}
-            {tagsNote && <div style={{ fontSize: 11, color: 'var(--success)' }}>&gt;&gt; {tagsNote}</div>}
+            {savedNote && <div style={{ fontSize: 11, color: 'var(--success)' }}><span className="pre">&gt;&gt; </span>{savedNote}</div>}
+            {tagsNote && <div style={{ fontSize: 11, color: 'var(--success)' }}><span className="pre">&gt;&gt; </span>{tagsNote}</div>}
           </div>
         )}
         {ownsSlot && !isOpen && !isApproved && (
@@ -1031,12 +1031,12 @@ export default function BoardPage() {
       {user && <DiscordLink user={user} />}
 
       {loadError && <Msg kind="err">{loadError}</Msg>}
-      {loading && <div className="ss-note">&gt; Завантаження…</div>}
+      {loading && <div className="ss-note"><span className="pre">&gt; </span>Завантаження…</div>}
 
       {isGm && !loading && <CreateSlotForm onCreated={reload} />}
 
       {!loading && sorted.length === 0 && (
-        <div className="ss-slot" style={{ padding: 22, fontSize: 12, color: 'var(--text-dimmer)' }}>&gt; Ігор поки немає.</div>
+        <div className="ss-slot" style={{ padding: 22, fontSize: 12, color: 'var(--text-dimmer)' }}><span className="pre">&gt; </span>Ігор поки немає.</div>
       )}
 
       {sorted.map((slot) => (

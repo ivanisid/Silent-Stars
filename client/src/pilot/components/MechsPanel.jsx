@@ -48,7 +48,7 @@ export default function MechsPanel({ state, dispatch, pilotId, mechArt = {}, can
         )}
         {state.mechs.length === 0 && (
           <div className="ss-slot" style={{ minHeight: 54, justifyContent: 'flex-start', padding: '0 16px', fontSize: 12, color: 'var(--text-dimmer)' }}>
-            &gt; Мехів ще немає. Додайте вручну нижче або з COMP/CON JSON (меню «⋯» у профілі).
+            <span className="pre">&gt; </span>Мехів ще немає. Додайте вручну нижче або з COMP/CON JSON (меню «⋯» у профілі).
           </div>
         )}
         {state.mechs.map((m) => (
@@ -141,7 +141,7 @@ function Fold({ title, count, open, onToggle, children }) {
 
 const EMPTY_BUILD = (
   <div className="ss-slot" style={{ minHeight: 40, justifyContent: 'flex-start', padding: '0 12px', fontSize: 11, color: 'var(--text-dimmer)' }}>
-    &gt; Немає в даних меха. Завантажте файл COMP/CON цього меха (меню «⋯» у профілі або нижче).
+    <span className="pre">&gt; </span>Немає в даних меха. Завантажте файл COMP/CON цього меха (меню «⋯» у профілі або нижче).
   </div>
 );
 

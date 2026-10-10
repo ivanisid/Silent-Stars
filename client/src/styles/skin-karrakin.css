@@ -109,6 +109,16 @@
   letter-spacing: .3px;
 }
 :root[data-theme='karrakin'] .ss-bar button { font-family: var(--k-cinzel); letter-spacing: 2px; }
+/* Стрічка має фіксовану висоту (під неї вирізано загин і виріз рамки), тому довгі назви
+   й підписи не переносяться, а обрізаються трикрапкою; повний текст — у title. */
+:root[data-theme='karrakin'] :is(.ss-panel, .card) > :is(.ss-bar, .card-header):not(.gm):not(.done) > :is(.title, .sub) {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+:root[data-theme='karrakin'] :is(.ss-panel, .card) > :is(.ss-bar, .card-header):not(.gm):not(.done) > .title { flex: 0 1 auto; }
+:root[data-theme='karrakin'] :is(.ss-panel, .card) > :is(.ss-bar, .card-header):not(.gm):not(.done) > .sub { flex: 0 10 auto; padding-left: 8px; }
 :root[data-theme='karrakin'] .ss-seg.on-bar button.on { background: var(--kt); color: var(--kf); }
 
 /* ---------- Кнопки ---------- */
@@ -350,14 +360,14 @@
 }
 :root[data-theme='karrakin'] .ss-rail .fx:not(.arrow) { display: none; }
 :root[data-theme='karrakin'] .ss-rail :is(.nav, .sep) { border: none; }
-:root[data-theme='karrakin'] .ss-rail :is(a, button) span { text-shadow: -1px -1px 0 #000000e6, 1px 1px 0 #ffffff38, 0 0 1px #00000080; }
+:root[data-theme='karrakin'] .ss-rail :is(a, button) span { text-shadow: -1px -1px 0 #000000b0, 1px 1px 0 #ffffff26; }
 :root[data-theme='karrakin'] .ss-rail svg { filter: drop-shadow(-1px -1px 0 #000000e6) drop-shadow(1px 1px 0 #ffffff38); }
 :root[data-theme='karrakin'] .ss-rail .nav .t {
   font-family: var(--k-cinzel);
   font-weight: 700;
   letter-spacing: 2.5px;
-  color: color-mix(in oklch, currentColor 62%, var(--mb));
-  text-shadow: -1px -1px 0 #000, 1px 1px 0 #ffffff4a, -2px -2px 2px #00000080;
+  color: color-mix(in oklch, var(--text) 82%, var(--mb));
+  text-shadow: -1px -1px 0 #000000b0, 1px 1px 0 #ffffff26;
 }
 :root[data-theme='karrakin'] .ss-rail .nav,
 :root[data-theme='karrakin'] .ss-rail .nav:hover { background: transparent; }
@@ -551,7 +561,7 @@
 
 /* ================= Дім Миттєвостей =================
    Оздоблення (--kt) майже чорне: вибрані кнопки залиті полем, а рамки беруть акцент. */
-:root[data-theme='karrakin'][data-house='moments'] :is(.ss-panel, .card, .ss-menu, .ss-mechimg, .ss-portrait, .ss-mech) { --kt: var(--ka); }
+:root[data-theme='karrakin'][data-house='moments'] :is(.ss-panel, .card, .ss-menu, .ss-mechimg, .ss-portrait, .ss-mech, .ss-head, .ss-rail, .modal-box, .ss-box, .ss-tile, .ss-list, .ss-slot) { --kt: var(--ka); }
 :root[data-theme='karrakin'][data-house='moments'] :is(.btn, .ss-chip.on, .ss-seg:not(.on-bar) button.on, .ss-shop .price:not(:disabled)) { background-color: var(--kf); color: var(--kht); border-color: var(--ka); }
 :root[data-theme='karrakin'][data-house='moments'] :is(.btn, .ss-chip.on, .ss-seg:not(.on-bar) button.on, .ss-shop .price:not(:disabled))::after { --kb: color-mix(in oklch, var(--kht) 45%, transparent); }
 :root[data-theme='karrakin'][data-house='moments'] :is(.btn, .ss-chip.on, .ss-shop .price):hover:not(:disabled) { background-color: color-mix(in oklch, var(--kf) 80%, #fff); }

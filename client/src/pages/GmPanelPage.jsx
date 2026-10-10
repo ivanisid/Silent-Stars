@@ -166,7 +166,7 @@ export default function GmPanelPage() {
   if (role === null) {
     return (
       <PageShell>
-        <div className="ss-note">&gt; Завантаження…</div>
+        <div className="ss-note"><span className="pre">&gt; </span>Завантаження…</div>
       </PageShell>
     );
   }
@@ -192,7 +192,7 @@ export default function GmPanelPage() {
       {deleting && <DeleteUserDialog group={deleting} onYes={() => deleteUser(deleting)} onNo={() => setDeleting(null)} />}
       {loadError && <Msg kind="err">{loadError}</Msg>}
       {roleNote && <Msg kind="ok">{roleNote}</Msg>}
-      {loading && <div className="ss-note">&gt; Завантаження…</div>}
+      {loading && <div className="ss-note"><span className="pre">&gt; </span>Завантаження…</div>}
 
       {!loading &&
         shown.map((group) => (
@@ -254,7 +254,7 @@ export default function GmPanelPage() {
                 <span className="gm-upd" style={{ color: 'var(--text-dimmer)', fontSize: 11, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatDate(p.updatedAt)}</span>
               </Link>
             ))}
-            {group.pilots.length === 0 && <div className="ss-note" style={{ padding: '10px 14px', fontSize: 12 }}>&gt; Персонажів немає.</div>}
+            {group.pilots.length === 0 && <div className="ss-note" style={{ padding: '10px 14px', fontSize: 12 }}><span className="pre">&gt; </span>Персонажів немає.</div>}
           </Panel>
         ))}
 

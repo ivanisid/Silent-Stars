@@ -91,7 +91,7 @@ export default function PilotGames({ games }) {
       </div>
 
       {rows.length === 0 ? (
-        <div className="ss-note">&gt; Пілот ще не записаний на жодну гру.</div>
+        <div className="ss-note"><span className="pre">&gt; </span>Пілот ще не записаний на жодну гру.</div>
       ) : (
         <div className="ss-list">
           {rows.map((g, i) => {

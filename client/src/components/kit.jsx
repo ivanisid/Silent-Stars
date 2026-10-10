@@ -60,8 +60,8 @@ export function Panel({ id, title, sub, right, tone, className = '', children, s
       {title != null && (
         <div className={`ss-bar${tone ? ` ${tone}` : ''}`}>
           <div className="dot" />
-          <span className="title">{title}</span>
-          {sub != null && <span className="sub">{sub}</span>}
+          <span className="title" title={typeof title === 'string' ? title : undefined}>{title}</span>
+          {sub != null && <span className="sub" title={typeof sub === 'string' ? sub : undefined}>{sub}</span>}
           {right && <div style={{ marginLeft: sub != null ? 8 : 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>{right}</div>}
         </div>
       )}
@@ -73,7 +73,9 @@ export function Panel({ id, title, sub, right, tone, className = '', children, s
 export function Msg({ kind = 'ok', children, style }) {
   const cls = kind === 'err' ? 'error-box' : kind === 'warn' ? 'warn-box' : 'success-box';
   const prefix = kind === 'err' ? '!!' : kind === 'warn' ? '::' : '>>';
-  const text = typeof children === 'string' && children.startsWith(prefix) ? children : <>{prefix} {children}</>;
+  const text = typeof children === 'string' && children.startsWith(prefix)
+    ? <><span className="pre">{prefix} </span>{children.slice(prefix.length).trimStart()}</>
+    : <><span className="pre">{prefix} </span>{children}</>;
   return <div className={cls} style={style}>{text}</div>;
 }
 
@@ -158,7 +160,7 @@ export function ConfirmDialog({ title, question, lines = [], note, tone, yesLabe
             <div className="modal-lines">
               {lines.filter((l) => l != null && l !== false).map((l, i) =>
                 typeof l === 'string' ? (
-                  <div key={i}>&gt; {l}</div>
+                  <div key={i}><span className="pre">&gt; </span>{l}</div>
                 ) : (
                   <div key={i} style={{ color: l.ink || undefined }}>{l.t}</div>
                 ),

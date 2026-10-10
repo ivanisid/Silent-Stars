@@ -112,7 +112,7 @@ export default function NarrativeEditor({ state, dispatch, games, saving }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', fontSize: 12 }}>
         {shown.length === 0 && (
-          <div className="ss-note" style={{ padding: '12px 14px' }}>&gt; {notes.length ? 'Нічого не знайдено.' : 'Записів ще немає.'}</div>
+          <div className="ss-note" style={{ padding: '12px 14px' }}><span className="pre">&gt; </span>{notes.length ? 'Нічого не знайдено.' : 'Записів ще немає.'}</div>
         )}
         {shown.map((n, i) => (
           <div
