@@ -13,7 +13,7 @@
 const PANELS = '.ss-panel, .card, [data-panel]';
 
 // Продакшн-налаштування (у прототипі — Tweaks): варіант AB, шлейф «Минуле і майбутнє»,
-// стадія росте сама.
+// стадія росте сама. HUD стадії з прототипу свідомо не показується.
 const defaultOpts = () => ({ variant: 'AB', trail: 'Минуле і майбутнє', stage: '' });
 
 export const DATA = {
@@ -36,7 +36,7 @@ export function start(getOpts = defaultOpts) {
   const C = DATA, rnd = (a, b) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
   const on = () => root.dataset.theme === 'cascading' || root.dataset.cascade != null;
   const root = document.documentElement, timers = new Set(), orig = new Map(), posFix = [], cracks = [];
-  let nodes = [], lastScan = 0, t0 = 0, V = '', stage = 0, hud = null, hudAt = 0, clock = 0;
+  let nodes = [], lastScan = 0, t0 = 0, V = '', stage = 0;
   let mx = -1, my = -1, mt = 0, vx = 0, vy = 0, precog = null, preAt = 0, hist = [], snaps = [], snapAt = 0, ghosts = [], raf = 0;
   const later = (fn, ms) => { const id = setTimeout(() => { timers.delete(id); fn(); }, ms); timers.add(id); };
   const setText = (n, v) => { if (!orig.has(n)) orig.set(n, n.nodeValue); n.nodeValue = v; n.__casc = v; };
@@ -245,28 +245,20 @@ export function start(getOpts = defaultOpts) {
     document.querySelectorAll('[data-casc-fx]').forEach(e => e.remove());
     ['glitch', 'nhp', 'rev', 'precog', 'echo', 'escaped', 'drift'].forEach(k => document.querySelectorAll('[data-' + k + ']').forEach(e => delete e.dataset[k]));
     posFix.splice(0).forEach(e => { e.style.position = ''; });
-    cracks.length = 0; ghosts = []; snaps = []; glyphs = []; cv = null; rp = null; TM = ''; precog = null; hud = null;
-    delete root.dataset.tear; delete root.dataset.cascStage; delete root.dataset.cascVar; hudAt = 0;
-  };
-  const fmt = s => { s = ((Math.floor(s) % 86400) + 86400) % 86400; return [s / 3600, s / 60 % 60, s % 60].map(v => String(Math.floor(v)).padStart(2, '0')).join(':'); };
-  const hudTick = () => {
-    if (!hud) hud = fx(PARA + 'position:fixed;z-index:9999;bottom:14px;left:50%;transform:translateX(-50%);font-size:11px');
-    clock -= stage === 3 && Math.random() < .2 ? rnd(30, 4000) : 1;
-    hud.textContent = 'NHP // КАСКАД ' + '▮'.repeat(stage + 1) + '▯'.repeat(3 - stage) + '  СТАДІЯ ' + stage + ' · ' + C.CASC_STAGES[stage] + '   ⟲ ' + fmt(clock);
+    cracks.length = 0; ghosts = []; snaps = []; glyphs = []; cv = null; rp = null; TM = ''; precog = null;
+    delete root.dataset.tear; delete root.dataset.cascStage; delete root.dataset.cascVar;
   };
   const tick = () => {
     onTick();
     if (!on()) { if (t0) { cleanup(); t0 = 0; V = ''; } return; }
     const now = performance.now();
-    if (!t0) { t0 = now; const d = new Date(); clock = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds(); }
+    if (!t0) t0 = now;
     const v = String(O().variant || 'AB').split(' ')[0];
     if (v !== V) { if (V) cleanup(); V = v; root.dataset.cascVar = v; }
     const ps = O().stage, o = ps && /^\d/.test(ps) ? ps : (ev && ev.stage != null ? String(ev.stage) : ''), el = (now - t0) / 1000;
     stage = o && /^\d/.test(o) ? +o[0] : C.CASC_AT.reduce((s, t, i) => el >= t ? i : s, 0);
     if (root.dataset.cascStage !== String(stage)) root.dataset.cascStage = stage;
     if (now - lastScan > 2500) { scan(); lastScan = now; }
-    // У прототипі hudTick не викликався, хоча README описує HUD — годинник іде раз на секунду.
-    if (now - hudAt >= 1000) { hudTick(); hudAt = now; }
     const k = [.12, .4, .7, 1][stage], R = p => Math.random() < p;
     const burst = R(.08 * k) ? Math.floor(rnd(3, 4 + 6 * k)) : (R(.5 * k) ? 1 : 0);
     for (let i = 0; i < burst; i++) corrupt();
