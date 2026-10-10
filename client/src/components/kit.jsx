@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import NavDrawer from './NavDrawer.jsx';
+import { houseInfo, nextHouse, useThemeState } from '../theme';
 
 // Спільний набір компонентів інтерфейсу 2a: сторінка з фоновою сіткою, шапка, панель,
 // меню «⋯», вікно підтвердження (замість window.confirm), лічильник-трек, повідомлення.
@@ -16,12 +17,27 @@ export function PageShell({ children, narrow = false }) {
   );
 }
 
+// Лого FERUM VOX; у темі KARRAKIN замість нього прапор вибраного дому — клік перемикає
+// на наступний дім.
+function HeaderMark() {
+  const { theme, house } = useThemeState();
+  if (theme !== 'karrakin') {
+    return <img src="/logo-ferum-vox.webp" alt="" width="28" height="28" style={{ display: 'block' }} />;
+  }
+  const h = houseInfo(house);
+  return (
+    <button type="button" className="ss-flag" title={`${h.label} — наступний дім`} aria-label={`${h.label}. Наступний дім`} onClick={nextHouse}>
+      <img src={`/houses/${h.id}.png`} alt="" data-house-flag="" />
+    </button>
+  );
+}
+
 // «[лого] > РОЗДІЛ / НАЗВА … нік». Навігація — ліва рейка, яка завжди на екрані.
 export function PageHeader({ section, sectionTo, title, tag, right }) {
   const { user } = useAuth();
   return (
     <div className="ss-head">
-      <img src="/logo-ferum-vox.webp" alt="" width="28" height="28" style={{ display: 'block' }} />
+      <HeaderMark />
       {sectionTo ? (
         <Link to={sectionTo} className="crumb">&gt; {section} /</Link>
       ) : (

@@ -4,10 +4,10 @@ import { BrowserRouter } from 'react-router-dom';
 import './styles/theme.css';
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
-import { applyTheme, loadTheme } from './theme';
+import { initTheme } from './theme';
 
 // Before the first paint, so the saved theme doesn't flash the default one first.
-applyTheme(loadTheme());
+initTheme();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
