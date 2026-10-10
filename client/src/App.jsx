@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { start as startCascade } from './cascade/engine.js';
 import { useAuth } from './context/AuthContext.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import PilotSelectPage from './pages/PilotSelectPage.jsx';
@@ -14,7 +16,16 @@ function RequireAuth({ children }) {
   return children;
 }
 
+// Каскад NHP — один рушій на застосунок. Без руху (prefers-reduced-motion) не запускається.
+function useCascade() {
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    return startCascade();
+  }, []);
+}
+
 export default function App() {
+  useCascade();
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
