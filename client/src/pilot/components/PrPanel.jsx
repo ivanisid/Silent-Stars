@@ -19,7 +19,7 @@ export default function PrPanel({ state, dispatch }) {
             <span style={{ fontSize: 14, color: 'var(--text-soft-dim)', fontFamily: "'Share Tech Mono',monospace" }}> /{view.prCap}</span>
           </div>
           {/* Кап — 100 (200 з буфером): смуга показує заповнення одним рухом. */}
-          <div style={{ flex: 1, height: 10, background: 'var(--input-bg)', border: '1px solid var(--accent-dim)' }}>
+          <div className="ss-meter" style={{ flex: 1, height: 10, background: 'var(--input-bg)', border: '1px solid var(--accent-dim)' }}>
             <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }} />
           </div>
         </div>

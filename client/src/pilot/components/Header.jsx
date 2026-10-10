@@ -157,7 +157,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
             <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
               ЛЛ <span style={{ color: 'var(--text-bright)' }}>{view.ll}</span>
             </div>
-            <div style={{ flex: 1, minWidth: 80, height: 10, background: 'var(--input-bg)', border: '1px solid var(--accent-dim)' }}>
+            <div className="ss-meter" style={{ flex: 1, minWidth: 80, height: 10, background: 'var(--input-bg)', border: '1px solid var(--accent-dim)' }}>
               <div style={{ width: `${view.pct}%`, height: '100%', background: 'var(--accent)' }} />
             </div>
             {view.levelCost == null ? (
@@ -205,7 +205,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
           <PilotGames games={games} />
         </div>
         <ArtSlot
-          className="m-portrait"
+          className="m-portrait ss-portrait"
           art={portrait}
           label="ПОРТРЕТ"
           compact

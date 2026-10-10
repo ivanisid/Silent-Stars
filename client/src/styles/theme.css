@@ -747,6 +747,94 @@
   --gm-ink: #ffffff;
 }
 
+/* FERUM//VOX — ours. Black base, cold blued-steel panels, metallic blue accent. Status and GM colours inherit the defaults. */
+:root[data-theme='ferum'] {
+  --bg: #06080b;
+  --bg-alt: #040608;
+  --page-grad: #121a24;
+  --dot: #0f151d;
+  --panel: #0c1117;
+  --panel-border: #3a4d62;
+  --panel-inset: #131b25;
+  --panel-sunken: #080b10;
+  --header: #2a3e54;
+  --header-strong: #1c2c3d;
+  --header-text: #e8f0f8;
+  --btn-text: #ffffff;
+  --header-border: #6d8aa8;
+  --rule: #2b3a4b90;
+  --overlay: #000000cc;
+  --shadow: #000000;
+  --scrollbar: #2a3747;
+  --accent: #6ea4d8;
+  --accent-hover: #a9cbec;
+  --accent-dim: #35557a;
+  --text: #c6d0db;
+  --text-bright: #ffffff;
+  --text-soft: #b3bfcc;
+  --text-soft-dim: #8996a5;
+  --text-info: #c0d3e6;
+  --text-dim: #8592a1;
+  --text-dimmer: #6f7c8c;
+  --text-muted: #7b8897;
+  --text-grey: #808b98;
+  --text-faint: #4e5966;
+  --input-bg: #05070a;
+  --input-border: #273445;
+  --btn-bg: #1a2633;
+  --btn-border: #4b6580;
+  --btn-hover: #243548;
+}
+
+/* KARRAKIN — ours. One theme whose colours come from the selected house banner (data-house):
+   --kf banner field, --kt trim, --ka accent, --kht ink on the field, --kl light base (glass and
+   promise only). Every theme variable is mixed from those four, so a house is one line. */
+:root[data-theme='karrakin'][data-house='water']{--kf:#5fa883;--kt:#f0f0ea;--ka:#8fd8b2;--kht:#0f2018;}
+:root[data-theme='karrakin'][data-house='remembrance']{--kf:#2f6e4c;--kt:#e8b04a;--ka:#e8b04a;--kht:#fff4dc;}
+:root[data-theme='karrakin'][data-house='sand']{--kf:#e06a2c;--kt:#f0a838;--ka:#f0a838;--kht:#140a04;}
+:root[data-theme='karrakin'][data-house='dust']{--kf:#55583a;--kt:#b89a5a;--ka:#c8ac6c;--kht:#f2ead2;}
+:root[data-theme='karrakin'][data-house='stone']{--kf:#a82c28;--kt:#f0b030;--ka:#f0b030;--kht:#fff2dc;}
+:root[data-theme='karrakin'][data-house='promise']{--kf:#2a3422;--kt:#e8b070;--ka:#a8231c;--kht:#f4e2c0;--kl:#f0b878;}
+:root[data-theme='karrakin'][data-house='smoke']{--kf:#5e5e5e;--kt:#f0f0f0;--ka:#5fb4e8;--kht:#ffffff;}
+:root[data-theme='karrakin'][data-house='moments']{--kf:#1a8fb0;--kt:#101010;--ka:#5fd0ee;--kht:#04141a;}
+:root[data-theme='karrakin'][data-house='glass']{--kf:#e8a224;--kt:#e8521a;--ka:#c8441a;--kht:#3a1c08;--kl:#f0b030;}
+:root[data-theme='karrakin'][data-house='order']{--kf:#6a4c9c;--kt:#f0f0f0;--ka:#b8a0ea;--kht:#ffffff;}
+:root[data-theme='karrakin'] {
+  --bg: color-mix(in oklch, var(--kf) 12%, #050404); --bg-alt: color-mix(in oklch, var(--kf) 8%, #030302); --page-grad: color-mix(in oklch, var(--kf) 35%, #050404); --dot: color-mix(in oklch, var(--kf) 18%, #0a0908);
+  --panel: color-mix(in oklch, var(--kf) 16%, #0c0b09); --panel-border: color-mix(in oklch, var(--kt) 35%, #1a1814); --panel-inset: color-mix(in oklch, var(--kf) 22%, #15130f); --panel-sunken: color-mix(in oklch, var(--kf) 10%, #070605);
+  --header: var(--kf); --header-strong: color-mix(in oklch, var(--kf) 80%, #000); --header-text: var(--kht); --btn-text: var(--kht); --header-border: var(--kt);
+  --rule: color-mix(in oklch, var(--kt) 25%, transparent); --overlay: #000000cc; --shadow: #000; --scrollbar: color-mix(in oklch, var(--kf) 40%, #1a1814);
+  --accent: var(--ka); --accent-hover: color-mix(in oklch, var(--ka) 60%, #fff); --accent-dim: color-mix(in oklch, var(--ka) 45%, #000);
+  --text: #ece6da; --text-bright: #fff; --text-soft: #d6d0c4; --text-soft-dim: #b0aa9e; --text-info: color-mix(in oklch, var(--ka) 70%, #fff);
+  --text-dim: #a29c90; --text-dimmer: #8a8478; --text-muted: #968f83; --text-grey: #8f8a80; --text-faint: #5c574e;
+  --input-bg: color-mix(in oklch, var(--kf) 8%, #040403); --input-border: color-mix(in oklch, var(--kf) 25%, #2a2620);
+  --btn-bg: var(--kf); --btn-border: var(--kt); --btn-hover: color-mix(in oklch, var(--kf) 80%, #fff);
+}
+:root[data-theme='karrakin']:is([data-house='glass'],[data-house='promise']) {
+  color-scheme: only light;
+  --bg: color-mix(in oklch, var(--kl) 22%, #f4eee2); --bg-alt: color-mix(in oklch, var(--kl) 30%, #f4eee2); --page-grad: color-mix(in oklch, var(--kl) 45%, #f4eee2); --dot: color-mix(in oklch, var(--kl) 35%, #e6dccb);
+  --panel: color-mix(in oklch, var(--kl) 10%, #fbf8f1); --panel-border: color-mix(in oklch, var(--kf) 55%, #c8bba4); --panel-inset: color-mix(in oklch, var(--kl) 18%, #f1ebde); --panel-sunken: color-mix(in oklch, var(--kl) 25%, #ebe3d3);
+  --rule: color-mix(in oklch, var(--kf) 25%, transparent); --overlay: #2a211799; --shadow: #2a211733; --scrollbar: color-mix(in oklch, var(--kl) 40%, #bfb29a);
+  --accent-hover: color-mix(in oklch, var(--ka) 70%, #000); --accent-dim: color-mix(in oklch, var(--ka) 45%, #fff);
+  --text: #2a2117; --text-bright: #120d08; --text-soft: #3e3428; --text-soft-dim: #5a4e40; --text-info: color-mix(in oklch, var(--ka) 80%, #000);
+  --text-dim: #6a5e4e; --text-dimmer: #6e6252; --text-muted: #6e6252; --text-grey: #74695a; --text-faint: #a89c88;
+  --input-bg: #fffdf8; --input-border: color-mix(in oklch, var(--kf) 30%, #d8ccb6); --btn-hover: color-mix(in oklch, var(--kf) 80%, #000);
+  --gm: #8a5a00; --gm-ink: #8a5a00; --gm-dim: #b8955a;
+  --danger: #F44336;
+  --danger-bg: #f4d9d8;
+  --danger-border: #f4a49f;
+  --success: #68991E;
+  --success-bg: #dfe6d4;
+  --success-border: #b5cb94;
+  --warn: #C28200;
+  --warn-bg: #eaddc3;
+  --warn-border: #dbbb7a;
+  --ok-bg: #dbe4cd;
+  --ok-border: #aec789;
+  --bad-bg: #f4d4d2;
+  --bad-border: #f49c95;
+}
+
 /* 2a theme patch — виправлення читабельності для інтерфейсу 2a. Логін лишається на GMS Dark. */
 :root[data-theme='hc-dark']{--success:#3ddc84;--success-bg:#001a0a;--success-border:#0b6b34;--ok-border:#0b6b34}
 :root[data-theme='lc-solarized']{--success:#3fbf74;--success-border:#2a7a4f}
@@ -1605,3 +1693,8 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 }
 .ss-login .lg-eye { flex: none; background: transparent; border: none; padding: 0 0 0 8px; font-size: 11px; color: var(--text-faint); letter-spacing: 1px; }
 .ss-login .lg-eye:hover { color: var(--accent); }
+
+/* Прапор дому в шапці (тема KARRAKIN) — замість лого; клік перемикає дім. */
+.ss-flag { flex: none; display: block; padding: 0; margin: -9px 0; background: transparent; border: none; }
+.ss-flag img { display: block; height: 46px; width: auto; filter: drop-shadow(0 2px 3px #0008); transition: transform .15s; }
+.ss-flag:hover img { transform: translateY(-2px); }

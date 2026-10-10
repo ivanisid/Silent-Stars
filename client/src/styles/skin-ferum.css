@@ -1,0 +1,72 @@
+/* ================= FERUM//VOX — фактури (handoff «themes», розділ 2) =================
+   Чорна основа, воронована сталь, металево-синій акцент. Лише вигляд: кольори в блоці
+   змінних :root[data-theme='ferum'] у theme.css. Хуки — ті самі класи ss-*, що й у
+   базовому інтерфейсі; GM- і статусні варіанти не чіпаємо, щоб золото ГМ лишалося золотом. */
+
+/* Фон: сітка 64×64 і ледь помітні скан-лінії. Хрестиків немає — дрейфуюча сітка вимкнена. */
+:root[data-theme='ferum'] body {
+  background-color: #05070a;
+  background-image:
+    linear-gradient(#141c26 1px, transparent 1px),
+    linear-gradient(90deg, #141c26 1px, transparent 1px),
+    repeating-linear-gradient(0deg, #ffffff03 0 1px, transparent 1px 3px);
+  background-size: 64px 64px, 64px 64px, auto;
+}
+:root[data-theme='ferum'] .ss-grid { display: none; }
+
+/* Панель: внутрішня подвійна рамка, дві заклепки в нижніх кутах, вертикальна шліфовка. */
+:root[data-theme='ferum'] :is(.ss-panel, .card):not(.gm) {
+  border-color: #3a4d62;
+  background-image:
+    radial-gradient(circle at 35% 35%, #d4e4f4 0 1px, #5a7390 1.6px, #1a2430 2.6px, transparent 3px),
+    radial-gradient(circle at 35% 35%, #d4e4f4 0 1px, #5a7390 1.6px, #1a2430 2.6px, transparent 3px),
+    repeating-linear-gradient(90deg, #ffffff04 0 1px, transparent 1px 2px, #00000010 2px 3px);
+  background-repeat: no-repeat, no-repeat, repeat;
+  background-size: 6px 6px, 6px 6px, auto;
+  background-position: left 5px bottom 5px, right 5px bottom 5px, 0 0;
+  box-shadow: inset 0 0 0 3px #0a0e13, inset 0 0 0 4px #24324299;
+}
+
+/* Заголовок панелі: металева планка із заклепками й діагональною штриховкою. */
+:root[data-theme='ferum'] :is(.ss-bar, .card-header):not(.gm):not(.done) {
+  margin: 4px 4px 0;
+  padding-left: 20px;
+  padding-right: 20px;
+  background-image:
+    radial-gradient(circle at 35% 35%, #d4e4f4 0 1px, #5a7390 1.6px, #1a2430 2.6px, transparent 3px),
+    radial-gradient(circle at 35% 35%, #d4e4f4 0 1px, #5a7390 1.6px, #1a2430 2.6px, transparent 3px),
+    repeating-linear-gradient(-45deg, #ffffff08 0 6px, transparent 6px 12px),
+    linear-gradient(180deg, #4a6580 0%, #2a3e54 45%, #1c2c3d 55%, #2a3e54 100%);
+  background-repeat: no-repeat;
+  background-size: 6px 6px, 6px 6px, auto, auto;
+  background-position: left 6px center, right 6px center, 0 0, 0 0;
+  border-bottom: 1px solid #6d8aa8;
+  box-shadow: inset 0 1px 0 #ffffff30;
+}
+
+/* Основна кнопка й вибраний стан: сталевий градієнт, скошені кути 7px. */
+:root[data-theme='ferum'] :is(.btn, .ss-seg:not(.on-bar) button.on, .ss-chip.on, .ss-shop .price:not(:disabled)) {
+  background-image: linear-gradient(180deg, #3d5670, #22344a);
+  border-color: #6d8aa8;
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+}
+:root[data-theme='ferum'] :is(.btn, .ss-chip.on, .ss-shop .price):hover:not(:disabled) {
+  background-image: linear-gradient(180deg, #4a6682, #2a3e54);
+}
+
+/* Заповнення смуг. */
+:root[data-theme='ferum'] :is(.ss-track .segs > .on, .ss-meter > div) {
+  background-image: linear-gradient(180deg, #a9cbec, #6ea4d8 50%, #4a7fb3);
+}
+
+/* Hover тексту: холодне світіння на посиланнях, кнопках і підписах. */
+:root[data-theme='ferum'] :is(a, button:not(:disabled), label, span, td, th, div:not(:has(*))):hover {
+  color: #a9cbec !important;
+  text-shadow: 0 0 8px #6ea4d8, 0 0 2px #6ea4d8;
+  transition: color .15s, text-shadow .15s;
+}
+
+/* Сегментовані перемикачі (спільно з KARRAKIN): без рамки групи, кнопки окремо. */
+:root:is([data-theme='ferum'], [data-theme='karrakin']) .ss-seg:not(.on-bar) { border: none; gap: 4px; background: none; }
+:root:is([data-theme='ferum'], [data-theme='karrakin']) .ss-seg:not(.on-bar) button { border: 1px solid var(--input-border); }
+:root:is([data-theme='ferum'], [data-theme='karrakin']) .ss-seg:not(.on-bar) button.on { border-color: var(--header-border); }

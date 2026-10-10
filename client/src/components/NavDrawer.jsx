@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api';
-import { THEMES, applyTheme, loadTheme } from '../theme';
+import { THEMES, applyTheme, houseInfo, useThemeState } from '../theme';
 import { announceOpen, modalIsOpen, onOtherOpen } from './overlayBus';
 import AccountDialog from './AccountDialog.jsx';
 
@@ -65,7 +65,7 @@ function useLastMission(userId) {
 export default function NavDrawer() {
   const [open, setOpen] = useState(false);
   const [themeMenu, setThemeMenu] = useState(false);
-  const [theme, setTheme] = useState(loadTheme);
+  const { theme, house } = useThemeState();
   const [railY, setRailY] = useState(null);
   const [account, setAccount] = useState(false);
   const raf = useRef(0);
@@ -153,8 +153,8 @@ export default function NavDrawer() {
                   <span className="code">{it.code}</span>
                 </div>
                 <div className="lbl txt">
-                  <span className="t">{on ? '▸ ' : ''}{it.label}</span>
-                  <span className="d">// {it.desc}</span>
+                  <span className="t">{on && <span className="pre">▸ </span>}{it.label}</span>
+                  <span className="d"><span className="pre">// </span>{it.desc}</span>
                 </div>
               </a>
             );
@@ -168,7 +168,7 @@ export default function NavDrawer() {
                   type="button"
                   className={t.id === theme ? 'on' : ''}
                   onClick={() => {
-                    setTheme(applyTheme(t.id));
+                    applyTheme(t.id);
                     setThemeMenu(false);
                   }}
                 >
@@ -199,7 +199,7 @@ export default function NavDrawer() {
               </Icon>
             </span>
             <span className="lbl" style={{ color: 'var(--text)' }}>
-              тема: {current.label} <span style={{ color: 'var(--accent)' }}>{themeMenu && open ? '▾' : '▸'}</span>
+              тема: {current.label}{theme === 'karrakin' ? ` · ${houseInfo(house).label}` : ''} <span style={{ color: 'var(--accent)' }}>{themeMenu && open ? '▾' : '▸'}</span>
             </span>
           </button>
           <button

@@ -66,10 +66,10 @@ export default function NarrativeEditor({ state, dispatch, games, saving }) {
     .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || String(b.date).localeCompare(String(a.date)));
 
   return (
-    <Panel title="ЗАПИСНИК" sub={`${notes.length} ${plural(notes.length)} · ${saving ? 'ЗБЕРЕЖЕННЯ…' : 'ЗБЕРЕЖЕНО'}`}>
+    <Panel className="ss-notes" title="ЗАПИСНИК" sub={`${notes.length} ${plural(notes.length)} · ${saving ? 'ЗБЕРЕЖЕННЯ…' : 'ЗБЕРЕЖЕНО'}`}>
       {dialog}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--panel-border)', background: 'var(--panel-sunken)', flexWrap: 'wrap' }}>
-        <span style={{ color: 'var(--accent)', fontSize: 13 }}>&gt;</span>
+        <span className="nb-prompt" style={{ color: 'var(--accent)', fontSize: 13 }}>&gt;</span>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -79,6 +79,7 @@ export default function NarrativeEditor({ state, dispatch, games, saving }) {
               add();
             }
           }}
+          className="nb-write"
           placeholder="нова нотатка… Enter — зберегти"
           style={{ flex: 1, minWidth: 200, height: 30, padding: 0, fontSize: 13, background: 'transparent', border: 'none' }}
         />
@@ -107,7 +108,7 @@ export default function NarrativeEditor({ state, dispatch, games, saving }) {
             {t.label}{counts[t.key] ? ` ${counts[t.key]}` : ''}
           </button>
         ))}
-        <input className="ss-input sm m-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ пошук" style={{ marginLeft: 'auto', width: 200 }} />
+        <input className="ss-input sm m-full nb-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ пошук" style={{ marginLeft: 'auto', width: 200 }} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', fontSize: 12 }}>
         {shown.length === 0 && (
@@ -116,7 +117,7 @@ export default function NarrativeEditor({ state, dispatch, games, saving }) {
         {shown.map((n, i) => (
           <div
             key={n.id}
-            className="m-note"
+            className={`m-note nb-row${n.pinned ? ' pinned' : ''}`}
             style={{
               display: 'grid',
               gridTemplateColumns: '20px 90px minmax(60px,140px) 60px minmax(0,1fr) 26px',
@@ -127,10 +128,10 @@ export default function NarrativeEditor({ state, dispatch, games, saving }) {
               background: n.pinned ? 'color-mix(in srgb, var(--panel-inset) 40%, transparent)' : 'transparent',
             }}
           >
-            <span style={{ color: 'var(--accent)' }} title={n.pinned ? 'Закріплено' : undefined}>{n.pinned ? '▲' : ''}</span>
-            <span style={{ color: 'var(--text-dimmer)' }}>{formatDate(n.date)}</span>
-            <span style={{ color: 'var(--text-info)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={n.gameLabel}>{n.gameLabel || '—'}</span>
-            <span style={{ color: 'var(--text-info)' }}>{tagLabel(n.tag)}</span>
+            <span className="nb-pin" style={{ color: 'var(--accent)' }} title={n.pinned ? 'Закріплено' : undefined}>{n.pinned ? '▲' : ''}</span>
+            <span className="nb-date" style={{ color: 'var(--text-dimmer)' }}>{formatDate(n.date)}</span>
+            <span className="nb-meta" style={{ color: 'var(--text-info)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={n.gameLabel}>{n.gameLabel || '—'}</span>
+            <span className="nb-meta" style={{ color: 'var(--text-info)' }}>{tagLabel(n.tag)}</span>
             {editId === n.id ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <textarea className="ss-input" rows={3} value={editText} autoFocus onChange={(e) => setEditText(e.target.value)} />
@@ -140,7 +141,7 @@ export default function NarrativeEditor({ state, dispatch, games, saving }) {
                 </div>
               </div>
             ) : (
-              <span style={{ color: 'var(--text-soft)', lineHeight: 1.6, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{n.text}</span>
+              <span className="nb-text" style={{ color: 'var(--text-soft)', lineHeight: 1.6, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{n.text}</span>
             )}
             <Menu
               small

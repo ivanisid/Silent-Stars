@@ -75,6 +75,7 @@ export default function ArtSlot({ art, label, emptyText, compact = false, classN
         onKeyDown={(e) => { if (canEdit && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); inputRef.current?.click(); } }}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
+        className="ss-art"
         style={{
           position: 'relative',
           width: '100%',
