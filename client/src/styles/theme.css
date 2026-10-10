@@ -786,6 +786,24 @@
   --btn-hover: #243548;
 }
 
+/* CASCADING — ours. NHP cascade: void and cold iridescent light. Only the palette lives here;
+   the effects (styles/cascade.css) also run under [data-cascade], a spontaneous cascade over
+   any theme, which must keep that theme's colours. */
+:root[data-theme='cascading'] {
+  --bg: #04050a; --bg-alt: #04050a; --page-grad: #10142a; --dot: #141a2c;
+  --panel: #0a0c15; --panel-border: #283050; --panel-inset: #11152a; --panel-sunken: #06070d;
+  --header: #141933; --header-strong: #0e1226; --header-text: #eef3ff; --btn-text: #eef3ff; --header-border: #7d8cff;
+  --rule: #28305090; --overlay: #02030acc; --shadow: #000; --scrollbar: #283050;
+  --accent: #a6e4ff; --accent-hover: #e6f8ff; --accent-dim: #2b4a63;
+  --text: #dde4f2; --text-bright: #f6f8ff; --text-soft: #c3cce0; --text-soft-dim: #9aa5c0; --text-info: #b4c6ff;
+  --text-dim: #8e98b3; --text-dimmer: #6f7894; --text-muted: #7f89a5; --text-grey: #7a8299; --text-faint: #4a5270;
+  --input-bg: #05060c; --input-border: #222941; --btn-bg: #141933; --btn-border: #7d8cff; --btn-hover: #1f2650;
+  --danger: #ff5c9a; --danger-bg: #24050f; --danger-border: #6a1a35;
+  --success: #7dffcf; --success-bg: #04201a; --success-border: #1f6a55;
+  --warn: #f3e6a0; --warn-bg: #24200a; --warn-border: #6d6130;
+  --ok-bg: #04201a; --ok-border: #1f6a55; --bad-bg: #24050f; --bad-border: #6a1a35;
+}
+
 /* KARRAKIN — ours. One theme whose colours come from the selected house banner (data-house):
    --kf banner field, --kt trim, --ka accent, --kht ink on the field, --kl light base (glass and
    promise only). Every theme variable is mixed from those four, so a house is one line. */
