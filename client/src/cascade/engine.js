@@ -283,3 +283,32 @@ export function start(getOpts = defaultOpts) {
   const timer = setInterval(tick, 110);
   return () => { clearInterval(timer); cancelAnimationFrame(raf); document.removeEventListener('mousemove', onMove); document.removeEventListener('click', onClick, true); cleanup(); };
 }
+
+// Спонтанний каскад: шанс росте з часом, проведеним у сесії (sessionStorage переживає перехід
+// між сторінками). Імовірність за хвилину = min(10%, 0.5% + 0.2% × хвилини від початку сесії
+// чи останньої події). Тривалість 20–90 с, потім пауза cooldownMin. У темі CASCADING не діє.
+export const AUTO = { base: .005, perMin: .002, max: .10, cooldownMin: 10 };
+let autoAt = 0, evT = 0;
+const sess = () => { let t = +sessionStorage.getItem('ssCascSince'); if (!t) { t = Date.now(); sessionStorage.setItem('ssCascSince', t); } return t; };
+function auto() {
+  const r = document.documentElement, now = Date.now();
+  if (now - autoAt < 1000) return; autoAt = now;
+  if (r.dataset.theme === 'cascading' || r.dataset.cascade != null) return;
+  let since;
+  try { since = sess(); } catch { return; } // сховище недоступне — без автозапуску
+  const min = (now - since) / 60000; if (min < 0) return;
+  const p = Math.min(AUTO.max, AUTO.base + AUTO.perMin * min) / 60;
+  if (Math.random() < p) { sessionStorage.setItem('ssCascSince', now + AUTO.cooldownMin * 60000); trigger({ duration: 20000 + Math.random() * 70000 }); }
+}
+onTick = auto;
+
+// trigger({ duration, stage }) — каскад поверх поточної теми; end() — зупинити його.
+export function trigger(o) {
+  o = o || {}; const r = document.documentElement;
+  r.dataset.cascade = 'event'; ev = { stage: o.stage }; clearTimeout(evT);
+  evT = setTimeout(() => { if (r.dataset.cascade === 'event') delete r.dataset.cascade; ev = null; }, o.duration || 60000);
+}
+export function end() { clearTimeout(evT); ev = null; const r = document.documentElement; if (r.dataset.cascade === 'event') delete r.dataset.cascade; }
+
+// Для перевірки з консолі: SSCascade.trigger({ stage: 3 }), SSCascade.end().
+if (typeof window !== 'undefined') window.SSCascade = { start, trigger, end, DATA, AUTO };
