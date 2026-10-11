@@ -229,7 +229,7 @@ async function onApprove(i: any, kind: string, discordId: string, slotId: string
     try {
       const picked = kind === 'ax' ? i.data.values : suggested;
       await rpc('discord_approve_roster', { p_discord_id: discordId, p_slot_id: slotId, p_approved: picked });
-      return update('✅ Склад затверджено — бот уже повідомив гравців у каналі.');
+      return update('✅ Склад затверджено — його видно в оголошенні гри.');
     } catch (err) {
       return update(errText(err));
     }
