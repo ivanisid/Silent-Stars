@@ -26,49 +26,15 @@ async function post(db: SupabaseClient, slotId: string, content: string, mention
   if (!res.ok) throw new Error(`Discord POST ${res.status}: ${await res.text()}`);
 }
 
-// Зміна статусу гри: склад затверджено / гру зіграно / скасовано.
+// Події гри, про які варто пінгувати: місце звільнено, гру скасовано. Затвердження складу
+// й завершення гри окремого повідомлення не мають — це видно в самому оголошенні (✅ / ❌,
+// статус), а пінг усім лише засмічував канал.
 export async function notifyStatus(db: SupabaseClient, slotId: string, event: string, extra: Record<string, any> = {}) {
   const view = await loadSlotView(db, slotId);
   if (!view) return 'no-slot';
   const { slot, signups } = view;
-  const going = signups.filter((g) => g.approved === true);
-  const notGoing = signups.filter((g) => g.approved === false);
 
-  if (event === 'approved') {
-    const lines = [`📋 Склад на ${titleOf(slot)} затверджено.`];
-    lines.push(going.length ? `**Летять:** ${pilotList(going)}` : '_Ніхто не пройшов у склад._');
-    if (slot.game_at) lines.push(`Старт <t:${unix(slot.game_at)}:F> (<t:${unix(slot.game_at)}:R>).`);
-    if (notGoing.length) {
-      // +3 нараховує gm_approve_roster лише за контест (охочих більше, ніж місць).
-      const bonus = signups.length > slot.seats ? ' — +3 до пріоритету наступного разу' : '';
-      lines.push(`**Цього разу ні:** ${pilotList(notGoing)}${bonus}`);
-    }
-    await post(db, slotId, lines.join('\n'), signups.map((g) => g.discordId));
-    return 'notified';
-  }
-
-  if (event === 'closed') {
-    if (!going.length) return 'nobody';
-    const reward = [
-      slot.reward_mana > 0 ? `${slot.reward_mana} М` : '',
-      slot.reward_pr > 0 ? `${slot.reward_pr} PR` : '',
-    ].filter(Boolean).join(' · ');
-    // Що обрав ГМ: ту саму ману чи PR на свого пілота або +3 до пріоритету.
-    const gmReward = ({
-      mana: `${slot.reward_mana} М своєму пілоту`,
-      pr: `${slot.reward_pr} PR своєму пілоту`,
-      priority: '+3 до пріоритету на наступну гру',
-    } as Record<string, string>)[slot.gm_reward];
-    await post(
-      db, slotId,
-      `🏁 ${titleOf(slot)} зіграно! ${reward ? `Нараховано: **${reward}**` : 'Гру зараховано'} — ${pilotList(going)}` +
-        (gmReward ? `\nНагорода ГМа: **${gmReward}**` : ''),
-      going.map((g) => g.discordId),
-    );
-    return 'notified';
-  }
-
-  // Гравець звільнив місце; на нього автоматично зайшов наступний у черзі (або ніхто).
+  // Гравець зі складу звільнив місце (release_seat приймає лише затверджених); на нього автоматично зайшов наступний у черзі (або ніхто).
   if (event === 'released') {
     // Запис без акаунта не має user_id, тож шукаємо за id запису (user_id — для подій старого формату).
     const gone = signups.find((g) => (extra.released_signup ? g.id === extra.released_signup : g.userId === extra.released_user));
@@ -76,8 +42,9 @@ export async function notifyStatus(db: SupabaseClient, slotId: string, event: st
     const gm = slot.gmDiscordId ? `<@${slot.gmDiscordId}>` : `**${slot.gmNick}**`;
     const lines = [`↩️ ${gone ? withPilot(gone) : 'Гравець'} звільнив місце в ${titleOf(slot)}.`];
     lines.push(inn
-      ? `На його місце в склад заходить ${withPilot(inn)} — якщо не зможеш, теж тисни «Звільнити місце».`
+      ? `На його місце в склад заходить ${withPilot(inn)} — якщо не зможеш, теж тисни «Звільнити місце». ${gm}, склад змінився.`
       : `${gm}, у резерві нікого немає — місце вільне.`);
+    // Склад змінився — ГМ має знати завжди, навіть коли заміна з резерву зайшла сама.
     await post(db, slotId, lines.join('\n'), [inn?.discordId, slot.gmDiscordId]);
     return 'notified';
   }
@@ -100,13 +67,18 @@ async function claim(db: SupabaseClient, slotId: string, kind: string) {
   throw new Error(error.message);
 }
 
-// Запускається планувальником кожні 10 хвилин.
+// Запускається планувальником кожні 10 хвилин. Одне нагадування складу — за 2 години до гри
+// (раніше було два: за добу й за годину).
+const REMIND_BEFORE_MS = 2 * 3600e3;
+
 export async function remind(db: SupabaseClient) {
   const now = Date.now();
+  // Лише затверджені склади: відкритий у дедлайн (чи час гри) затверджує планувальник
+  // (private.auto_approve_rosters), тож ГМу «склад ще не затверджено» більше не шлеться.
   const { data: slots, error } = await db.from('game_slots').select('id, status')
-    .in('status', ['open', 'approved'])
+    .eq('status', 'approved')
     .gt('game_at', new Date(now).toISOString())
-    .lte('game_at', new Date(now + 24 * 3600e3).toISOString());
+    .lte('game_at', new Date(now + REMIND_BEFORE_MS).toISOString());
   if (error) throw new Error(error.message);
 
   let sent = 0;
@@ -114,36 +86,44 @@ export async function remind(db: SupabaseClient) {
     const view = await loadSlotView(db, id);
     if (!view) continue;
     const { slot, signups } = view;
-    const t = unix(slot.game_at);
-    const left = new Date(slot.game_at).getTime() - now;
-
-    if (slot.status === 'open') {
-      // Гра вже за добу, а склад досі не затверджено — нагадуємо ГМу.
-      if (await claim(db, id, 'gm_pending')) {
-        const gm = slot.gmDiscordId ? `<@${slot.gmDiscordId}>` : `**${slot.gmNick}**`;
-        await post(db, id,
-          `⚠️ ${gm}, ${titleOf(slot)} <t:${t}:R>, а склад ще не затверджено. Записано: ${signups.length}/${slot.seats}.`,
-          [slot.gmDiscordId]);
-        sent++;
-      }
-      continue;
-    }
-
     const going = signups.filter((g) => g.approved === true);
     if (!going.length) continue;
-
-    if (left <= 3600e3) {
-      if (await claim(db, id, '1h')) {
-        await claim(db, id, '24h'); // запізніле «за добу» після «за годину» ні до чого
-        await post(db, id, `🚀 ${titleOf(slot)} стартує <t:${t}:R>! ${pilotList(going)}`, going.map((g) => g.discordId));
-        sent++;
-      }
-    } else if (await claim(db, id, '24h')) {
-      await post(db, id,
-        `⏰ Нагадування: ${titleOf(slot)} — <t:${t}:F> (<t:${t}:R>). ${pilotList(going)}`,
-        going.map((g) => g.discordId));
-      sent++;
-    }
+    if (!(await claim(db, id, '2h'))) continue;
+    const t = unix(slot.game_at);
+    await post(db, id, `🚀 ${titleOf(slot)} стартує <t:${t}:R> (<t:${t}:t>). ${pilotList(going)}`, going.map((g) => g.discordId));
+    sent++;
   }
   return sent;
+}
+
+// Гру заплановано (або перенесено) на день, який гравці відмітили в календарі: пінгуємо
+// тих, хто відмітив і ще не записаний. Discord знаємо для прив'язаних акаунтів і для тих,
+// хто відмічався з Discord без прив'язки. Один раз на гру й день (discord_reminders).
+export async function notifyCalendarMatch(db: SupabaseClient, slotId: string) {
+  const view = await loadSlotView(db, slotId);
+  if (!view?.slot.game_at || view.slot.status !== 'open') return 'skip';
+  const { slot, signups } = view;
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date(slot.game_at));
+  if (!(await claim(db, slotId, `cal:${day}`))) return 'already';
+
+  const { data: marks, error } = await db.from('play_availability').select('user_id, discord_user_id').eq('day', day);
+  if (error) throw new Error(error.message);
+  const userIds = [...new Set((marks || []).map((m: any) => m.user_id).filter(Boolean))];
+  const { data: links } = userIds.length
+    ? await db.from('discord_links').select('user_id, discord_user_id').in('user_id', userIds)
+    : { data: [] as any[] };
+  const byUser = new Map((links || []).map((l: any) => [l.user_id, l.discord_user_id]));
+  const signed = new Set(signups.flatMap((g) => [g.userId, g.discordId]).filter(Boolean));
+  const ids = [...new Set((marks || [])
+    .filter((m: any) => !signed.has(m.user_id) && !signed.has(m.discord_user_id))
+    .map((m: any) => (m.user_id ? byUser.get(m.user_id) : m.discord_user_id))
+    .filter(Boolean))] as string[];
+  if (!ids.length) return 'nobody';
+
+  const t = unix(slot.game_at);
+  await post(db, slotId,
+    `📅 ${titleOf(slot)} заплановано на <t:${t}:F> — день, який ви відмітили в календарі: ` +
+      `${ids.map((id) => `<@${id}>`).join(' ')}. Записатись — кнопка під оголошенням.`,
+    ids);
+  return 'notified';
 }

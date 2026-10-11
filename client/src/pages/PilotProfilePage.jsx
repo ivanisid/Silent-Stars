@@ -1,9 +1,11 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { pilotReducer } from '../pilot/reducer';
 import { normalizePilotState } from '../pilot/pilotDefaults';
+import { mechSlots } from '../pilot/constants';
+import { useCompconImport } from '../pilot/components/CompconImport.jsx';
 // import { WEEKLY_DOWNTIME_DATA } from '../pilot/constants'; — разом із панелі простою
 
 import Header from '../pilot/components/Header.jsx';
@@ -39,7 +41,7 @@ const SAVE_DEBOUNCE_MS = 800;
 
 export default function PilotProfilePage() {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, isGm } = useAuth();
   const [pilot, setPilot] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [state, dispatch] = useReducer(pilotReducer, null);
@@ -51,6 +53,12 @@ export default function PilotProfilePage() {
 
   // Портрет і арти мехів: окремо від state пілота, бо живуть у сховищі, а не в JSON.
   const [art, setArt] = useState({ portrait: null, mechs: {} });
+
+  // Файли COMP/CON по мехах ({ mechId: updated_at }) і зв'язки мехів з акторами Foundry
+  // ({ mechId: { actor, seenAt } }) — окремі таблиці, не state пілота.
+  const [compconFiles, setCompconFiles] = useState(null);
+  const [foundryLinks, setFoundryLinks] = useState({});
+  const loadCompconFiles = () => api.listCompconProfiles(id).then(setCompconFiles).catch(() => setCompconFiles({}));
 
   const saveTimer = useRef(null);
   const isFirstStateSet = useRef(true);
@@ -81,6 +89,12 @@ export default function PilotProfilePage() {
       cancelled = true;
       unsubscribe();
     };
+  }, [id]);
+
+  useEffect(() => {
+    loadCompconFiles();
+    api.listFoundryLinks(id).then(setFoundryLinks);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Бій у Foundry (ХП, структура, заряди…) записує функція foundry-sync. Вливаємо ці
@@ -138,6 +152,31 @@ export default function PilotProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
+  // Імпорт COMP/CON у слоти ангару — спільний для кнопки під профілем і кнопок слотів.
+  const [importCompcon, compconDialog] = useCompconImport({
+    state,
+    dispatch,
+    pilotId: id,
+    slots: mechSlots(state?.hangar?.owned),
+    onSaved: loadCompconFiles,
+  });
+
+  // Файл, завантажений на сторінці пілотів для цього пілота: імпортуємо тут, де є слоти.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [importNote, setImportNote] = useState(null);
+  const pendingFile = location.state?.compcon;
+  const handledFile = useRef(null);
+  useEffect(() => {
+    if (!pendingFile || !state || !pilot || handledFile.current === pendingFile) return;
+    handledFile.current = pendingFile;
+    navigate(location.pathname, { replace: true, state: null });
+    importCompcon(pendingFile.json, { withBond: true, fileName: pendingFile.fileName })
+      .then((res) => res && setImportNote(res))
+      .catch((err) => setImportNote({ ok: false, text: err.message }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFile, !!state, !!pilot]);
+
   async function saveMeta(patch) {
     const updated = await api.updatePilot(id, patch);
     setPilot(updated);
@@ -179,7 +218,11 @@ export default function PilotProfilePage() {
         canEditArt={own}
         onUploadPortrait={(file) => uploadArt('portrait', null, file)}
         onRemoveArt={removeArt}
+        compconFiles={compconFiles}
+        importCompcon={importCompcon}
+        importNote={importNote}
       />
+      {compconDialog}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 22 }}>
         <ManaPanel state={state} dispatch={dispatch} />
@@ -196,6 +239,10 @@ export default function PilotProfilePage() {
         canEditArt={own}
         onUploadMechArt={(mechId, file) => uploadArt('mech', mechId, file)}
         onRemoveArt={removeArt}
+        compconFiles={compconFiles}
+        importCompcon={importCompcon}
+        foundryLinks={foundryLinks}
+        isGm={isGm}
       />
       {/* Особисті покращення — одразу під мехами: ангар і ліцензування стосуються саме їх. */}
       <UpgradesPanel state={state} dispatch={dispatch} />

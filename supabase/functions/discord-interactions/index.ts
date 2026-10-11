@@ -1,9 +1,10 @@
-// Interactions Endpoint Discord-бота: слеш-команди (/link, /game, /pilot, /board) і кнопки під
+// Interactions Endpoint Discord-бота: слеш-команди (/link, /game, /pilot, /board, /calendar) і кнопки під
 // оголошенням гри. Пише в ті ж game_signups / game_slots, що й апка, через discord_*
 // функції в базі — оголошення потім оновлює тригер → discord-sync.
 // Розгортається з verify_jwt = false: Discord підписує запити Ed25519, це і є автентифікація.
 
 import { adminClient, clip, DISCORD_API, discordFetch, loadSlotView, syncSlot } from '../_shared/discord.ts';
+import { calendarDays, loadCalendar, renderPersonal, syncCalendar } from '../_shared/calendar.ts';
 
 const db = adminClient();
 
@@ -86,8 +87,8 @@ async function linkedUserId(discordId: string) {
 // Запис на гру прив'язки не вимагає; вона потрібна лише для пілота й меха та для дій ГМа.
 const NOT_LINKED =
   'Ця дія потребує прив\'язаного акаунта апки.\n' +
-  '1. Відкрийте в апці сторінку **«Запис на гру»** і натисніть **«Прив\'язати Discord»**.\n' +
-  '2. Введіть тут `/link <код>`.';
+  'Найпростіше — в апці (сторінка **«Запис на гру»** або **Account manager**) натисніть **«Прив\'язати через Discord»**.\n' +
+  'Або там же **«Код для команди в Discord»** і введіть тут `/link <код>`.';
 
 async function activePilots(userId: string) {
   const { data, error } = await db.from('pilots').select('id, name, callsign, state').eq('user_id', userId)
@@ -103,8 +104,15 @@ async function signup(discordId: string, username: string, slotId: string, pilot
   });
   const mech = (pilot?.state?.mechs || []).find((m: any) => m.id === mechId);
   const head = pilot ? `✅ Записано: **${pilot.callsign}**${mech ? ` на ▮ ${mech.name}` : ''}. ` : '✅ Записано. ';
+  // Пріоритет має значення лише тоді, коли охочих більше, ніж місць.
+  const [{ count }, { data: slot }] = await Promise.all([
+    db.from('game_signups').select('id', { count: 'exact', head: true }).eq('slot_id', slotId),
+    db.from('game_slots').select('seats').eq('id', slotId).maybeSingle(),
+  ]);
+  const contest = slot != null && (count ?? 0) > slot.seats;
   let tail: string;
-  if (s.guaranteed) tail = `🛡 **Гарантоване місце** — бонус +${s.roll_bonus}, кидати не треба.`;
+  if (!contest) tail = 'Місць поки вистачає всім — склад затвердиться автоматично в дедлайн набору.';
+  else if (s.guaranteed) tail = `🛡 **Гарантоване місце** — бонус +${s.roll_bonus}, кидати не треба.`;
   else {
     const bonus = s.roll_bonus ? ` + бонус ${s.roll_bonus}` : '';
     tail = `Пріоритет **${s.roll + (s.roll_bonus || 0)}** (d20: ${s.roll}${bonus}).`;
@@ -129,6 +137,10 @@ function mechMenu(slotId: string, pilot: any) {
 
 async function onComponent(i: any, discordId: string, username: string) {
   const [kind, slotId, pilotId] = (i.data.custom_id as string).split(':');
+
+  if (kind === 'cal') return onCalendarPick(i, discordId, username);
+  // Кнопка під закріпленим календарем — особисте меню відміток.
+  if (kind === 'calo') return onCalendar(discordId);
 
   if (kind === 'wd') {
     await rpc('discord_withdraw', { p_discord_id: discordId, p_slot_id: slotId });
@@ -217,7 +229,7 @@ async function onApprove(i: any, kind: string, discordId: string, slotId: string
     try {
       const picked = kind === 'ax' ? i.data.values : suggested;
       await rpc('discord_approve_roster', { p_discord_id: discordId, p_slot_id: slotId, p_approved: picked });
-      return update('✅ Склад затверджено — бот уже повідомив гравців у каналі.');
+      return update('✅ Склад затверджено — його видно в оголошенні гри.');
     } catch (err) {
       return update(errText(err));
     }
@@ -412,6 +424,47 @@ async function onAutocomplete(i: any, discordId: string) {
   return Response.json({ type: 8, data: { choices } });
 }
 
+// ----- Календар гравців (/calendar) -----
+// Ті самі відмітки «хочу грати цього дня», що й календар на сторінці «Запис на гру» в апці:
+// два тижні вперед, меню з кількома варіантами — обрані дні замінюють попередні відмітки.
+// Спільне закріплене повідомлення в каналі веде discord-sync (_shared/calendar.ts).
+
+async function myCalendarDays(discordId: string, from: string, to: string) {
+  const uid = await linkedUserId(discordId);
+  let q = db.from('play_availability').select('day').gte('day', from).lte('day', to);
+  q = uid ? q.eq('user_id', uid) : q.is('user_id', null).eq('discord_user_id', discordId);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return new Set((data || []).map((r: any) => r.day as string));
+}
+
+async function onCalendar(discordId: string) {
+  const cal = await loadCalendar(db);
+  const mine = await myCalendarDays(discordId, cal.days[0], cal.days[cal.days.length - 1]);
+  const v = renderPersonal(cal, mine);
+  return reply(v.content, { components: v.components });
+}
+
+async function onCalendarPick(i: any, discordId: string, username: string) {
+  const days = calendarDays();
+  const picked = ((i.data.values || []) as string[]).filter((d) => days.includes(d));
+  await rpc('discord_calendar_set', {
+    p_discord_id: discordId, p_username: username, p_days: picked, p_from: days[0], p_to: days[days.length - 1],
+  });
+  const v = renderPersonal(await loadCalendar(db), new Set(picked));
+  return update(v.content, v.components);
+}
+
+// ГМ: опублікувати й закріпити спільний календар у цьому каналі (старий прибирається).
+function onCalendarPin(i: any) {
+  return deferred(i, async () => {
+    const r = await syncCalendar(db, { post: { channelId: i.channel_id } });
+    return r === 'posted'
+      ? '📌 Календар опубліковано й закріплено — він оновлюватиметься сам.'
+      : '📅 Календар опубліковано, але закріпити не вдалося — дайте боту право «Закріплювати повідомлення» або закріпіть вручну.';
+  });
+}
+
 // ----- Слеш-команди -----
 
 function opt(i: any, name: string) {
@@ -461,6 +514,14 @@ async function onCommand(i: any, discordId: string, username: string) {
 
     case 'pilot':
       return onPilot(i, discordId, username);
+
+    case 'calendar': {
+      if (opt(i, 'pin')) {
+        if (!(await rpc('discord_is_gm', { p_discord_id: discordId }))) return reply('Закріплювати календар у каналі може лише ГМ.');
+        return onCalendarPin(i);
+      }
+      return onCalendar(discordId);
+    }
 
     case 'board': {
       if (!(await rpc('discord_is_gm', { p_discord_id: discordId }))) return reply('Ця команда лише для ГМа.');

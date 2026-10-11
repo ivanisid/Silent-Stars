@@ -111,10 +111,11 @@ export async function loadSlotView(db: SupabaseClient, slotId: string): Promise<
       approved: r.approved,
     };
   });
-  // Ранжований список: гарантовані місця, далі вищий пріоритет; рівні — у порядку запису.
+  // У контесті — ранжований список: гарантовані місця, далі вищий пріоритет; рівні — у
+  // порядку запису. Поки місць вистачає, пріоритет не важить і список лишається в порядку запису.
   // Не Infinity: Infinity − Infinity = NaN, а NaN у компараторі ламає порядок.
   const rank = (g: any) => (g.guaranteed ? 1000 : g.priority ?? -1);
-  signups.sort((a, b) => rank(b) - rank(a));
+  if (signups.length > slot.seats) signups.sort((a, b) => rank(b) - rank(a));
 
   return { slot: { ...slot, gmNick: nick.get(slot.created_by) || '', gmDiscordId: discord.get(slot.created_by) }, signups };
 }
@@ -132,7 +133,7 @@ export function renderSlotMessage({ slot, signups }: SlotView) {
   if (deadline && isOpen) fields.push({ name: 'Набір до', value: deadline });
   fields.push({
     name: 'Місця',
-    value: `${signups.length}/${slot.seats}` + (contest && isOpen ? ' · охочих більше, ніж місць — ГМ дивиться на пріоритет' : ''),
+    value: `${signups.length}/${slot.seats}` + (contest && isOpen ? ' · охочих більше, ніж місць — склад за пріоритетом' : ''),
     inline: true,
   });
   if (slot.difficulty && DIFFICULTY_LABELS[slot.difficulty]) {
@@ -159,8 +160,9 @@ export function renderSlotMessage({ slot, signups }: SlotView) {
     if (g.ll) line += ` · LL${g.ll}`;
     if (g.mech) line += ` · ▮ ${g.mech}`;
     if (g.callsign) line += ` — ${who}`;
-    if (g.guaranteed) line += ' · 🛡 **гарантоване місце**';
-    else if (g.priority != null) line += ` · пріоритет **${g.priority}**`;
+    // Пріоритет і гарантія важать лише в контесті — поки місць вистачає, не показуємо.
+    if (contest && g.guaranteed) line += ' · 🛡 **гарантоване місце**';
+    else if (contest && g.priority != null) line += ` · пріоритет **${g.priority}**`;
     return line;
   });
   fields.push({ name: 'Пілоти', value: clip(lines.join('\n') || '_Поки ніхто не записався._', 1024) });

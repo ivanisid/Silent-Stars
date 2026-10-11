@@ -14,7 +14,7 @@ import {
   MODULE, PILOT_FIELDS, MECH_FIELDS, get, norm,
   mergeFields, mergeGroup, mergeLimited, mergeDestroyed, combineItemUpdates, mechMaxPatch, pilotIdentityUpdate, artUpdate,
   findAppPilotFor, findAppMechFor, profileActorName, matchGroup, suggestActors, resolveLinks, pendingMechs,
-  idleDecision, isFreshCreating, syncOption, artSrc,
+  idleDecision, isFreshCreating, syncOption, artSrc, linksKey, linksDecision,
 } from './sync.js';
 
 const DEFAULT_URL = 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/foundry-sync';
@@ -28,6 +28,9 @@ let lastStatus = 'ще не запускалась';
 let lastFingerprint = null;
 let idleSkips = 0;
 let needFull = false;
+// Останній звіт апці про зв'язки мехів (дія links).
+let lastLinksKey = null;
+let lastLinksAt = 0;
 
 const setting = (k) => game.settings.get(MODULE, k);
 const isSyncGM = () => game.user.isGM && game.users.activeGM?.id === game.user.id;
@@ -268,6 +271,8 @@ export async function syncNow({ quiet = true, idle = false } = {}) {
       });
     }
 
+    await guard("звіт про зв'язки", () => reportLinks(byId));
+
     let sent = 0;
     let stale = 0;
     if (pushes.size) {
@@ -304,6 +309,29 @@ export async function syncNow({ quiet = true, idle = false } = {}) {
   } finally {
     running = false;
   }
+}
+
+// Апці — які мехи цього світу зв'язані з акторами: за цим вона блокує ручне списання стану
+// меха. Шлеться, коли список змінився, і раз на 30 хв. Стара функція без дії links
+// відповідає 400 — це не помилка циклу, просто апка не знатиме про зв'язки.
+async function reportLinks(byId) {
+  const list = [];
+  for (const actor of syncMechActors()) {
+    const p = byId.get(flag(actor, 'pilotId'));
+    const m = p?.mechs.find((x) => x.id === flag(actor, 'mechId'));
+    if (m) list.push({ pilotId: p.id, mechId: m.id, actor: actor.name });
+  }
+  const key = linksKey(list);
+  const now = Date.now();
+  if (!linksDecision({ lastKey: lastLinksKey, key, lastAt: lastLinksAt, now })) return;
+  try {
+    await call({ action: 'links', world: game.world.id, links: list });
+  } catch (err) {
+    if (/Невідома дія/.test(err.message)) console.warn(`${MODULE} | функція foundry-sync ще без дії links — оновіть її`);
+    else throw err;
+  }
+  lastLinksKey = key;
+  lastLinksAt = now;
 }
 
 async function setBase(doc, values) {

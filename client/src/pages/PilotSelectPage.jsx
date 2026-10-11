@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
-import { compconProfiles, mapCompconPilot, mechClashMessage, mechNameClashes, mergeMechsByName } from '../pilot/compconImport';
+import { findImportTarget, mapCompconPilot } from '../pilot/compconImport';
 import { pushLog, llTier } from '../pilot/logic';
 import { Menu, Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
 
 export default function PilotSelectPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [ask, dialog] = useConfirm();
   const [formOpen, setFormOpen] = useState(false);
   const [view, setView] = useState('active');
@@ -150,32 +151,41 @@ export default function PilotSelectPage() {
       const mapped = mapCompconPilot(json);
 
       // Same character, different COMP/CON save per mech build (campaign has multiple mech
-      // slots) — matched by callsign (kept constant per character in Foundry), since the
-      // "name" field is what tends to vary between per-mech COMP/CON saves. Merge the mech(s)
+      // slots) — matched by callsign, then by callsign without the profile decorations
+      // («CHEMBER (MASTIFF)» → CHEMBER), then by name (findImportTarget). Merge the mech(s)
       // into the existing pilot instead of creating a duplicate.
-      const existing = pilots.find((p) => p.callsign.trim().toLowerCase() === mapped.callsign.trim().toLowerCase());
-
-      if (existing) {
-        const full = await api.getPilot(existing.id);
-        const clashes = mechNameClashes(full.state.mechs, mapped.state.mechs);
-        if (clashes.length) throw new Error(mechClashMessage(clashes));
-        const profiles = compconProfiles(full.state.mechs, mapped.state.mechs, json);
-        const mechNames = mapped.state.mechs.map((m) => m.name).join(', ') || '—';
-        const newState = {
-          ...full.state,
-          mechs: mergeMechsByName(full.state.mechs, mapped.state.mechs),
-          actionLog: pushLog(full.state.actionLog, `Мех(и) підтягнуто з COMP/CON («${mapped.callsign}»): ${mechNames}`),
-        };
-        await api.updatePilot(existing.id, { state: newState });
-        await api.saveCompconProfiles(existing.id, profiles);
-      } else {
-        const clashes = mechNameClashes([], mapped.state.mechs);
-        if (clashes.length) throw new Error(mechClashMessage(clashes));
-        const created = await api.createPilot({ name: mapped.name, callsign: mapped.callsign, background: mapped.background });
-        await api.updatePilot(created.id, { state: mapped.state });
-        await api.saveCompconProfiles(created.id, compconProfiles([], mapped.state.mechs, json));
+      const target = findImportTarget(pilots, mapped);
+      if (target.ambiguous) {
+        throw new Error(
+          `Файл підходить кільком пілотам (${target.ambiguous.map((p) => p.callsign).join(', ')}). ` +
+          'Відкрийте профіль потрібного й натисніть «Оновити з COMP/CON JSON».',
+        );
       }
-      await reload();
+      const existing = target.pilot;
+      // Нового пілота створюємо лише з явної згоди: інакше файл другого профілю тихо давав дубль.
+      if (!existing && pilots.length > 0) {
+        const ok = await ask({
+          title: 'НОВИЙ ПІЛОТ?',
+          question: `Серед ваших пілотів немає «${mapped.callsign}» — створити нового?`,
+          lines: [
+            `ім'я з файлу: ${mapped.name}`,
+            `мехи: ${mapped.state.mechs.map((m) => m.name).join(', ') || '—'}`,
+            { t: 'Якщо це мех наявного пілота — відкрийте його профіль і натисніть «Оновити з COMP/CON JSON».', ink: 'var(--text-dimmer)' },
+          ],
+          yesLabel: 'СТВОРИТИ',
+        });
+        if (!ok) return;
+      }
+
+      // Мехи кладуться у слоти ангару вже в профілі пілота: там видно слоти, і якщо в
+      // файлі кілька мехів чи слоти зайняті іншими — гравець обирає, який мех куди.
+      let pilotId = existing?.id;
+      if (!pilotId) {
+        const created = await api.createPilot({ name: mapped.name, callsign: mapped.callsign, background: mapped.background });
+        await api.updatePilot(created.id, { state: { ...mapped.state, mechs: [] } });
+        pilotId = created.id;
+      }
+      navigate(`/pilots/${pilotId}`, { state: { compcon: { json, fileName: file.name } } });
     } catch (err) {
       setImportError(err instanceof SyntaxError ? 'Файл не є коректним JSON.' : err.message);
     } finally {

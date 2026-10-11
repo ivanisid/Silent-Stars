@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -6,6 +6,8 @@ import { llTier } from '../pilot/logic';
 import { Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
 import { DIFFICULTY_GROUPS, difficultyByKey, difficultyLabel } from '../difficulty';
 import DateTimeField from '../components/DateTimeField.jsx';
+import PlayCalendar from '../components/PlayCalendar.jsx';
+import { DiscordLinkButtons } from '../components/DiscordLink.jsx';
 
 // Gold as *text on a card*, so it stays legible on the light themes; --gm itself is
 // the bright gold meant for the GM's own dark surfaces.
@@ -30,6 +32,21 @@ function deadlineIsPast(iso) {
   return !Number.isNaN(d.getTime()) && d < new Date();
 }
 
+// Коли склад затвердиться сам: у дедлайн набору, а без дедлайну — у час гри.
+function autoAt(slot) {
+  return slot.signupDeadline || slot.gameAt || null;
+}
+
+// Склад, який затвердив би сервер (private.auto_roster): гарантовані, далі пріоритет
+// (d20 + бонус), рівні — хто раніше записався; стільки, скільки місць.
+function autoRoster(slot) {
+  const prio = (g) => (g.roll === null ? -Infinity : g.roll + (g.rollBonus || 0));
+  return [...slot.signups]
+    .sort((a, b) => (b.guaranteed - a.guaranteed) || prio(b) - prio(a) || new Date(a.createdAt) - new Date(b.createdAt))
+    .slice(0, slot.seats)
+    .map((g) => g.id);
+}
+
 // The badge sits on the card header, whose background is the theme's saturated primary
 // — a status colour there can land gold-on-gold. It takes the header's own ink and
 // leans on wording plus emphasis instead; the words already say the state.
@@ -39,8 +56,10 @@ function statusBadge(slot) {
   // played and paid for. A slot passes through the first on its way to the second.
   if (slot.status === 'closed') return { text: 'ГРА ЗАВЕРШЕНА', strong: true };
   if (slot.status === 'approved') return { text: 'СКЛАД ЗАТВЕРДЖЕНО · ЗАПИС ЗАКРИТО', strong: true };
-  // The deadline is a hint for players, not a lock — only the GM closing the slot ends signup.
-  if (deadlineIsPast(slot.signupDeadline)) return { text: 'ДЕДЛАЙН МИНУВ · НАБІР ЩЕ ВІДКРИТО', strong: true };
+  // Дедлайн настав, а планувальник (раз на 5 хв, private.auto_approve_rosters) ще не дійшов.
+  if (deadlineIsPast(autoAt(slot))) {
+    return { text: slot.signups.length ? 'ДЕДЛАЙН МИНУВ · СКЛАД ЗАТВЕРДЖУЄТЬСЯ' : 'ДЕДЛАЙН МИНУВ · ЗАПИСІВ НЕМАЄ', strong: true };
+  }
   return { text: 'НАБІР ВІДКРИТО', strong: false };
 }
 
@@ -145,7 +164,8 @@ function Field({ label, children, style }) {
 }
 
 // GM slot creation form, collapsed behind a button.
-function CreateSlotForm({ onCreated }) {
+// preset — { at: Date } з календаря гравців: форма відкривається з датою гри на цей день.
+function CreateSlotForm({ onCreated, preset }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -158,6 +178,12 @@ function CreateSlotForm({ onCreated }) {
   const [difficulty, setDifficulty] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!preset) return;
+    setGameAt(preset.at);
+    setOpen(true);
+  }, [preset]);
 
   async function submit(e) {
     e.preventDefault();
@@ -292,7 +318,10 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   // GM roster picks (signup ids) before resolving.
-  const [picked, setPicked] = useState(() => new Set());
+  // Відмітки ГМа. null — ще не чіпав: тоді відмічено склад за правилами (autoRoster).
+  const [pickedRaw, setPicked] = useState(null);
+  // Зміна вже затвердженого складу (до завершення гри).
+  const [editingRoster, setEditingRoster] = useState(false);
   const [editReward, setEditReward] = useState(false);
   const [rMana, setRMana] = useState(0);
   const [rPr, setRPr] = useState(0);
@@ -319,16 +348,24 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   const rewarded = slot.signups.filter((g) => g.approved === true && g.pilotId).length;
   const mySignup = slot.signups.find((g) => g.userId === user.id);
   const contest = slot.signups.length > slot.seats;
-  // Пріоритет (d20 + бонус) кидається під час запису; вищий іде вгору списку, рівні — у порядку запису.
+  // Пріоритет (d20 + бонус) кидається під час запису, але має значення лише в контесті —
+  // поки місць вистачає, його не показуємо, а список іде в порядку запису.
   // Гарантоване місце (бонус +9) — над усіма: воно входить у склад, хоч би що відмітив ГМ.
   const priority = (g) => (g.guaranteed ? 1000 : g.roll === null ? -1 : g.roll + (g.rollBonus || 0));
-  const ranked = [...slot.signups].sort((a, b) => priority(b) - priority(a));
-  // Скільки реально піде в склад: відмічені ГМом плюс гарантовані.
-  const rosterSize = new Set([...picked, ...slot.signups.filter((g) => g.guaranteed).map((g) => g.id)]).size;
+  const ranked = contest ? [...slot.signups].sort((a, b) => priority(b) - priority(a)) : slot.signups;
+  const picked = pickedRaw ?? new Set(autoRoster(slot));
+  // Скільки реально піде в склад: відмічені ГМом плюс гарантовані (при затвердженні вони
+  // примусові; у зміні затвердженого складу — ні, це вже рішення ГМа).
+  const rosterSize = editingRoster
+    ? picked.size
+    : new Set([...picked, ...slot.signups.filter((g) => g.guaranteed).map((g) => g.id)]).size;
   const deadlinePassed = deadlineIsPast(slot.signupDeadline);
   // Running the game is what grants the controls, not being a GM: another GM is an
   // ordinary player here, and the person running it does not play in it.
   const ownsSlot = slot.createdBy === user.id;
+  // Галочки складу: при затвердженні відкритого слота і при зміні вже затвердженого.
+  const picking = ownsSlot && (isOpen || (isApproved && editingRoster));
+  const forcedIn = (g) => isOpen && g.guaranteed;
 
   // A mech is only worth asking about when the pilot actually has a choice to make.
   const chosenPilot = myPilots.find((p) => p.id === pilotId);
@@ -386,7 +423,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
 
   function togglePick(id) {
     setPicked((prev) => {
-      const next = new Set(prev);
+      const next = new Set(prev ?? picked);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
@@ -451,14 +488,23 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
         {slot.description && <Description text={slot.description} />}
 
         {contest && isOpen && (
-          <div style={{ fontSize: 11, color: 'var(--warn)', letterSpacing: 1 }}>:: Учасників більше, ніж місць — склад визначає пріоритет.</div>
+          <div style={{ fontSize: 11, color: 'var(--warn)', letterSpacing: 1 }}>:: Учасників більше, ніж місць — склад визначає пріоритет (d20 + бонус).</div>
+        )}
+        {isOpen && slot.signups.length > 0 && (
+          <div style={{ fontSize: 11, color: 'var(--text-grey)', letterSpacing: 1, lineHeight: 1.6 }}>
+            <span className="pre">&gt; </span>
+            {autoAt(slot)
+              ? `Склад затвердиться автоматично ${formatDT(autoAt(slot))}${slot.signupDeadline ? '' : ' (час гри)'}: `
+              : 'Без дедлайну й часу гри склад затверджує ГМ: '}
+            {contest ? `перші ${slot.seats} за пріоритетом і гарантовані місця.` : 'усі записані — місць вистачає.'}
+          </div>
         )}
 
         {slot.signups.length > 0 && (
           <div className="ss-list">
             {ranked.map((g, i) => {
               const mine = g.userId === user.id;
-              const checked = g.guaranteed || picked.has(g.id);
+              const checked = forcedIn(g) || picked.has(g.id);
               return (
                 <div
                   key={g.id}
@@ -473,13 +519,13 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                     borderLeft: `3px solid ${mine ? 'var(--accent)' : 'transparent'}`,
                   }}
                 >
-                  {ownsSlot && isOpen && (
+                  {picking && (
                     <button
                       type="button"
                       role="checkbox"
                       aria-checked={checked}
-                      disabled={g.guaranteed}
-                      title={g.guaranteed ? 'Гарантоване місце — входить у склад автоматично' : 'У склад'}
+                      disabled={forcedIn(g)}
+                      title={forcedIn(g) ? 'Гарантоване місце — входить у склад автоматично' : 'У склад'}
                       onClick={() => togglePick(g.id)}
                       style={{
                         flex: 'none',
@@ -491,8 +537,8 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                         color: 'var(--bg)',
                         fontSize: 12,
                         lineHeight: '16px',
-                        opacity: g.guaranteed ? 0.6 : 1,
-                        cursor: g.guaranteed ? 'not-allowed' : 'pointer',
+                        opacity: forcedIn(g) ? 0.6 : 1,
+                        cursor: forcedIn(g) ? 'not-allowed' : 'pointer',
                       }}
                     >
                       {checked ? '✓' : ''}
@@ -528,10 +574,10 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                     </button>
                   )}
                   <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                    {g.guaranteed && (
+                    {contest && g.guaranteed && (
                       <span style={{ color: GOLD, whiteSpace: 'nowrap', letterSpacing: 1 }} title={`Бонус +${g.rollBonus}`}>◆ ГАРАНТОВАНЕ МІСЦЕ</span>
                     )}
-                    {!g.guaranteed && g.roll !== null && (
+                    {contest && !g.guaranteed && g.roll !== null && (
                       <span
                         style={{ display: 'flex', alignItems: 'baseline', gap: 6, whiteSpace: 'nowrap' }}
                         title={`d20: ${g.roll}${g.rollBonus > 0 ? ` + бонус ${g.rollBonus}` : ''}`}
@@ -594,7 +640,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                 run(() => api.boardSignup(slot.id, pilotId, mech));
               }}
             >
-              ЗАПИСАТИСЬ · d20
+              ЗАПИСАТИСЬ
             </button>
           </div>
         )}
@@ -747,6 +793,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                         lines: [
                           `у складі: ${rosterSize} з ${slot.signups.length}`,
                           'запис на гру закриється',
+                          ...(autoAt(slot) ? [`без вас склад затвердився б сам ${formatDT(autoAt(slot))}`] : []),
                           'хто потрапив у склад, витрачає бонус',
                           'якщо був контест, ті, хто не потрапив, зберігають бонус і отримують ще +3',
                           'нагорода поки НЕ нараховується — це станеться, коли ви завершите гру',
@@ -760,7 +807,58 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                   ЗАТВЕРДИТИ СКЛАД · {rosterSize}
                 </button>
               )}
-              {isApproved && !closing && (
+              {isApproved && !closing && !editingRoster && (
+                <button
+                  className="btn-ghost"
+                  type="button"
+                  disabled={busy}
+                  title="Додати чи прибрати гравців зі складу — до завершення гри"
+                  onClick={() => {
+                    setPicked(new Set(slot.signups.filter((g) => g.approved === true).map((g) => g.id)));
+                    setEditingRoster(true);
+                  }}
+                >
+                  ЗМІНИТИ СКЛАД
+                </button>
+              )}
+              {isApproved && editingRoster && (
+                <>
+                  <button
+                    className="btn-gm"
+                    type="button"
+                    disabled={busy}
+                    onClick={async () => {
+                      const was = new Set(slot.signups.filter((g) => g.approved === true).map((g) => g.id));
+                      const who = (g) => g.callsign || g.nick || '—';
+                      const added = slot.signups.filter((g) => picked.has(g.id) && !was.has(g.id)).map(who);
+                      const removed = slot.signups.filter((g) => !picked.has(g.id) && was.has(g.id)).map(who);
+                      if (!added.length && !removed.length) return setEditingRoster(false);
+                      const ok = await ask({
+                        title: 'ЗМІНИТИ СКЛАД?',
+                        tone: 'gm',
+                        lines: [
+                          `у складі: ${picked.size} (місць ${slot.seats})`,
+                          ...(added.length ? [`додано: ${added.join(', ')} — бонус пріоритету витрачається`] : []),
+                          ...(removed.length ? [`прибрано: ${removed.join(', ')} — бонус повертається${contest ? ' і +3 за контест' : ''}`] : []),
+                        ],
+                        yesLabel: 'ЗБЕРЕГТИ',
+                      });
+                      if (!ok) return;
+                      run(async () => {
+                        await api.gmEditRoster(slot.id, Array.from(picked));
+                        setEditingRoster(false);
+                        setPicked(null);
+                      });
+                    }}
+                  >
+                    ЗБЕРЕГТИ СКЛАД · {rosterSize}
+                  </button>
+                  <button className="btn-ghost" type="button" disabled={busy} onClick={() => { setEditingRoster(false); setPicked(null); }}>
+                    СКАСУВАТИ
+                  </button>
+                </>
+              )}
+              {isApproved && !closing && !editingRoster && (
                 <button
                   className="btn-gm"
                   type="button"
@@ -844,97 +942,6 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   );
 }
 
-// Прив'язка Discord: після неї кнопки під оголошеннями в Discord записують у ту саму
-// дошку від імені цього акаунта. Код одноразовий, живе 15 хвилин.
-function DiscordLink({ user }) {
-  const [link, setLink] = useState(undefined); // undefined — ще вантажиться
-  const [code, setCode] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  // Чи може цей акаунт входити через Discord (OAuth). Прив'язка /link кодом цього не дає.
-  const [hasLogin, setHasLogin] = useState(false);
-
-  async function load() {
-    try {
-      setLink(await api.getDiscordLink(user.id));
-      setHasLogin(await api.hasDiscordLogin());
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.id]);
-
-  async function run(fn) {
-    setBusy(true);
-    setError('');
-    try {
-      await fn();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (link === undefined && !error) return null;
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 12px', border: '1px solid var(--input-border)', background: 'var(--input-bg)', fontSize: 12 }}>
-      <span style={{ color: 'var(--text-dimmer)', letterSpacing: 1 }}>DISCORD</span>
-      {link ? (
-        <>
-          <span style={{ color: 'var(--success)' }}>прив'язано{link.discord_username ? ` · ${link.discord_username}` : ''}</span>
-          <span style={{ color: 'var(--text-dimmer)', fontSize: 11 }}>— у Discord можна записуватись із пілотом і мехом</span>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {!hasLogin && (
-              <button className="btn-ghost md" type="button" disabled={busy}
-                title="Після цього можна входити в апку кнопкою «Увійти через Discord» — у цей самий акаунт"
-                onClick={() => run(api.linkDiscordLogin)}>
-                УВІМКНУТИ ВХІД ЧЕРЕЗ DISCORD
-              </button>
-            )}
-            {/* Відв'язка кодом не прибирає Discord-вхід, тож для таких акаунтів її не пропонуємо. */}
-            {!hasLogin && (
-              <button className="btn-ghost md" type="button" disabled={busy}
-                onClick={() => run(async () => { await api.unlinkDiscord(user.id); setLink(null); setCode(''); })}>
-                ВІДВ'ЯЗАТИ
-              </button>
-            )}
-            {hasLogin && <span style={{ color: 'var(--text-dimmer)', fontSize: 11 }}>вхід через Discord увімкнено</span>}
-          </div>
-        </>
-      ) : code ? (
-        <>
-          <span style={{ color: 'var(--text-soft)' }}>код прив'язки</span>
-          <code style={{ color: 'var(--accent)', fontSize: 14, letterSpacing: 2, userSelect: 'all' }}>{code}</code>
-          <span style={{ fontSize: 11, color: 'var(--text-dimmer)' }}>/link · 15 хв</span>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-            <button className="btn-ghost md" type="button" disabled={busy} onClick={() => run(load)}>ПЕРЕВІРИТИ</button>
-          </div>
-        </>
-      ) : (
-        <>
-          <span style={{ color: 'var(--text-dimmer)' }}>не прив'язано — у Discord можна записатись і так, але без пілота й меха</span>
-          {/* Через Discord одним кліком: і прив'язка, і вхід. Код /link — запасний шлях. */}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button className="btn md" type="button" disabled={busy} onClick={() => run(api.linkDiscordLogin)}>
-              ПРИВ'ЯЗАТИ ЧЕРЕЗ DISCORD
-            </button>
-            <button className="btn-ghost md" type="button" disabled={busy} onClick={() => run(async () => setCode(await api.createDiscordLinkCode()))}>
-              КОД ДЛЯ /link
-            </button>
-          </div>
-        </>
-      )}
-      {error && <Msg kind="err" style={{ width: '100%' }}>{error}</Msg>}
-    </div>
-  );
-}
-
 export default function BoardPage() {
   const { user, isGm } = useAuth();
 
@@ -943,6 +950,9 @@ export default function BoardPage() {
   const [myBonus, setMyBonus] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  // Створення гри з календаря: дата обраного дня йде у форму.
+  const [createPreset, setCreatePreset] = useState(null);
+  const createRef = useRef(null);
 
   async function reload() {
     try {
@@ -1009,7 +1019,7 @@ export default function BoardPage() {
       ? 'На наступну гру місце гарантоване — кидати не треба.'
       : myBonus > 0
         ? 'Бонус додається до d20 при записі: +3 за кожен програний контест, +9 — гарантоване місце. Згорає, коли потрапите в склад.'
-        : 'При записі кидається d20 — це ваш пріоритет. Бонус до нього накопичується за програні контести.';
+        : 'Поки місць вистачає, у склад ідуть усі. Коли охочих більше, ніж місць, склад визначає пріоритет — d20 + бонус, що накопичується за програні контести.';
 
   return (
     <PageShell narrow>
@@ -1028,12 +1038,31 @@ export default function BoardPage() {
         </div>
       </div>
 
-      {user && <DiscordLink user={user} />}
+      {user && <DiscordLinkButtons user={user} />}
 
       {loadError && <Msg kind="err">{loadError}</Msg>}
       {loading && <div className="ss-note"><span className="pre">&gt; </span>Завантаження…</div>}
 
-      {isGm && !loading && <CreateSlotForm onCreated={reload} />}
+      {!loading && (
+        <PlayCalendar
+          user={user}
+          isGm={isGm}
+          slots={slots}
+          onCreateForDay={(d) => {
+            // Гра за замовчуванням о 19:00 обраного дня — час ГМ правиться у формі.
+            const at = new Date(d);
+            at.setHours(19, 0, 0, 0);
+            setCreatePreset({ at });
+            setTimeout(() => createRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+          }}
+        />
+      )}
+
+      {isGm && !loading && (
+        <div ref={createRef} style={{ display: 'flex', flexDirection: 'column' }}>
+          <CreateSlotForm onCreated={reload} preset={createPreset} />
+        </div>
+      )}
 
       {!loading && sorted.length === 0 && (
         <div className="ss-slot" style={{ padding: 22, fontSize: 12, color: 'var(--text-dimmer)' }}><span className="pre">&gt; </span>Ігор поки немає.</div>

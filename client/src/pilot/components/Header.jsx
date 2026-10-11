@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { derivePilotView } from '../derive';
-import { importCompconFile } from '../compconFile';
+import { compconStatus } from '../compconFile';
 import { parseAdventureLeagueCsv, summarizeAdventureLeagueLog } from '../csvImport';
 import { Menu, Panel } from '../../components/kit.jsx';
 import ArtSlot from './ArtSlot.jsx';
@@ -19,7 +19,7 @@ const lastImport = new Map();
 // Профіль пілота: ім'я, позивний і мехи, бекграунд, ТІР/статус, меню «⋯» (імпорт і
 // правки), рядок ЛЛ з покупкою рівня, ігри пілота і портрет праворуч. Під панеллю —
 // кнопки імпорту зі статусом останнього завантаження.
-export default function Header({ pilot, state, dispatch, onSaveMeta, games, portrait, canEditArt, onUploadPortrait, onRemoveArt }) {
+export default function Header({ pilot, state, dispatch, onSaveMeta, games, portrait, canEditArt, onUploadPortrait, onRemoveArt, compconFiles, importCompcon, importNote }) {
   const view = derivePilotView(state);
   const [editingMeta, setEditingMeta] = useState(false);
   const [name, setName] = useState(pilot.name);
@@ -33,9 +33,11 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
   };
   const csvRef = useRef(null);
   const jsonRef = useRef(null);
-  // 'full' — файл основного профілю (мехи й бонд), 'mech' — інший профіль того ж пілота:
-  // з нього лише мех, дані пілота не змінюються.
-  const jsonMode = useRef('full');
+  // Результат імпорту, запущеного зі сторінки пілотів (файл приїхав разом з переходом сюди).
+  useEffect(() => {
+    if (importNote) setImportMsg(importNote);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importNote]);
 
   function saveMeta() {
     onSaveMeta({ name: name.trim() || pilot.name, callsign: callsign.trim() || pilot.callsign, background });
@@ -68,14 +70,18 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
     e.target.value = '';
     if (!file) return;
     try {
-      setImportMsg(await importCompconFile(file, { state, pilotId: pilot.id, dispatch, withBond: jsonMode.current === 'full' }));
+      // Пілот, мехи й бонд. Мехи лягають у слоти ангару; неочевидний розклад — вікно вибору.
+      const res = await importCompcon(file, { withBond: true });
+      if (res) setImportMsg(res);
     } catch (err) {
       setImportMsg({ ok: false, text: err.message });
     }
   }
 
-  function pickJson(mode) {
-    jsonMode.current = mode;
+  const cc = compconStatus(state.mechs, compconFiles);
+  const ccTone = cc.kind === 'ok' ? 'ok' : cc.kind === 'partial' ? 'warn' : cc.kind === 'loading' ? '' : 'bad';
+
+  function pickJson() {
     jsonRef.current?.click();
   }
 
@@ -130,8 +136,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
                   items={[
                     { header: 'ІМПОРТ' },
                     { label: 'Завантажити дані з Adventure League log', onClick: () => csvRef.current?.click() },
-                    { label: 'Оновити з COMP/CON JSON (мехи і бонд)', onClick: () => pickJson('full') },
-                    { label: 'Додати меха з іншого профілю COMP/CON', onClick: () => pickJson('mech') },
+                    { label: 'Оновити з COMP/CON JSON (пілот, мехи, бонд)', onClick: pickJson },
                     importMsg && {
                       node: (
                         <div className="mmsg" style={{ color: importMsg.ok ? 'var(--success)' : 'var(--danger)' }}>
@@ -219,9 +224,19 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
       </div>
     </Panel>
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: -8 }}>
-      <button className="btn-ghost" type="button" title="Оновити мехи й бонд із файлу COMP/CON; стан мехів (HP, заряди) зберігається" onClick={() => pickJson('full')} style={{ fontSize: 11, padding: '6px 12px' }}>
+      <button className="btn-ghost" type="button" title="Завантажити файл COMP/CON (Save Pilot): пілот, мехи й бонд. Мех лягає у свій слот ангару (стан HP, зарядів зберігається); кілька мехів у файлі — оберете, який у який слот. З файлу ГМ створює актора у Foundry" onClick={pickJson} style={{ fontSize: 11, padding: '6px 12px' }}>
         ОНОВИТИ З COMP/CON JSON
       </button>
+      {/* Чи лежить файл в апці (а не лише чи вантажили цієї сесії): без нього ГМ не створить актора. */}
+      <span
+        className={`ss-tag ${ccTone}`}
+        title={cc.kind === 'ok' || cc.kind === 'partial'
+          ? 'Файл COMP/CON збережено в апці — ГМ може створити з нього актора у Foundry'
+          : 'Файлу COMP/CON для мехів немає — завантажте його кнопкою ліворуч'}
+        style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}
+      >
+        {cc.kind === 'ok' ? '● ' : cc.kind === 'loading' ? '' : '○ '}{cc.text}
+      </span>
       <button className="btn-ghost" type="button" title="Завантажити дані з файлу Adventure League log" onClick={() => csvRef.current?.click()} style={{ fontSize: 11, padding: '6px 12px' }}>
         ADVENTURE LEAGUE LOG (CSV)
       </button>

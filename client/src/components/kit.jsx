@@ -143,7 +143,7 @@ export function Menu({ items, icon = '⋯', small = false, width, title = 'Ді�
 
 // Вікно підтвердження. tone: undefined (звичайний) | 'danger' | 'gm'.
 // lines — рядки «> …» або {t, ink}; yesLabel/altLabel — підписи дій.
-export function ConfirmDialog({ title, question, lines = [], note, tone, yesLabel = 'ТАК', noLabel = 'НІ', altLabel, canYes = true, onYes, onNo, onAlt, children }) {
+export function ConfirmDialog({ title, question, lines = [], note, tone, yesLabel = 'ТАК', noLabel = 'НІ', altLabel, canYes = true, canAlt = true, onYes, onNo, onAlt, children }) {
   useEffect(() => {
     const esc = (e) => e.key === 'Escape' && onNo?.();
     document.addEventListener('keydown', esc);
@@ -171,7 +171,7 @@ export function ConfirmDialog({ title, question, lines = [], note, tone, yesLabe
           {note && <div style={{ fontSize: 12, color: 'var(--text-dimmer)', lineHeight: 1.6 }}>{note}</div>}
           <div className="modal-actions">
             <button type="button" className="btn-ghost" onClick={onNo}>{noLabel}</button>
-            {altLabel && <button type="button" className="btn-ghost" onClick={onAlt}>{altLabel}</button>}
+            {altLabel && <button type="button" className="btn-ghost" disabled={!canAlt} onClick={() => canAlt && onAlt?.()}>{altLabel}</button>}
             <button type="button" className={yesCls} disabled={!canYes} onClick={() => canYes && onYes?.()} autoFocus>
               {yesLabel}
             </button>

@@ -29,7 +29,7 @@ import {
   skillCapMax,
   skillCapUsed,
 } from './logic';
-import { mergeMechsByName, isMechNameTaken, mechNameClashes } from './compconImport';
+import { isMechNameTaken } from './compconImport';
 import { pruneRetainedState } from './mechMerge';
 import { repairPlan, repairCost, spentText, isLimited, itemRefillPr, KIT_PR, KITS_FULL_PR, MECH_STRUCTURE, MECH_REACTOR } from './repair';
 import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft } from './reserves';
@@ -1207,6 +1207,23 @@ function reduce(state, action) {
       );
     }
     // Позначка «знищено» безкоштовна; ремонт — через MECH_REPAIR (1 ремкомплект).
+    // «↶ Скасувати» на картці меха: помилковий клік по безкоштовному списанню (структура,
+    // реактор, ремкомплект, «знищено»), які без цього повертаються лише за ремкомплекти / PR.
+    // Повертає одне поле до значення перед кліком; картка пропонує це лише одразу після дії.
+    case 'UNDO_MECH_FIELD': {
+      const m = findMech(state, action.id);
+      if (!m) return state;
+      const note = `${m.name}: скасовано «${action.label}» (помилковий клік)`;
+      if (action.field === 'destroyed') {
+        const it = m.items?.[action.idx];
+        if (!it || !it.destroyed) return state;
+        return log(updateItem(state, m.id, action.idx, (x) => ({ ...x, destroyed: false })), note);
+      }
+      if (!['structureFilled', 'reactorFilled', 'repairCurrent'].includes(action.field)) return state;
+      const v = Number(action.value);
+      if (!Number.isFinite(v) || (m[action.field] || 0) === v) return state;
+      return log(updateMech(state, m.id, (mm) => ({ ...mm, [action.field]: v })), note);
+    }
     case 'MARK_ITEM_DESTROYED': {
       const m = findMech(state, action.id);
       const it = m?.items?.[action.idx];
@@ -1317,15 +1334,10 @@ function reduce(state, action) {
       }
       return log(next, msg);
     }
-    case 'MERGE_COMPCON_MECHS': {
-      const { mechs, callsign } = action.payload;
-      // Компоненти перевіряють це заздалегідь і показують помилку; тут — страховка.
-      if (mechNameClashes(state.mechs, mechs).length) return state;
-      const names = mechs.map((m) => m.name).join(', ') || '—';
-      return log(
-        { ...state, mechs: mergeMechsByName(state.mechs, mechs) },
-        `Мех(и) підтягнуто з COMP/CON («${callsign}»): ${names}`,
-      );
+    // Мехи після імпорту COMP/CON у слоти ангару — розклад рахує slotImport.js.
+    case 'SET_COMPCON_MECHS': {
+      if (!Array.isArray(action.mechs)) return state;
+      return log({ ...state, mechs: action.mechs }, action.msg || 'Мехи підтягнуто з COMP/CON');
     }
 
     default:

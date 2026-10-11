@@ -129,6 +129,14 @@ export const api = {
     return data;
   },
 
+  // ГМ-панель: Discord гравців, які його прив'язали — { userId: { name, id } }. До міграції
+  // 20261011d функції немає — тоді порожньо, панель працює як раніше.
+  gmListDiscordLinks: async () => {
+    const { data, error } = await supabase.rpc('gm_discord_links');
+    if (error) return {};
+    return Object.fromEntries((data || []).map((l) => [l.user_id, { name: l.discord_username || '', id: l.discord_user_id }]));
+  },
+
   // ГМ робить іншого учасника ГМом ('gm') або знімає роль ('player'). Свою роль змінити
   // не можна — це перевіряє сервер (gm_set_role).
   gmSetRole: async (userId, role) => {
@@ -257,7 +265,7 @@ export const api = {
     }
   },
 
-  // Файли COMP/CON по одному на меха (див. compconProfiles): з них модуль Foundry створює
+  // Файли COMP/CON по одному на меха (див. profilesFor у slotImport.js): з них модуль Foundry створює
   // акторів. Повторне завантаження того ж меха замінює файл.
   saveCompconProfiles: async (pilotId, profiles) => {
     if (!profiles?.length) return;
@@ -266,6 +274,21 @@ export const api = {
     }));
     const { error } = await supabase.from('pilot_compcon').upsert(rows, { onConflict: 'pilot_id,mech_id' });
     if (error) throw new Error(error.message);
+  },
+
+  // Які мехи пілота мають збережений файл COMP/CON і коли його оновлено: { [mechId]: updated_at }.
+  listCompconProfiles: async (pilotId) => {
+    const { data, error } = await supabase.from('pilot_compcon').select('mech_id, updated_at').eq('pilot_id', pilotId);
+    if (error) throw new Error(error.message);
+    return Object.fromEntries((data || []).map((r) => [String(r.mech_id), r.updated_at]));
+  },
+
+  // Мехи пілота, зв'язані з акторами Foundry (звітує модуль, див. foundry-sync «links»):
+  // { [mechId]: { actor, seenAt } }. Таблиці може ще не бути — тоді порожньо.
+  listFoundryLinks: async (pilotId) => {
+    const { data, error } = await supabase.from('foundry_mech_links').select('mech_id, actor_name, seen_at').eq('pilot_id', pilotId);
+    if (error) return {};
+    return Object.fromEntries((data || []).map((r) => [String(r.mech_id), { actor: r.actor_name, seenAt: r.seen_at }]));
   },
 
   // М'яке видалення: файл із Foundry і зі сховища прибирає синхронізатор.
@@ -316,7 +339,8 @@ export const api = {
   linkDiscordLogin: async () => {
     const { error } = await supabase.auth.linkIdentity({
       provider: 'discord',
-      options: { redirectTo: `${window.location.origin}/board` },
+      // Повертаємось туди, звідки прив'язували (дошка ігор чи будь-яка сторінка з Account manager).
+      options: { redirectTo: `${window.location.origin}${window.location.pathname}` },
     });
     if (error) {
       if (/manual linking/i.test(error.message)) {
@@ -330,6 +354,16 @@ export const api = {
     const { data, error } = await supabase.auth.getUserIdentities();
     if (error) return false;
     return (data?.identities || []).some((i) => i.provider === 'discord');
+  },
+
+  // Зняти Discord-вхід (OAuth). Тригер на auth.identities прибирає й прив'язку discord_links.
+  unlinkDiscordLogin: async () => {
+    const { data, error } = await supabase.auth.getUserIdentities();
+    if (error) throw new Error(error.message);
+    const identity = (data?.identities || []).find((i) => i.provider === 'discord');
+    if (!identity) return;
+    const { error: e2 } = await supabase.auth.unlinkIdentity(identity);
+    if (e2) throw new Error(e2.message);
   },
 
   createDiscordLinkCode: async () => {
@@ -384,6 +418,30 @@ export const api = {
   },
 
   // channelName — щоб дошка і профіль пілота не ділили один канал, коли обидва відкриті.
+  // Календар гравців: дні в [from, to] (рядки YYYY-MM-DD) з тими, хто хоче грати.
+  calendarList: async (from, to) => {
+    const { data, error } = await supabase.rpc('calendar_list', { p_from: from, p_to: to });
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  // Поставити / зняти свою відмітку «хочу грати цього дня».
+  calendarToggle: async (userId, day, on) => {
+    const q = on
+      ? supabase.from('play_availability').insert({ user_id: userId, day })
+      : supabase.from('play_availability').delete().eq('user_id', userId).eq('day', day);
+    const { error } = await q;
+    if (error && !(on && error.code === '23505')) throw new Error(error.message);
+  },
+
+  subscribeCalendar: (onChange) => {
+    const channel = supabase
+      .channel('calendar')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'play_availability' }, onChange)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  },
+
   subscribeBoard: (onChange, channelName = 'board') => {
     const channel = supabase
       .channel(channelName)
@@ -512,6 +570,13 @@ export const api = {
   // 'approved' in between, where signup is shut but nothing has been awarded yet.
   gmApproveRoster: async (slotId, approvedSignupIds) => {
     const { error } = await supabase.rpc('gm_approve_roster', { p_slot_id: slotId, p_approved: approvedSignupIds });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
+  // Зміна вже затвердженого складу (до завершення гри): увесь новий склад.
+  gmEditRoster: async (slotId, approvedSignupIds) => {
+    const { error } = await supabase.rpc('gm_edit_roster', { p_slot_id: slotId, p_approved: approvedSignupIds });
     if (error) throw new Error(error.message);
     return { ok: true };
   },

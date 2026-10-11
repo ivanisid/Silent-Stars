@@ -22,11 +22,20 @@ jobs:
           cache-dependency-path: client/package-lock.json
       - run: npm ci
         working-directory: client
+      - name: Лінт (падіння, яких не бачить збірка)
+        run: npm run lint
+        working-directory: client
       - name: Екшени редюсера
         run: node src/pilot/__actions.test.mjs
         working-directory: client
       - name: Злиття меха при повторному імпорті
         run: node src/pilot/mechMerge.test.mjs
+        working-directory: client
+      - name: Імпорт COMP/CON у слоти ангару
+        run: node src/pilot/slotImport.test.mjs
+        working-directory: client
+      - name: Бонуси меха з COMP/CON
+        run: node src/pilot/mechBonuses.test.mjs
         working-directory: client
       - name: Збірка
         run: npm run build
