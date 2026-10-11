@@ -111,7 +111,7 @@ export function renderPersonal(cal: CalendarData, mine: Set<string>) {
 // Спільне закріплене повідомлення в каналі — без особистих галочок; кнопка відкриває особисте.
 export function renderPublic(cal: CalendarData) {
   const appUrl = Deno.env.get('APP_URL');
-  const buttons: any[] = [{ type: 2, style: 1, label: 'Відмітити мої дні', emoji: { name: '📅' }, custom_id: 'calo' }];
+  const buttons: any[] = [{ type: 2, style: 1, label: 'Відмітити дні', emoji: { name: '📅' }, custom_id: 'calo' }];
   if (appUrl) buttons.push({ type: 2, style: 5, label: 'Календар в апці', url: `${appUrl.replace(/\/$/, '')}/board` });
   return {
     content: '',
