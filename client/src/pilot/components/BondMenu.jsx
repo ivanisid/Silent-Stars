@@ -113,7 +113,7 @@ function BondXp({ state, dispatch }) {
             type="button"
             title="Повернути до 1"
             onClick={() => dispatch({ type: 'RESET_BOND_POWERS' })}
-            style={{ alignSelf: 'flex-end', background: 'transparent', border: 'none', padding: 0, fontSize: 9, letterSpacing: 1, color: 'var(--text-dimmer)' }}
+            style={{ alignSelf: 'flex-end', background: 'transparent', border: 'none', padding: 0, fontSize: 10, letterSpacing: 1, color: 'var(--text-dimmer)' }}
           >
             СКИНУТИ
           </button>

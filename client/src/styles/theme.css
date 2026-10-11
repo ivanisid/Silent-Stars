@@ -166,13 +166,13 @@
   --text: #212121;
   --text-bright: #000;
   --text-soft: #494949;
-  --text-soft-dim: #656565;
+  --text-soft-dim: #5c5c5c;
   --text-info: #5c1a20;
-  --text-dim: #755e61;
-  --text-dimmer: #656565;
+  --text-dim: #6e575a;
+  --text-dimmer: #5c5c5c;
   --text-muted: #424242;
-  --text-grey: #666666;
-  --text-faint: #828282;
+  --text-grey: #5c5c5c;
+  --text-faint: #5c5c5c;
   --input-bg: #eeeeee;
   --input-border: #c4c9cd;
   --btn-bg: #991E2A;
@@ -775,10 +775,10 @@
   --text-soft-dim: #8996a5;
   --text-info: #c0d3e6;
   --text-dim: #8592a1;
-  --text-dimmer: #6f7c8c;
+  --text-dimmer: #778494;
   --text-muted: #7b8897;
   --text-grey: #808b98;
-  --text-faint: #4e5966;
+  --text-faint: #798592;
   --input-bg: #05070a;
   --input-border: #273445;
   --btn-bg: #1a2633;
@@ -824,7 +824,7 @@
   --rule: color-mix(in oklch, var(--kt) 25%, transparent); --overlay: #000000cc; --shadow: #000; --scrollbar: color-mix(in oklch, var(--kf) 40%, #1a1814);
   --accent: var(--ka); --accent-hover: color-mix(in oklch, var(--ka) 60%, #fff); --accent-dim: color-mix(in oklch, var(--ka) 45%, #000);
   --text: #ece6da; --text-bright: #fff; --text-soft: #d6d0c4; --text-soft-dim: #b0aa9e; --text-info: color-mix(in oklch, var(--ka) 70%, #fff);
-  --text-dim: #a29c90; --text-dimmer: #8a8478; --text-muted: #968f83; --text-grey: #8f8a80; --text-faint: #5c574e;
+  --text-dim: #a29c90; --text-dimmer: #9b9589; --text-muted: #9b9488; --text-grey: #9a958b; --text-faint: #9a9489;
   --input-bg: color-mix(in oklch, var(--kf) 8%, #040403); --input-border: color-mix(in oklch, var(--kf) 25%, #2a2620);
   --btn-bg: var(--kf); --btn-border: var(--kt); --btn-hover: color-mix(in oklch, var(--kf) 80%, #fff);
 }
@@ -835,7 +835,7 @@
   --rule: color-mix(in oklch, var(--kf) 25%, transparent); --overlay: #2a211799; --shadow: #2a211733; --scrollbar: color-mix(in oklch, var(--kl) 40%, #bfb29a);
   --accent-hover: color-mix(in oklch, var(--ka) 70%, #000); --accent-dim: color-mix(in oklch, var(--ka) 45%, #fff);
   --text: #2a2117; --text-bright: #120d08; --text-soft: #3e3428; --text-soft-dim: #5a4e40; --text-info: color-mix(in oklch, var(--ka) 80%, #000);
-  --text-dim: #6a5e4e; --text-dimmer: #6e6252; --text-muted: #6e6252; --text-grey: #74695a; --text-faint: #a89c88;
+  --text-dim: #695d4d; --text-dimmer: #695d4e; --text-muted: #695d4e; --text-grey: #675d4e; --text-faint: #685d4e;
   --input-bg: #fffdf8; --input-border: color-mix(in oklch, var(--kf) 30%, #d8ccb6); --btn-hover: color-mix(in oklch, var(--kf) 80%, #000);
   --gm: #8a5a00; --gm-ink: #8a5a00; --gm-dim: #b8955a;
   --danger: #F44336;
@@ -1337,7 +1337,7 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 /* Сітка клітинок (Board, ГМ-панель) */
 .ss-cells { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); border-top: 1px solid var(--input-border); border-left: 1px solid var(--input-border); }
 .ss-cells > div { background: var(--panel-sunken); padding: 7px 10px; display: flex; flex-direction: column; gap: 3px; min-width: 0; border-right: 1px solid var(--input-border); border-bottom: 1px solid var(--input-border); }
-.ss-cells .k { font-size: 9px; color: var(--text-dimmer); letter-spacing: 1px; }
+.ss-cells .k { font-size: 10px; color: var(--text-dimmer); letter-spacing: 1px; }
 .ss-cells .v { font-size: 12px; color: var(--text-bright); overflow-wrap: anywhere; }
 
 /* Портрет-заглушка */
@@ -1374,7 +1374,7 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
   .gm-row { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 8px 10px !important; padding: 10px 12px !important; }
   .gm-row > :first-child { grid-column: 1 / -1; }
   .gm-row > [data-l] { display: flex; flex-direction: column; gap: 2px; padding: 4px 6px; background: var(--input-bg); border: 1px solid var(--input-border); }
-  .gm-row > [data-l]::before { content: attr(data-l); font-size: 9px; letter-spacing: 1px; color: var(--text-dimmer); }
+  .gm-row > [data-l]::before { content: attr(data-l); font-size: 10px; letter-spacing: 1px; color: var(--text-dimmer); }
   .gm-row > .gm-upd { grid-column: 1 / -1; text-align: left !important; }
   .gm-row > .gm-upd::before { content: 'ОНОВЛЕНО '; color: var(--text-faint); letter-spacing: 1px; }
 }
@@ -1501,7 +1501,7 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 .ss-rail .nav .mark { position: absolute; left: 0; top: 14px; bottom: 14px; width: 2px; background: var(--accent); box-shadow: 0 0 8px var(--accent); opacity: 0; }
 .ss-rail .nav.on .mark { opacity: 1; }
 .ss-rail .nav .ic { width: 64px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.ss-rail .nav .code { font-size: 8px; letter-spacing: 1px; color: var(--text-faint); transition: opacity .2s; }
+.ss-rail .nav .code { font-size: 10px; letter-spacing: 1px; color: var(--text-faint); transition: opacity .2s; }
 .ss-rail.open .nav .code { opacity: 0; }
 .ss-rail .nav .txt { display: flex; flex-direction: column; gap: 3px; }
 .ss-rail .nav .t { font-size: 12px; letter-spacing: 2px; color: var(--text); }
@@ -1533,7 +1533,7 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 }
 .ss-rail .themes button:first-child { border-top: none; }
 .ss-rail .themes button.on, .ss-rail .themes button:hover { background: var(--panel-inset); color: var(--text-bright); }
-.ss-rail .themes .tag { margin-left: auto; font-size: 9px; color: var(--text-dimmer); }
+.ss-rail .themes .tag { margin-left: auto; font-size: 10px; color: var(--text-dimmer); }
 .ss-rail .foot { height: 46px; flex: none; display: flex; align-items: center; background: transparent; border: none; padding: 0; text-align: left; color: var(--text-dimmer); font-size: 11px; }
 .ss-rail .foot .ic { width: 64px; flex: none; display: flex; justify-content: center; }
 .ss-rail .foot.theme:hover { color: var(--accent); }
@@ -1616,7 +1616,7 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 .ss-shop .tab .bar { position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; background: var(--accent); opacity: 0; transition: opacity .3s; }
 .ss-shop .tab.on .bar { opacity: 1; }
 .ss-shop .tab .n { font-size: 12px; color: var(--text-bright); font-variant-numeric: tabular-nums; }
-.ss-shop .tab .k { font-size: 8px; letter-spacing: 1px; color: var(--text-dimmer); }
+.ss-shop .tab .k { font-size: 10px; letter-spacing: 1px; color: var(--text-dimmer); }
 .ss-shop .wrap { width: 0; margin-top: -72px; overflow: hidden; opacity: 0; transition: width .4s var(--ease), opacity .3s; }
 .ss-shop.open .wrap { width: min(390px, calc(100vw - 84px)); opacity: 1; }
 .ss-shop .body {

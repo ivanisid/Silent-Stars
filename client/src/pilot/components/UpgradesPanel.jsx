@@ -217,7 +217,7 @@ export default function UpgradesPanel({ state, dispatch }) {
               </span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <span style={{ fontSize: 9, letterSpacing: 2, color: 'var(--text-faint)' }}>З ДОСЬЄ ГІЛЬДІЇ</span>
+              <span style={{ fontSize: 10, letterSpacing: 2, color: 'var(--text-faint)' }}>З ДОСЬЄ ГІЛЬДІЇ</span>
               <span style={{ fontSize: 11, color: 'var(--text-info)', lineHeight: 1.6, textWrap: 'pretty' }}>{up.quote}</span>
             </div>
           </div>
@@ -229,7 +229,7 @@ export default function UpgradesPanel({ state, dispatch }) {
             ))}
             {up.notes.length > 0 && (
               <div style={{ marginTop: 6, paddingTop: 12, borderTop: '1px dashed var(--input-border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <span style={{ fontSize: 9, letterSpacing: 2, color: 'var(--text-faint)' }}>УТОЧНЕННЯ</span>
+                <span style={{ fontSize: 10, letterSpacing: 2, color: 'var(--text-faint)' }}>УТОЧНЕННЯ</span>
                 {up.notes.map((r) => (
                   <div key={r} style={{ display: 'grid', gridTemplateColumns: '12px minmax(0,1fr)', gap: 8, fontSize: 11, lineHeight: 1.6, color: 'var(--text-dim)' }}>
                     <span style={{ color: 'var(--text-faint)' }}>·</span>
@@ -261,7 +261,6 @@ export default function UpgradesPanel({ state, dispatch }) {
           <div style={{ margin: 'auto 24px 20px', border: '1px solid var(--panel-border)', background: 'var(--panel-sunken)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 10, letterSpacing: 2, color: 'var(--accent)' }}>ВНЕСОК</span>
-              <span style={{ fontSize: 10, color: 'var(--text-dimmer)' }}>ресурси можна вносити частинами</span>
               {st.k !== 'own' && st.part && (
                 <button type="button" className="ss-up-refund" onClick={refund} title="Повернути все внесене в це покращення на гаманець">
                   Повернути внесене

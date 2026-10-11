@@ -295,7 +295,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
   // Повний ремонт / передрук — та сама послуга, що в магазині: 100 PR або 500 М.
   // Вікно показує, що саме зламано, і скільки коштував би ремонт частинами.
   async function fullRepair() {
-    const { damage, kits } = fullRepairSummary(m);
+    const { damage } = fullRepairSummary(m);
     if (!damage.length) {
       setMsg('>> Мех цілий — ремонтувати нічого.');
       return;
@@ -308,12 +308,8 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
       question: `Відновити «${m.name}» повністю за ${prCost} PR або ${manaCost} М?`,
       lines: [
         ...damage.map((t) => ({ t: `> ${t}`, ink: 'var(--text)' })),
-        { t: 'Після ремонту все до максимуму: HP, структура, реактор, ремкомплекти, заряди; Overcharge скинуто, Core Power заряджено.', ink: 'var(--text-dimmer)' },
         { t: `PR: ${pr}${pr >= prCost ? ` → ${pr - prCost}` : ' — бракує'} · Мана: ${mana}${mana >= manaCost ? ` → ${mana - manaCost}` : ' — бракує'}`, ink: 'var(--text)' },
       ],
-      note: kits
-        ? `Частинами може бути дешевше: кнопки «МАКС» і «РЕМОНТ» на картці — разом ${kits} рем. (у меха ${m.repairCurrent}, решта по ${KIT_PR} PR); заряди — окремо.`
-        : undefined,
       yesLabel: `${prCost} PR`,
       canYes: pr >= prCost,
       altLabel: `${manaCost} М`,
@@ -599,7 +595,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
               );
             })}
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--input-bg)' }}>
-              <span style={{ color: 'var(--accent)' }}>&gt;</span>
+              <span className="pre" style={{ color: 'var(--accent)' }}>&gt;</span>
               <div className="ss-seg sm">
                 <button type="button" className={addType === 'weapon' ? 'on' : ''} title="Додати як зброю" onClick={() => setAddType('weapon')}>ЗБРОЯ</button>
                 <button type="button" className={addType === 'system' ? 'on' : ''} title="Додати як систему" onClick={() => setAddType('system')}>СИСТЕМА</button>

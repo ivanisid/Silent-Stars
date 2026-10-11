@@ -569,3 +569,20 @@
 :root[data-theme='karrakin'][data-house='moments'] :is(.ss-chip:not(.on), .ss-seg:not(.on-bar) button:not(.on)):hover { --kb: var(--ka); }
 :root[data-theme='karrakin'][data-house='moments'] .btn-ghost { border-color: color-mix(in oklch, var(--ka) 40%, transparent); }
 :root[data-theme='karrakin'][data-house='moments'] .btn-ghost:hover:not(:disabled) { border-color: var(--ka); }
+
+/* ===== Readability fixes (audit 11.10.2026) ===== */
+/* Текст без власного класу (інлайн-примітки, футери) успадковував Share Tech Mono від body. */
+:root[data-theme='karrakin'] .ss-page { font-family: var(--k-forum); font-size-adjust: .5; }
+/* Великі літери Cinzel менші за 10px не читаються. */
+:root[data-theme='karrakin'] .ss-rail .user .k { font-size: 10px; }
+:root[data-theme='karrakin'] .ss-tag { font-size: 10px; }
+:root[data-theme='karrakin'] :is(.ss-cells .k, .ss-tile .cap, .ss-track .val small, .ss-menu .mh) { font-size: 10px; }
+/* Тонкий Cinzel на полі дому (Миттєвості: #101010 на #1a8fb0) потребує ваги. */
+:root[data-theme='karrakin'] :is(.btn, .ss-chip.on, .ss-seg:not(.on-bar) button.on, .ss-shop .price:not(:disabled)) { font-weight: 600; }
+/* Вікно-небезпека на пергаменті: червоний текст губився на темній/рожевій заливці. */
+:root[data-theme='karrakin'] .modal-box.danger .modal-header { background: #a8231c; color: #fff4e8; border-bottom-color: #6e140f; box-shadow: inset 0 0 0 3px #a8231c, inset 0 0 0 4px #fff4e866; }
+:root[data-theme='karrakin'] .modal-box.danger .modal-header::before { background: #fff4e8; }
+:root[data-theme='karrakin'] .modal-box .btn-danger { background: transparent; color: var(--danger); border-color: var(--danger); outline-color: color-mix(in oklch, var(--danger) 40%, transparent); }
+:root[data-theme='karrakin'] .modal-box .btn-danger:hover:not(:disabled) { background: var(--danger); color: #fff4e8; }
+/* Аудит сторінок: підпис язичка магазину (скін вище задає 8px). */
+:root[data-theme='karrakin'] .ss-shop .tab .k { font-size: 10px; }
