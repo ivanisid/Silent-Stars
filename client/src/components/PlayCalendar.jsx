@@ -13,6 +13,10 @@ const pad = (n) => String(n).padStart(2, '0');
 // Локальна дата як YYYY-MM-DD (toISOString дав би UTC і зсунув би день уночі).
 export const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
+// До міграції 20261011c у базі немає ні таблиці, ні функції календаря — це не помилка
+// гравця, тож замість технічного тексту показуємо, що календар ще не ввімкнено.
+const NOT_ENABLED = /calendar_list|play_availability|PGRST202|PGRST205|schema cache/i;
+
 function nextDays(n) {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
@@ -31,6 +35,11 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
   const [picked, setPicked] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [disabled, setDisabled] = useState(false);
+  const fail = (err) => {
+    if (NOT_ENABLED.test(err.message)) setDisabled(true);
+    else setError(err.message);
+  };
 
   async function load() {
     try {
@@ -39,7 +48,7 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
       setError('');
     } catch (err) {
       // До міграції 20261011c функції calendar_list у базі ще немає — не лякаємо помилкою.
-      setError(/calendar_list|PGRST202|schema cache/i.test(err.message) ? 'Календар ще не ввімкнено в базі.' : err.message);
+      fail(err);
     }
   }
 
@@ -77,7 +86,7 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
       await api.calendarToggle(user.id, k, !mine(k));
       await load();
     } catch (err) {
-      setError(err.message);
+      fail(err);
     } finally {
       setBusy(false);
     }
@@ -87,6 +96,18 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
   const pickedPlayers = picked ? byDay[picked] || [] : [];
   const pickedGames = picked ? gamesByDay[picked] || [] : [];
   const pickedDate = picked ? days.find((d) => dayKey(d) === picked) : null;
+
+  if (disabled) {
+    return (
+      <Panel title="КАЛЕНДАР ГРАВЦІВ" sub="ХОЧУ ГРАТИ · 2 ТИЖНІ">
+        <div className="ss-body">
+          <div className="ss-note" style={{ fontSize: 12 }}>
+            <span className="pre">&gt; </span>Календар ще не ввімкнено — з'явиться після оновлення бази.
+          </div>
+        </div>
+      </Panel>
+    );
+  }
 
   return (
     <Panel title="КАЛЕНДАР ГРАВЦІВ" sub="ХОЧУ ГРАТИ · 2 ТИЖНІ">
