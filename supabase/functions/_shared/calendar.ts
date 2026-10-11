@@ -119,7 +119,6 @@ export function renderPublic(cal: CalendarData) {
       title: '📅 Календар гравців — 2 тижні',
       description: clip(cal.days.map((d) => dayLine(cal, d)).join('\n'), 4000),
       color: 0x5865f2,
-      footer: { text: 'Число — скільки хочуть грати · 🎮 / ▮ — день, на який уже є гра · оновлюється само' },
     }],
     components: [{ type: 1, components: buttons }],
     allowed_mentions: { parse: [] },
