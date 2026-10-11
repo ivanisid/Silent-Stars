@@ -62,7 +62,7 @@ function LinkButtons({ d }) {
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
       <button className="btn md" type="button" disabled={d.busy} onClick={d.linkViaDiscord}
-        title="Увійти в Discord і прив'язати його до цього акаунта — заодно з'явиться вхід через Discord">
+        title="Дозволяє увійти в акаунт через Discord. Синхронізує записи на сайті та Discord-сервері.">
         ПРИВ'ЯЗАТИ ЧЕРЕЗ DISCORD
       </button>
       <button className="btn-ghost md" type="button" disabled={d.busy} onClick={d.makeCode} title={CODE_HINT}>
@@ -105,7 +105,7 @@ export function DiscordAccountSection({ user }) {
       {d.link === undefined && !d.error && <div className="ss-note">Перевіряю…</div>}
       {d.link === null && (
         <>
-          <div className="ss-note">Не прив'язано. З прив'язкою в Discord можна записуватись пілотом і мехом та отримувати сповіщення календаря.</div>
+          <div style={{ color: 'var(--text-dimmer)', fontSize: 12 }}>○ Не прив'язано</div>
           <LinkButtons d={d} />
         </>
       )}
