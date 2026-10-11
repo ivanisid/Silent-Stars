@@ -38,7 +38,8 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
       setByDay(Object.fromEntries(list.map((d) => [d.day, d.players])));
       setError('');
     } catch (err) {
-      setError(err.message);
+      // До міграції 20261011c функції calendar_list у базі ще немає — не лякаємо помилкою.
+      setError(/calendar_list|PGRST202|schema cache/i.test(err.message) ? 'Календар ще не ввімкнено в базі.' : err.message);
     }
   }
 

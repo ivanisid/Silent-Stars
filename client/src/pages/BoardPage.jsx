@@ -358,12 +358,13 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   const rosterSize = editingRoster
     ? picked.size
     : new Set([...picked, ...slot.signups.filter((g) => g.guaranteed).map((g) => g.id)]).size;
-  const picking = ownsSlot && (isOpen || (isApproved && editingRoster));
-  const forcedIn = (g) => isOpen && g.guaranteed;
   const deadlinePassed = deadlineIsPast(slot.signupDeadline);
   // Running the game is what grants the controls, not being a GM: another GM is an
   // ordinary player here, and the person running it does not play in it.
   const ownsSlot = slot.createdBy === user.id;
+  // Галочки складу: при затвердженні відкритого слота і при зміні вже затвердженого.
+  const picking = ownsSlot && (isOpen || (isApproved && editingRoster));
+  const forcedIn = (g) => isOpen && g.guaranteed;
 
   // A mech is only worth asking about when the pilot actually has a choice to make.
   const chosenPilot = myPilots.find((p) => p.id === pilotId);
