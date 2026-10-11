@@ -1,4 +1,4 @@
-// Interactions Endpoint Discord-бота: слеш-команди (/link, /game, /pilot, /board) і кнопки під
+// Interactions Endpoint Discord-бота: слеш-команди (/link, /game, /pilot, /board, /calendar) і кнопки під
 // оголошенням гри. Пише в ті ж game_signups / game_slots, що й апка, через discord_*
 // функції в базі — оголошення потім оновлює тригер → discord-sync.
 // Розгортається з verify_jwt = false: Discord підписує запити Ed25519, це і є автентифікація.
@@ -136,6 +136,8 @@ function mechMenu(slotId: string, pilot: any) {
 
 async function onComponent(i: any, discordId: string, username: string) {
   const [kind, slotId, pilotId] = (i.data.custom_id as string).split(':');
+
+  if (kind === 'cal') return onCalendarPick(i, discordId, username);
 
   if (kind === 'wd') {
     await rpc('discord_withdraw', { p_discord_id: discordId, p_slot_id: slotId });
@@ -419,6 +421,100 @@ async function onAutocomplete(i: any, discordId: string) {
   return Response.json({ type: 8, data: { choices } });
 }
 
+// ----- Календар гравців (/calendar) -----
+// Ті самі відмітки «хочу грати цього дня», що й календар на сторінці «Запис на гру» в апці:
+// два тижні вперед, меню з кількома варіантами — обрані дні замінюють попередні відмітки.
+
+const CAL_DAYS = 14;
+const WD = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+
+// Сьогодні й наступні дні за київським часом — як YYYY-MM-DD.
+function calendarDays() {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date());
+  const [y, m, d] = today.split('-').map(Number);
+  return Array.from({ length: CAL_DAYS }, (_, i) => new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10));
+}
+const dayLabel = (iso: string) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return `${WD[d.getUTCDay()]} ${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+};
+
+async function myCalendarDays(discordId: string, from: string, to: string) {
+  const uid = await linkedUserId(discordId);
+  let q = db.from('play_availability').select('day').gte('day', from).lte('day', to);
+  q = uid ? q.eq('user_id', uid) : q.is('user_id', null).eq('discord_user_id', discordId);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return new Set((data || []).map((r: any) => r.day as string));
+}
+
+function calendarView(days: string[], summary: any[], mine: Set<string>) {
+  const by = new Map(summary.map((x: any) => [x.day, x]));
+  const lines = days.map((d) => {
+    const x: any = by.get(d);
+    const names = x ? ` — ${(x.names as string[]).join(', ')}` : '';
+    return `${mine.has(d) ? '✅' : '▫️'} **${dayLabel(d)}** · ${x?.count ?? 0}${names}`;
+  });
+  const content = clip(
+    '📅 **Календар гравців** — хто хоче грати в найближчі 2 тижні.\n' +
+      'Оберіть у меню свої дні (обране замінить попередні відмітки). Те саме — на сторінці «Запис на гру» в апці.\n\n' +
+      lines.join('\n'),
+    1900,
+  );
+  const components = [{
+    type: 1,
+    components: [{
+      type: 3,
+      custom_id: 'cal',
+      placeholder: 'Мої дні, коли хочу грати',
+      min_values: 0,
+      max_values: days.length,
+      options: days.map((d) => ({ label: dayLabel(d), value: d, default: mine.has(d) })),
+    }],
+  }];
+  return { content, components };
+}
+
+async function calendarSummary(from: string, to: string) {
+  // play_availability.user_id посилається на auth.users, тож ніки — окремим запитом.
+  const { data, error } = await db.from('play_availability')
+    .select('day, user_id, discord_name, created_at')
+    .gte('day', from).lte('day', to).order('created_at');
+  if (error) throw new Error(error.message);
+  const ids = [...new Set((data || []).map((r: any) => r.user_id).filter(Boolean))];
+  const { data: profs } = ids.length
+    ? await db.from('profiles').select('id, nick').in('id', ids)
+    : { data: [] as any[] };
+  const nick = new Map((profs || []).map((p: any) => [p.id, p.nick]));
+  const by = new Map<string, { day: string; count: number; names: string[] }>();
+  for (const r of (data || []) as any[]) {
+    const x = by.get(r.day) ?? { day: r.day, count: 0, names: [] as string[] };
+    x.count++;
+    x.names.push(nick.get(r.user_id) || r.discord_name || 'Discord');
+    by.set(r.day, x);
+  }
+  return [...by.values()];
+}
+
+async function onCalendar(discordId: string) {
+  const days = calendarDays();
+  const from = days[0];
+  const to = days[days.length - 1];
+  const [summary, mine] = await Promise.all([calendarSummary(from, to), myCalendarDays(discordId, from, to)]);
+  const v = calendarView(days, summary, mine);
+  return reply(v.content, { components: v.components });
+}
+
+async function onCalendarPick(i: any, discordId: string, username: string) {
+  const days = calendarDays();
+  const picked = ((i.data.values || []) as string[]).filter((d) => days.includes(d));
+  const summary = await rpc('discord_calendar_set', {
+    p_discord_id: discordId, p_username: username, p_days: picked, p_from: days[0], p_to: days[days.length - 1],
+  });
+  const v = calendarView(days, summary || [], new Set(picked));
+  return update(v.content, v.components);
+}
+
 // ----- Слеш-команди -----
 
 function opt(i: any, name: string) {
@@ -468,6 +564,9 @@ async function onCommand(i: any, discordId: string, username: string) {
 
     case 'pilot':
       return onPilot(i, discordId, username);
+
+    case 'calendar':
+      return onCalendar(discordId);
 
     case 'board': {
       if (!(await rpc('discord_is_gm', { p_discord_id: discordId }))) return reply('Ця команда лише для ГМа.');

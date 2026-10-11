@@ -103,8 +103,10 @@ async function claim(db: SupabaseClient, slotId: string, kind: string) {
 // Запускається планувальником кожні 10 хвилин.
 export async function remind(db: SupabaseClient) {
   const now = Date.now();
+  // Лише затверджені склади: відкритий у дедлайн (чи час гри) затверджує планувальник
+  // (private.auto_approve_rosters), тож ГМу «склад ще не затверджено» більше не шлеться.
   const { data: slots, error } = await db.from('game_slots').select('id, status')
-    .in('status', ['open', 'approved'])
+    .eq('status', 'approved')
     .gt('game_at', new Date(now).toISOString())
     .lte('game_at', new Date(now + 24 * 3600e3).toISOString());
   if (error) throw new Error(error.message);
@@ -116,18 +118,6 @@ export async function remind(db: SupabaseClient) {
     const { slot, signups } = view;
     const t = unix(slot.game_at);
     const left = new Date(slot.game_at).getTime() - now;
-
-    if (slot.status === 'open') {
-      // Гра вже за добу, а склад досі не затверджено — нагадуємо ГМу.
-      if (await claim(db, id, 'gm_pending')) {
-        const gm = slot.gmDiscordId ? `<@${slot.gmDiscordId}>` : `**${slot.gmNick}**`;
-        await post(db, id,
-          `⚠️ ${gm}, ${titleOf(slot)} <t:${t}:R>, а склад ще не затверджено. Записано: ${signups.length}/${slot.seats}.`,
-          [slot.gmDiscordId]);
-        sent++;
-      }
-      continue;
-    }
 
     const going = signups.filter((g) => g.approved === true);
     if (!going.length) continue;

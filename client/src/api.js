@@ -399,6 +399,30 @@ export const api = {
   },
 
   // channelName — щоб дошка і профіль пілота не ділили один канал, коли обидва відкриті.
+  // Календар гравців: дні в [from, to] (рядки YYYY-MM-DD) з тими, хто хоче грати.
+  calendarList: async (from, to) => {
+    const { data, error } = await supabase.rpc('calendar_list', { p_from: from, p_to: to });
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  // Поставити / зняти свою відмітку «хочу грати цього дня».
+  calendarToggle: async (userId, day, on) => {
+    const q = on
+      ? supabase.from('play_availability').insert({ user_id: userId, day })
+      : supabase.from('play_availability').delete().eq('user_id', userId).eq('day', day);
+    const { error } = await q;
+    if (error && !(on && error.code === '23505')) throw new Error(error.message);
+  },
+
+  subscribeCalendar: (onChange) => {
+    const channel = supabase
+      .channel('calendar')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'play_availability' }, onChange)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  },
+
   subscribeBoard: (onChange, channelName = 'board') => {
     const channel = supabase
       .channel(channelName)

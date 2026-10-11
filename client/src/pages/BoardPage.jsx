@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -6,6 +6,7 @@ import { llTier } from '../pilot/logic';
 import { Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
 import { DIFFICULTY_GROUPS, difficultyByKey, difficultyLabel } from '../difficulty';
 import DateTimeField from '../components/DateTimeField.jsx';
+import PlayCalendar from '../components/PlayCalendar.jsx';
 
 // Gold as *text on a card*, so it stays legible on the light themes; --gm itself is
 // the bright gold meant for the GM's own dark surfaces.
@@ -162,7 +163,8 @@ function Field({ label, children, style }) {
 }
 
 // GM slot creation form, collapsed behind a button.
-function CreateSlotForm({ onCreated }) {
+// preset — { at: Date } з календаря гравців: форма відкривається з датою гри на цей день.
+function CreateSlotForm({ onCreated, preset }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -175,6 +177,12 @@ function CreateSlotForm({ onCreated }) {
   const [difficulty, setDifficulty] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!preset) return;
+    setGameAt(preset.at);
+    setOpen(true);
+  }, [preset]);
 
   async function submit(e) {
     e.preventDefault();
@@ -1031,6 +1039,9 @@ export default function BoardPage() {
   const [myBonus, setMyBonus] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  // Створення гри з календаря: дата обраного дня йде у форму.
+  const [createPreset, setCreatePreset] = useState(null);
+  const createRef = useRef(null);
 
   async function reload() {
     try {
@@ -1121,7 +1132,26 @@ export default function BoardPage() {
       {loadError && <Msg kind="err">{loadError}</Msg>}
       {loading && <div className="ss-note"><span className="pre">&gt; </span>Завантаження…</div>}
 
-      {isGm && !loading && <CreateSlotForm onCreated={reload} />}
+      {!loading && (
+        <PlayCalendar
+          user={user}
+          isGm={isGm}
+          slots={slots}
+          onCreateForDay={(d) => {
+            // Гра за замовчуванням о 19:00 обраного дня — час ГМ правиться у формі.
+            const at = new Date(d);
+            at.setHours(19, 0, 0, 0);
+            setCreatePreset({ at });
+            setTimeout(() => createRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+          }}
+        />
+      )}
+
+      {isGm && !loading && (
+        <div ref={createRef} style={{ display: 'flex', flexDirection: 'column' }}>
+          <CreateSlotForm onCreated={reload} preset={createPreset} />
+        </div>
+      )}
 
       {!loading && sorted.length === 0 && (
         <div className="ss-slot" style={{ padding: 22, fontSize: 12, color: 'var(--text-dimmer)' }}><span className="pre">&gt; </span>Ігор поки немає.</div>
