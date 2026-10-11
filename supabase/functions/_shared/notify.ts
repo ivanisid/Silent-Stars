@@ -42,10 +42,10 @@ export async function notifyStatus(db: SupabaseClient, slotId: string, event: st
     const gm = slot.gmDiscordId ? `<@${slot.gmDiscordId}>` : `**${slot.gmNick}**`;
     const lines = [`↩️ ${gone ? withPilot(gone) : 'Гравець'} звільнив місце в ${titleOf(slot)}.`];
     lines.push(inn
-      ? `На його місце в склад заходить ${withPilot(inn)} — якщо не зможеш, теж тисни «Звільнити місце».`
+      ? `На його місце в склад заходить ${withPilot(inn)} — якщо не зможеш, теж тисни «Звільнити місце». ${gm}, склад змінився.`
       : `${gm}, у резерві нікого немає — місце вільне.`);
-    // ГМа пінгуємо лише коли місце лишилось вільним — заміну бот уже знайшов сам.
-    await post(db, slotId, lines.join('\n'), [inn?.discordId, inn ? undefined : slot.gmDiscordId]);
+    // Склад змінився — ГМ має знати завжди, навіть коли заміна з резерву зайшла сама.
+    await post(db, slotId, lines.join('\n'), [inn?.discordId, slot.gmDiscordId]);
     return 'notified';
   }
 
