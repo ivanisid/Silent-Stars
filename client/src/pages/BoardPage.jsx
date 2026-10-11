@@ -311,6 +311,8 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   // GM roster picks (signup ids) before resolving.
   // Відмітки ГМа. null — ще не чіпав: тоді відмічено склад за правилами (autoRoster).
   const [pickedRaw, setPicked] = useState(null);
+  // Зміна вже затвердженого складу (до завершення гри).
+  const [editingRoster, setEditingRoster] = useState(false);
   const [editReward, setEditReward] = useState(false);
   const [rMana, setRMana] = useState(0);
   const [rPr, setRPr] = useState(0);
@@ -343,8 +345,13 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   const priority = (g) => (g.guaranteed ? 1000 : g.roll === null ? -1 : g.roll + (g.rollBonus || 0));
   const ranked = contest ? [...slot.signups].sort((a, b) => priority(b) - priority(a)) : slot.signups;
   const picked = pickedRaw ?? new Set(autoRoster(slot));
-  // Скільки реально піде в склад: відмічені ГМом плюс гарантовані.
-  const rosterSize = new Set([...picked, ...slot.signups.filter((g) => g.guaranteed).map((g) => g.id)]).size;
+  // Скільки реально піде в склад: відмічені ГМом плюс гарантовані (при затвердженні вони
+  // примусові; у зміні затвердженого складу — ні, це вже рішення ГМа).
+  const rosterSize = editingRoster
+    ? picked.size
+    : new Set([...picked, ...slot.signups.filter((g) => g.guaranteed).map((g) => g.id)]).size;
+  const picking = ownsSlot && (isOpen || (isApproved && editingRoster));
+  const forcedIn = (g) => isOpen && g.guaranteed;
   const deadlinePassed = deadlineIsPast(slot.signupDeadline);
   // Running the game is what grants the controls, not being a GM: another GM is an
   // ordinary player here, and the person running it does not play in it.
@@ -487,7 +494,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
           <div className="ss-list">
             {ranked.map((g, i) => {
               const mine = g.userId === user.id;
-              const checked = g.guaranteed || picked.has(g.id);
+              const checked = forcedIn(g) || picked.has(g.id);
               return (
                 <div
                   key={g.id}
@@ -502,13 +509,13 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                     borderLeft: `3px solid ${mine ? 'var(--accent)' : 'transparent'}`,
                   }}
                 >
-                  {ownsSlot && isOpen && (
+                  {picking && (
                     <button
                       type="button"
                       role="checkbox"
                       aria-checked={checked}
-                      disabled={g.guaranteed}
-                      title={g.guaranteed ? 'Гарантоване місце — входить у склад автоматично' : 'У склад'}
+                      disabled={forcedIn(g)}
+                      title={forcedIn(g) ? 'Гарантоване місце — входить у склад автоматично' : 'У склад'}
                       onClick={() => togglePick(g.id)}
                       style={{
                         flex: 'none',
@@ -520,8 +527,8 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                         color: 'var(--bg)',
                         fontSize: 12,
                         lineHeight: '16px',
-                        opacity: g.guaranteed ? 0.6 : 1,
-                        cursor: g.guaranteed ? 'not-allowed' : 'pointer',
+                        opacity: forcedIn(g) ? 0.6 : 1,
+                        cursor: forcedIn(g) ? 'not-allowed' : 'pointer',
                       }}
                     >
                       {checked ? '✓' : ''}
@@ -790,7 +797,58 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                   ЗАТВЕРДИТИ СКЛАД · {rosterSize}
                 </button>
               )}
-              {isApproved && !closing && (
+              {isApproved && !closing && !editingRoster && (
+                <button
+                  className="btn-ghost"
+                  type="button"
+                  disabled={busy}
+                  title="Додати чи прибрати гравців зі складу — до завершення гри"
+                  onClick={() => {
+                    setPicked(new Set(slot.signups.filter((g) => g.approved === true).map((g) => g.id)));
+                    setEditingRoster(true);
+                  }}
+                >
+                  ЗМІНИТИ СКЛАД
+                </button>
+              )}
+              {isApproved && editingRoster && (
+                <>
+                  <button
+                    className="btn-gm"
+                    type="button"
+                    disabled={busy}
+                    onClick={async () => {
+                      const was = new Set(slot.signups.filter((g) => g.approved === true).map((g) => g.id));
+                      const who = (g) => g.callsign || g.nick || '—';
+                      const added = slot.signups.filter((g) => picked.has(g.id) && !was.has(g.id)).map(who);
+                      const removed = slot.signups.filter((g) => !picked.has(g.id) && was.has(g.id)).map(who);
+                      if (!added.length && !removed.length) return setEditingRoster(false);
+                      const ok = await ask({
+                        title: 'ЗМІНИТИ СКЛАД?',
+                        tone: 'gm',
+                        lines: [
+                          `у складі: ${picked.size} (місць ${slot.seats})`,
+                          ...(added.length ? [`додано: ${added.join(', ')} — бонус пріоритету витрачається`] : []),
+                          ...(removed.length ? [`прибрано: ${removed.join(', ')} — бонус повертається${contest ? ' і +3 за контест' : ''}`] : []),
+                        ],
+                        yesLabel: 'ЗБЕРЕГТИ',
+                      });
+                      if (!ok) return;
+                      run(async () => {
+                        await api.gmEditRoster(slot.id, Array.from(picked));
+                        setEditingRoster(false);
+                        setPicked(null);
+                      });
+                    }}
+                  >
+                    ЗБЕРЕГТИ СКЛАД · {rosterSize}
+                  </button>
+                  <button className="btn-ghost" type="button" disabled={busy} onClick={() => { setEditingRoster(false); setPicked(null); }}>
+                    СКАСУВАТИ
+                  </button>
+                </>
+              )}
+              {isApproved && !closing && !editingRoster && (
                 <button
                   className="btn-gm"
                   type="button"

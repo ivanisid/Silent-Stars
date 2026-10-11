@@ -29,7 +29,7 @@ import {
   skillCapMax,
   skillCapUsed,
 } from './logic';
-import { mergeMechsByName, isMechNameTaken, mechNameClashes } from './compconImport';
+import { isMechNameTaken } from './compconImport';
 import { pruneRetainedState } from './mechMerge';
 import { repairPlan, repairCost, spentText, isLimited, itemRefillPr, KIT_PR, KITS_FULL_PR, MECH_STRUCTURE, MECH_REACTOR } from './repair';
 import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft } from './reserves';
@@ -1317,20 +1317,10 @@ function reduce(state, action) {
       }
       return log(next, msg);
     }
-    case 'MERGE_COMPCON_MECHS': {
-      const { mechs, callsign } = action.payload;
-      // Компоненти перевіряють це заздалегідь і показують помилку; тут — страховка.
-      if (mechNameClashes(state.mechs, mechs).length) return state;
-      const names = mechs.map((m) => m.name).join(', ') || '—';
-      // Бонуси до HP / Overcharge з файлу — щоб нове HP не виглядало вигаданим.
-      const bonuses = mechs
-        .map((m) => [m.hpBonus && `HP ${m.hpBonus}`, m.ocSteps && `Overcharge до ${m.ocSteps[m.ocSteps.length - 1]} (${m.ocSource})`].filter(Boolean))
-        .map((parts, i) => (parts.length ? `${mechs[i].name}: ${parts.join(' · ')}` : ''))
-        .filter(Boolean);
-      return log(
-        { ...state, mechs: mergeMechsByName(state.mechs, mechs) },
-        `Мех(и) підтягнуто з COMP/CON («${callsign}»): ${names}` + (bonuses.length ? ` · бонуси — ${bonuses.join('; ')}` : ''),
-      );
+    // Мехи після імпорту COMP/CON у слоти ангару — розклад рахує slotImport.js.
+    case 'SET_COMPCON_MECHS': {
+      if (!Array.isArray(action.mechs)) return state;
+      return log({ ...state, mechs: action.mechs }, action.msg || 'Мехи підтягнуто з COMP/CON');
     }
 
     default:

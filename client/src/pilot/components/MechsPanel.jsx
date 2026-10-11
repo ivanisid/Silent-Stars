@@ -20,7 +20,6 @@ import {
 import { Menu, Msg, Panel, Track, useConfirm } from '../../components/kit.jsx';
 import ArtSlot from './ArtSlot.jsx';
 import { isMechNameTaken } from '../compconImport';
-import { importCompconFile } from '../compconFile';
 
 // Зв'язок з Foundry вважається робочим, якщо модуль звітував про нього за останні 14 днів:
 // між іграми синхронізація мовчить (ГМ не тримає світ відкритим), але бій іде лише там.
@@ -43,7 +42,7 @@ function ago(iso) {
 
 export default function MechsPanel({
   state, dispatch, pilotId, mechArt = {}, canEditArt, onUploadMechArt, onRemoveArt,
-  compconFiles, onCompconSaved, foundryLinks = {}, isGm = false,
+  compconFiles, importCompcon, foundryLinks = {}, isGm = false,
 }) {
   const d = state.mechDraft;
   const [ask, dialog] = useConfirm();
@@ -70,12 +69,7 @@ export default function MechsPanel({
             )}
           </div>
         )}
-        {state.mechs.length === 0 && (
-          <div className="ss-slot" style={{ minHeight: 54, justifyContent: 'flex-start', padding: '0 16px', fontSize: 12, color: 'var(--text-dimmer)' }}>
-            <span className="pre">&gt; </span>Мехів ще немає. Завантажте файл COMP/CON кнопкою «Оновити з COMP/CON JSON» під профілем — пілот і мех прийдуть разом.
-          </div>
-        )}
-        {state.mechs.map((m) => (
+        {state.mechs.map((m, slot) => (
           <MechCard
             key={m.id}
             mech={m}
@@ -89,7 +83,13 @@ export default function MechsPanel({
             hasFile={compconFiles ? !!compconFiles[String(m.id)] : null}
             link={freshLink(foundryLinks[String(m.id)])}
             isGm={isGm}
+            slot={slot}
+            importCompcon={importCompcon}
           />
+        ))}
+        {/* Вільні слоти ангару: файл COMP/CON, завантажений сюди, лягає саме в цей слот. */}
+        {Array.from({ length: Math.max(0, slots - state.mechs.length) }, (_, k) => (
+          <EmptySlot key={`empty-${k}`} slot={state.mechs.length + k} importCompcon={importCompcon} />
         ))}
 
         <div className="m-form" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) 80px 80px auto', gap: 8 }}>
@@ -101,48 +101,48 @@ export default function MechsPanel({
         </div>
         {nameTaken && <div className="error-box">Мех з назвою «{d.name.trim()}» уже є. Назви мехів мають бути різні.</div>}
 
-        <CompconMechImport state={state} dispatch={dispatch} pilotId={pilotId} onSaved={onCompconSaved} />
       </div>
     </Panel>
   );
 }
 
-// Мех з іншого профілю COMP/CON без зміни даних пілота: файл зберігається, і з нього
-// модуль Foundry створить актора. Основний шлях — «Оновити з COMP/CON JSON» під профілем;
-// цей — для другого профілю (інші таланти й ліцензії під іншого меха).
-function CompconMechImport({ state, dispatch, pilotId, onSaved }) {
+// Кнопка «з COMP/CON» для конкретного слота: мех з файлу лягає саме сюди (той самий мех —
+// оновлення зі збереженням стану, інший — заміна після підтвердження у вікні).
+function SlotImportButton({ slot, importCompcon, onResult, label = 'ОНОВИТИ З COMP/CON', className = 'btn-ghost' }) {
   const fileRef = useRef(null);
-  const [msg, setMsg] = useState(null);
-
   async function handleFile(e) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     try {
-      setMsg(await importCompconFile(file, { state, pilotId, dispatch, withBond: false }));
-      onSaved?.();
+      const res = await importCompcon(file, { target: slot });
+      if (res) onResult(res);
     } catch (err) {
-      setMsg({ ok: false, text: err.message });
+      onResult({ ok: false, text: err.message });
     }
   }
-
   return (
-    <div className="ss-box" style={{ gap: 10 }}>
-      <FieldLabel>ДРУГИЙ ПРОФІЛЬ COMP/CON</FieldLabel>
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
-        <button className="btn-ghost" type="button" title="Завантажити файл COMP/CON: додає меха або оновлює меха з такою самою назвою; дані пілота не змінюються" onClick={() => fileRef.current?.click()} style={{ fontSize: 11, padding: '6px 12px' }}>
-          ФАЙЛ JSON
-        </button>
-        <input ref={fileRef} type="file" accept=".json,application/json" onChange={handleFile} style={{ display: 'none' }} />
-        <div className="ss-note" style={{ flex: '1 1 220px', minWidth: 0 }}>
-          Лише для меха з іншого профілю COMP/CON (інші таланти/ліцензії). Звичайно досить «Оновити з COMP/CON JSON» під профілем — він приносить пілота й меха разом.
-        </div>
-      </div>
-      {msg && (
-        <div style={{ fontSize: 11, overflowWrap: 'anywhere', color: msg.ok ? 'var(--success)' : 'var(--danger)' }}>
-          {msg.ok ? '>>' : '!!'} {msg.text}
-        </div>
-      )}
+    <>
+      <button
+        className={className}
+        type="button"
+        title={`Завантажити файл COMP/CON у слот ${slot + 1}: той самий мех оновиться (стан HP і зарядів лишається), інший — замінить цього після підтвердження. Дані пілота не змінюються`}
+        onClick={() => fileRef.current?.click()}
+      >
+        {label}
+      </button>
+      <input ref={fileRef} type="file" accept=".json,application/json" onChange={handleFile} style={{ display: 'none' }} />
+    </>
+  );
+}
+
+function EmptySlot({ slot, importCompcon }) {
+  const [msg, setMsg] = useState(null);
+  return (
+    <div className="ss-slot" style={{ minHeight: 54, justifyContent: 'flex-start', gap: 12, padding: '8px 16px', fontSize: 12, color: 'var(--text-dimmer)', flexWrap: 'wrap' }}>
+      <span><span className="pre">&gt; </span>СЛОТ {slot + 1} · ПОРОЖНІЙ</span>
+      <SlotImportButton slot={slot} importCompcon={importCompcon} onResult={setMsg} label="ЗАВАНТАЖИТИ МЕХА З COMP/CON" />
+      {msg && <span style={{ color: msg.ok ? 'var(--success)' : 'var(--danger)', overflowWrap: 'anywhere' }}>{msg.ok ? '>>' : '!!'} {msg.text}</span>}
     </div>
   );
 }
@@ -170,7 +170,7 @@ function Fold({ title, count, open, onToggle, children }) {
 
 const EMPTY_BUILD = (
   <div className="ss-slot" style={{ minHeight: 40, justifyContent: 'flex-start', padding: '0 12px', fontSize: 11, color: 'var(--text-dimmer)' }}>
-    <span className="pre">&gt; </span>Немає в даних меха. Завантажте файл COMP/CON цього меха (меню «⋯» у профілі або нижче).
+    <span className="pre">&gt; </span>Немає в даних меха. Завантажте файл COMP/CON цього меха кнопкою «Оновити з COMP/CON» на картці.
   </div>
 );
 
@@ -190,7 +190,7 @@ function FieldLabel({ children }) {
   return <div className="ss-label" style={{ lineHeight: '16px' }}>{children}</div>;
 }
 
-function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt, onRemoveArt, hasFile, link, isGm }) {
+function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt, onRemoveArt, hasFile, link, isGm, slot, importCompcon }) {
   const [msg, setMsg] = useState('');
   const [addType, setAddType] = useState('weapon');
   const [addName, setAddName] = useState('');
@@ -339,9 +339,11 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span className="ss-tag" title="Слот ангару">СЛОТ {slot + 1}</span>
           <div className="title-font" style={{ fontSize: 20, letterSpacing: 1, color: 'var(--text-bright)' }}>{m.name.toUpperCase()}</div>
           {frameLabel && <span className="ss-tag accent">{frameLabel}</span>}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <SlotImportButton slot={slot} importCompcon={importCompcon} onResult={(r) => setMsg(`${r.ok ? '>>' : '!!'} ${r.text}`)} />
             <button className="btn-ghost" type="button" title="Повний ремонт / передрук за 100 PR або 500 М: усе до максимуму. Перед оплатою вікно покаже, що зламано" onClick={fullRepair}>ПОВНИЙ РЕМОНТ</button>
             <Menu
               items={[
@@ -380,7 +382,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
         )}
         {isGm && link && unlocked && <Msg kind="warn">Ручні зміни розблоковано (ГМ) — наступна синхронізація може їх перезаписати.</Msg>}
 
-        {msg && <Msg kind="ok">{msg}</Msg>}
+        {msg && <Msg kind={msg.startsWith('!!') ? 'err' : 'ok'}>{msg}</Msg>}
 
         {editing && <MechEdit mech={m} state={state} dispatch={dispatch} />}
 

@@ -1,9 +1,11 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { pilotReducer } from '../pilot/reducer';
 import { normalizePilotState } from '../pilot/pilotDefaults';
+import { mechSlots } from '../pilot/constants';
+import { useCompconImport } from '../pilot/components/CompconImport.jsx';
 // import { WEEKLY_DOWNTIME_DATA } from '../pilot/constants'; — разом із панелі простою
 
 import Header from '../pilot/components/Header.jsx';
@@ -150,6 +152,31 @@ export default function PilotProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
+  // Імпорт COMP/CON у слоти ангару — спільний для кнопки під профілем і кнопок слотів.
+  const [importCompcon, compconDialog] = useCompconImport({
+    state,
+    dispatch,
+    pilotId: id,
+    slots: mechSlots(state?.hangar?.owned),
+    onSaved: loadCompconFiles,
+  });
+
+  // Файл, завантажений на сторінці пілотів для цього пілота: імпортуємо тут, де є слоти.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [importNote, setImportNote] = useState(null);
+  const pendingFile = location.state?.compcon;
+  const handledFile = useRef(null);
+  useEffect(() => {
+    if (!pendingFile || !state || !pilot || handledFile.current === pendingFile) return;
+    handledFile.current = pendingFile;
+    navigate(location.pathname, { replace: true, state: null });
+    importCompcon(pendingFile.json, { withBond: true, fileName: pendingFile.fileName })
+      .then((res) => res && setImportNote(res))
+      .catch((err) => setImportNote({ ok: false, text: err.message }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFile, !!state, !!pilot]);
+
   async function saveMeta(patch) {
     const updated = await api.updatePilot(id, patch);
     setPilot(updated);
@@ -192,8 +219,10 @@ export default function PilotProfilePage() {
         onUploadPortrait={(file) => uploadArt('portrait', null, file)}
         onRemoveArt={removeArt}
         compconFiles={compconFiles}
-        onCompconSaved={loadCompconFiles}
+        importCompcon={importCompcon}
+        importNote={importNote}
       />
+      {compconDialog}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 22 }}>
         <ManaPanel state={state} dispatch={dispatch} />
@@ -211,7 +240,7 @@ export default function PilotProfilePage() {
         onUploadMechArt={(mechId, file) => uploadArt('mech', mechId, file)}
         onRemoveArt={removeArt}
         compconFiles={compconFiles}
-        onCompconSaved={loadCompconFiles}
+        importCompcon={importCompcon}
         foundryLinks={foundryLinks}
         isGm={isGm}
       />

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
-import { compconProfiles, findImportTarget, mapCompconPilot, mechClashMessage, mechNameClashes, mergeMechsByName } from '../pilot/compconImport';
+import { findImportTarget, mapCompconPilot } from '../pilot/compconImport';
 import { pushLog, llTier } from '../pilot/logic';
 import { Menu, Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
 
 export default function PilotSelectPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [ask, dialog] = useConfirm();
   const [formOpen, setFormOpen] = useState(false);
   const [view, setView] = useState('active');
@@ -176,27 +177,15 @@ export default function PilotSelectPage() {
         if (!ok) return;
       }
 
-      if (existing) {
-        const full = await api.getPilot(existing.id);
-        const clashes = mechNameClashes(full.state.mechs, mapped.state.mechs);
-        if (clashes.length) throw new Error(mechClashMessage(clashes));
-        const profiles = compconProfiles(full.state.mechs, mapped.state.mechs, json);
-        const mechNames = mapped.state.mechs.map((m) => m.name).join(', ') || '—';
-        const newState = {
-          ...full.state,
-          mechs: mergeMechsByName(full.state.mechs, mapped.state.mechs),
-          actionLog: pushLog(full.state.actionLog, `Мех(и) підтягнуто з COMP/CON («${mapped.callsign}»): ${mechNames}`),
-        };
-        await api.updatePilot(existing.id, { state: newState });
-        await api.saveCompconProfiles(existing.id, profiles);
-      } else {
-        const clashes = mechNameClashes([], mapped.state.mechs);
-        if (clashes.length) throw new Error(mechClashMessage(clashes));
+      // Мехи кладуться у слоти ангару вже в профілі пілота: там видно слоти, і якщо в
+      // файлі кілька мехів чи слоти зайняті іншими — гравець обирає, який мех куди.
+      let pilotId = existing?.id;
+      if (!pilotId) {
         const created = await api.createPilot({ name: mapped.name, callsign: mapped.callsign, background: mapped.background });
-        await api.updatePilot(created.id, { state: mapped.state });
-        await api.saveCompconProfiles(created.id, compconProfiles([], mapped.state.mechs, json));
+        await api.updatePilot(created.id, { state: { ...mapped.state, mechs: [] } });
+        pilotId = created.id;
       }
-      await reload();
+      navigate(`/pilots/${pilotId}`, { state: { compcon: { json, fileName: file.name } } });
     } catch (err) {
       setImportError(err instanceof SyntaxError ? 'Файл не є коректним JSON.' : err.message);
     } finally {

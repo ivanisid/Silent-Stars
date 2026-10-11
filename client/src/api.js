@@ -257,7 +257,7 @@ export const api = {
     }
   },
 
-  // Файли COMP/CON по одному на меха (див. compconProfiles): з них модуль Foundry створює
+  // Файли COMP/CON по одному на меха (див. profilesFor у slotImport.js): з них модуль Foundry створює
   // акторів. Повторне завантаження того ж меха замінює файл.
   saveCompconProfiles: async (pilotId, profiles) => {
     if (!profiles?.length) return;
@@ -527,6 +527,13 @@ export const api = {
   // 'approved' in between, where signup is shut but nothing has been awarded yet.
   gmApproveRoster: async (slotId, approvedSignupIds) => {
     const { error } = await supabase.rpc('gm_approve_roster', { p_slot_id: slotId, p_approved: approvedSignupIds });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
+  // Зміна вже затвердженого складу (до завершення гри): увесь новий склад.
+  gmEditRoster: async (slotId, approvedSignupIds) => {
+    const { error } = await supabase.rpc('gm_edit_roster', { p_slot_id: slotId, p_approved: approvedSignupIds });
     if (error) throw new Error(error.message);
     return { ok: true };
   },

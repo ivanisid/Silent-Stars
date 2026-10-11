@@ -1,5 +1,4 @@
 import { createDefaultPilotState } from './pilotDefaults';
-import { mergeMechState } from './mechMerge';
 import { MAX_LL } from './constants';
 import { clamp, nowTs, skillCapMax } from './logic';
 import { bonusText, mechBonuses } from './mechBonuses';
@@ -211,28 +210,8 @@ function mapMech(m, grit, hull, limitedBonus, build, bonuses) {
   };
 }
 
-// Some campaigns keep multiple mech "slots" for one character by saving separate COMP/CON
-// pilots per build (same name, different callsign per mech, since COMP/CON ties talents/skills
-// to a single pilot save). Re-importing another such file for an already-known pilot (matched by
-// name) should only add/refresh that mech, not touch anything else already tracked on the pilot.
-// Збірка (фрейм, зброя, системи) береться з файлу, а стан меха — ХП, ремкомплекти, структура,
-// реактор, заряди, «знищено» — лишається з апки; зламані й витрачені системи, яких у новому
-// файлі немає, лишаються до ремонту / поповнення (mechMerge.js).
-export function mergeMechsByName(existingMechs, importedMechs) {
-  const result = [...(existingMechs || [])];
-  (importedMechs || []).forEach((incoming) => {
-    const idx = result.findIndex((m) => m.name.trim().toLowerCase() === incoming.name.trim().toLowerCase());
-    if (idx >= 0) {
-      result[idx] = mergeMechState(result[idx], incoming);
-    } else {
-      result.push(incoming);
-    }
-  });
-  return result;
-}
-
-// Назви мехів у пілота унікальні (без урахування регістру): за назвою імпорт COMP/CON
-// оновлює вже наявного меха, а в Foundry за нею розрізняються актори.
+// Назви мехів у пілота унікальні (без урахування регістру): в імпорті COMP/CON без
+// ідентифікатора мех упізнається за назвою, а в Foundry за нею розрізняються актори.
 const mechKey = (name) => String(name || '').trim().toLowerCase();
 
 export function isMechNameTaken(mechs, name, exceptId = null) {
@@ -240,44 +219,7 @@ export function isMechNameTaken(mechs, name, exceptId = null) {
   return !!key && (mechs || []).some((m) => m.id !== exceptId && mechKey(m.name) === key);
 }
 
-// Мехи з файлу, які не можна влити: два з однаковою назвою в самому файлі, або назва вже
-// зайнята мехом з іншого файлу COMP/CON (інший ccId). Мех без ccId (доданий вручну чи
-// імпортований до появи цього поля) вважається тим самим і оновлюється.
-export function mechNameClashes(existingMechs, importedMechs) {
-  const clashes = [];
-  const seen = new Set();
-  for (const incoming of importedMechs || []) {
-    const key = mechKey(incoming.name);
-    if (seen.has(key)) {
-      clashes.push(incoming.name);
-      continue;
-    }
-    seen.add(key);
-    const same = (existingMechs || []).find((m) => mechKey(m.name) === key);
-    if (same?.ccId && incoming.ccId && same.ccId !== incoming.ccId) clashes.push(incoming.name);
-  }
-  return clashes;
-}
-
-export function mechClashMessage(names) {
-  return `Мех з назвою ${names.map((n) => `«${n}»`).join(', ')} уже є в пілота з іншого файлу COMP/CON. ` +
-    'Назви мехів мають бути різні — перейменуйте меха в COMP/CON і завантажте файл знову.';
-}
-
-// Файл COMP/CON для кожного влитого меха: увесь файл, але в ньому лише цей мех. З нього
-// модуль Foundry створює актора-пілота (таланти, скіли, ліцензії цього профілю) і меха.
-// mech_id — той, що мех матиме в апці після mergeMechsByName (наявний за назвою або новий).
-export function compconProfiles(existingMechs, importedMechs, json) {
-  const byKey = new Map((existingMechs || []).map((m) => [mechKey(m.name), m]));
-  const source = json?.data?.mechs || [];
-  return (importedMechs || []).flatMap((incoming) => {
-    const raw = source.find((m) => m.id === incoming.ccId) ||
-      source.find((m) => mechKey(m.name || m.frameData?.name) === mechKey(incoming.name));
-    if (!raw) return [];
-    const id = byKey.get(mechKey(incoming.name))?.id ?? incoming.id;
-    return [{ mechId: String(id), data: { ...json, data: { ...json.data, mechs: [raw] } } }];
-  });
-}
+// Розклад мехів з файлу по слотах ангару, оновлення й файли для Foundry — slotImport.js.
 
 export function isCompconPilotExport(json) {
   return !!json && json.EXPORT_TYPE === 'Save Pilot' && !!json.data;

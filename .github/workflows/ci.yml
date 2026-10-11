@@ -28,6 +28,9 @@ jobs:
       - name: Злиття меха при повторному імпорті
         run: node src/pilot/mechMerge.test.mjs
         working-directory: client
+      - name: Імпорт COMP/CON у слоти ангару
+        run: node src/pilot/slotImport.test.mjs
+        working-directory: client
       - name: Бонуси меха з COMP/CON
         run: node src/pilot/mechBonuses.test.mjs
         working-directory: client

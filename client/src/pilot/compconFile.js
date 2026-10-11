@@ -1,30 +1,58 @@
 import { api } from '../api';
-import { compconProfiles, mapCompconBond, mapCompconPilot, mechClashMessage, mechNameClashes } from './compconImport';
+import { mapCompconBond, mapCompconPilot } from './compconImport';
+import { applyAssignment, changesText, defaultAssignment, isObvious, profilesFor, slotCount } from './slotImport';
 
-// Імпорт файлу COMP/CON у відкритий профіль пілота — спільний для меню профілю, кнопки
-// під ним і панелі мехів. Мехи вливаються за назвою; withBond — файл основного профілю,
-// з нього ще й бонд. Сам файл зберігається для кожного меха: з нього модуль Foundry
-// створює актора. Повертає текст статусу; помилку кидає з поясненням для гравця.
-export async function importCompconFile(file, { state, pilotId, dispatch, withBond }) {
-  let json;
+// Імпорт файлу COMP/CON у відкритий профіль пілота — спільний для кнопки під профілем
+// (пілот, мех і бонд), кнопок слотів ангару (лише мех цього слота) і сторінки пілотів.
+// Мехи лягають у слоти ангару (slotImport.js); коли розклад неочевидний (у файлі кілька
+// мехів, слотів бракує, мех замінює іншого) — гравець обирає його у вікні.
+
+export async function readCompconJson(file) {
   try {
-    json = JSON.parse(await file.text());
+    return JSON.parse(await file.text());
   } catch {
     throw new Error('Файл не є коректним JSON.');
   }
-  const mapped = mapCompconPilot(json);
-  const clashes = mechNameClashes(state.mechs, mapped.state.mechs);
-  if (clashes.length) throw new Error(mechClashMessage(clashes));
-  const profiles = compconProfiles(state.mechs, mapped.state.mechs, json);
+}
 
-  dispatch({ type: 'MERGE_COMPCON_MECHS', payload: { mechs: mapped.state.mechs, callsign: mapped.callsign } });
+// Що імпортувати і куди за замовчуванням. target — слот, з кнопки якого завантажено файл.
+export function prepareImport(json, state, slots, target = null) {
+  const mapped = mapCompconPilot(json);
+  const imported = mapped.state.mechs;
+  if (!imported.length) throw new Error('У файлі COMP/CON немає жодного меха.');
+  const existing = state.mechs || [];
+  const assignment = defaultAssignment(existing, slots, imported, target);
+  return {
+    mapped,
+    imported,
+    existing,
+    slots: slotCount(existing, slots),
+    assignment,
+    obvious: isObvious(existing, imported, assignment),
+  };
+}
+
+// Застосувати розклад: мехи в стан, бонд (withBond), файли для Foundry — по одному на меха.
+// Повертає { ok, text }; помилку розкладу кидає з поясненням.
+export async function commitImport({ json, prep, assignment, pilotId, dispatch, withBond, fileName }) {
+  const r = applyAssignment(prep.existing, prep.imported, assignment);
+  if (r.error) throw new Error(r.error);
+  const what = changesText(r.changes) || 'мехи не змінено';
+  // Бонуси до HP / Overcharge з файлу — щоб нове HP не виглядало вигаданим.
+  const bonusOf = (m) => [m.hpBonus && `HP ${m.hpBonus}`, m.ocSteps && `Overcharge до ${m.ocSteps[m.ocSteps.length - 1]} (${m.ocSource})`]
+    .filter(Boolean).join(' · ');
+  const bonuses = r.changes.filter(({ mech }) => bonusOf(mech)).map(({ mech }) => `${mech.name}: ${bonusOf(mech)}`);
+  dispatch({
+    type: 'SET_COMPCON_MECHS',
+    mechs: r.mechs,
+    msg: `COMP/CON («${prep.mapped.callsign}»): ${what}` + (bonuses.length ? ` · бонуси — ${bonuses.join('; ')}` : ''),
+  });
   const bond = withBond ? mapCompconBond(json) : null;
   if (bond) dispatch({ type: 'IMPORT_BOND', payload: bond });
 
-  const names = mapped.state.mechs.map((m) => m.name).join(', ') || '—';
-  let text = `Мех(и) з «${file.name}»: ${names}${bond ? ` · бонд «${bond.name}»` : ''}`;
+  const text = `«${fileName}»: ${what}${bond ? ` · бонд «${bond.name}»` : ''}`;
   try {
-    await api.saveCompconProfiles(pilotId, profiles);
+    await api.saveCompconProfiles(pilotId, profilesFor(r.changes, json));
   } catch (err) {
     return { ok: false, text: `${text} · файл для Foundry не збережено: ${err.message}` };
   }
