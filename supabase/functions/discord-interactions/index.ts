@@ -87,8 +87,8 @@ async function linkedUserId(discordId: string) {
 // Запис на гру прив'язки не вимагає; вона потрібна лише для пілота й меха та для дій ГМа.
 const NOT_LINKED =
   'Ця дія потребує прив\'язаного акаунта апки.\n' +
-  '1. Відкрийте в апці сторінку **«Запис на гру»** і натисніть **«Прив\'язати Discord»**.\n' +
-  '2. Введіть тут `/link <код>`.';
+  'Найпростіше — в апці (сторінка **«Запис на гру»** або **Account manager**) натисніть **«Прив\'язати через Discord»**.\n' +
+  'Або там же **«Код для команди в Discord»** і введіть тут `/link <код>`.';
 
 async function activePilots(userId: string) {
   const { data, error } = await db.from('pilots').select('id, name, callsign, state').eq('user_id', userId)

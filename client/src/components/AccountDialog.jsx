@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api';
+import { DiscordAccountSection } from './DiscordLink.jsx';
 
-// Дані входу: зміна ніку й пароля. Відкривається з лівої рейки.
+// Дані входу: прив'язка Discord, зміна ніку й пароля. Відкривається з лівої рейки.
 //
 // Нік — це й логін: після зміни входити треба вже з новим. Акаунт, створений через
 // Discord, пароля не має — тут його можна задати, і тоді з'явиться вхід за ніком.
@@ -92,7 +93,9 @@ export default function AccountDialog({ onClose }) {
       <div className="modal-box" style={{ width: 440 }} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div className="modal-header">ДАНІ ВХОДУ</div>
         <div className="modal-body" style={{ gap: 18 }}>
-          <form onSubmit={saveNick} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <DiscordAccountSection user={user} />
+
+          <form onSubmit={saveNick} style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px dashed var(--input-border)', paddingTop: 16 }}>
             <div className="field-label" style={{ marginBottom: 0 }}>НІКНЕЙМ {byNick && <span style={{ color: 'var(--text-faint)' }}>· він же логін</span>}</div>
             <div style={{ display: 'flex', gap: 8 }}>
               <input

@@ -331,7 +331,8 @@ export const api = {
   linkDiscordLogin: async () => {
     const { error } = await supabase.auth.linkIdentity({
       provider: 'discord',
-      options: { redirectTo: `${window.location.origin}/board` },
+      // Повертаємось туди, звідки прив'язували (дошка ігор чи будь-яка сторінка з Account manager).
+      options: { redirectTo: `${window.location.origin}${window.location.pathname}` },
     });
     if (error) {
       if (/manual linking/i.test(error.message)) {
@@ -345,6 +346,16 @@ export const api = {
     const { data, error } = await supabase.auth.getUserIdentities();
     if (error) return false;
     return (data?.identities || []).some((i) => i.provider === 'discord');
+  },
+
+  // Зняти Discord-вхід (OAuth). Тригер на auth.identities прибирає й прив'язку discord_links.
+  unlinkDiscordLogin: async () => {
+    const { data, error } = await supabase.auth.getUserIdentities();
+    if (error) throw new Error(error.message);
+    const identity = (data?.identities || []).find((i) => i.provider === 'discord');
+    if (!identity) return;
+    const { error: e2 } = await supabase.auth.unlinkIdentity(identity);
+    if (e2) throw new Error(e2.message);
   },
 
   createDiscordLinkCode: async () => {

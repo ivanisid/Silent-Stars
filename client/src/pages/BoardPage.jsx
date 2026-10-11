@@ -7,6 +7,7 @@ import { Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit
 import { DIFFICULTY_GROUPS, difficultyByKey, difficultyLabel } from '../difficulty';
 import DateTimeField from '../components/DateTimeField.jsx';
 import PlayCalendar from '../components/PlayCalendar.jsx';
+import { DiscordLinkButtons } from '../components/DiscordLink.jsx';
 
 // Gold as *text on a card*, so it stays legible on the light themes; --gm itself is
 // the bright gold meant for the GM's own dark surfaces.
@@ -941,97 +942,6 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   );
 }
 
-// Прив'язка Discord: після неї кнопки під оголошеннями в Discord записують у ту саму
-// дошку від імені цього акаунта. Код одноразовий, живе 15 хвилин.
-function DiscordLink({ user }) {
-  const [link, setLink] = useState(undefined); // undefined — ще вантажиться
-  const [code, setCode] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  // Чи може цей акаунт входити через Discord (OAuth). Прив'язка /link кодом цього не дає.
-  const [hasLogin, setHasLogin] = useState(false);
-
-  async function load() {
-    try {
-      setLink(await api.getDiscordLink(user.id));
-      setHasLogin(await api.hasDiscordLogin());
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.id]);
-
-  async function run(fn) {
-    setBusy(true);
-    setError('');
-    try {
-      await fn();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (link === undefined && !error) return null;
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 12px', border: '1px solid var(--input-border)', background: 'var(--input-bg)', fontSize: 12 }}>
-      <span style={{ color: 'var(--text-dimmer)', letterSpacing: 1 }}>DISCORD</span>
-      {link ? (
-        <>
-          <span style={{ color: 'var(--success)' }}>прив'язано{link.discord_username ? ` · ${link.discord_username}` : ''}</span>
-          <span style={{ color: 'var(--text-dimmer)', fontSize: 11 }}>— у Discord можна записуватись із пілотом і мехом</span>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {!hasLogin && (
-              <button className="btn-ghost md" type="button" disabled={busy}
-                title="Після цього можна входити в апку кнопкою «Увійти через Discord» — у цей самий акаунт"
-                onClick={() => run(api.linkDiscordLogin)}>
-                УВІМКНУТИ ВХІД ЧЕРЕЗ DISCORD
-              </button>
-            )}
-            {/* Відв'язка кодом не прибирає Discord-вхід, тож для таких акаунтів її не пропонуємо. */}
-            {!hasLogin && (
-              <button className="btn-ghost md" type="button" disabled={busy}
-                onClick={() => run(async () => { await api.unlinkDiscord(user.id); setLink(null); setCode(''); })}>
-                ВІДВ'ЯЗАТИ
-              </button>
-            )}
-            {hasLogin && <span style={{ color: 'var(--text-dimmer)', fontSize: 11 }}>вхід через Discord увімкнено</span>}
-          </div>
-        </>
-      ) : code ? (
-        <>
-          <span style={{ color: 'var(--text-soft)' }}>код прив'язки</span>
-          <code style={{ color: 'var(--accent)', fontSize: 14, letterSpacing: 2, userSelect: 'all' }}>{code}</code>
-          <span style={{ fontSize: 11, color: 'var(--text-dimmer)' }}>/link · 15 хв</span>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-            <button className="btn-ghost md" type="button" disabled={busy} onClick={() => run(load)}>ПЕРЕВІРИТИ</button>
-          </div>
-        </>
-      ) : (
-        <>
-          <span style={{ color: 'var(--text-dimmer)' }}>не прив'язано — у Discord можна записатись і так, але без пілота й меха</span>
-          {/* Через Discord одним кліком: і прив'язка, і вхід. Код /link — запасний шлях. */}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button className="btn md" type="button" disabled={busy} onClick={() => run(api.linkDiscordLogin)}>
-              ПРИВ'ЯЗАТИ ЧЕРЕЗ DISCORD
-            </button>
-            <button className="btn-ghost md" type="button" disabled={busy} onClick={() => run(async () => setCode(await api.createDiscordLinkCode()))}>
-              КОД ДЛЯ /link
-            </button>
-          </div>
-        </>
-      )}
-      {error && <Msg kind="err" style={{ width: '100%' }}>{error}</Msg>}
-    </div>
-  );
-}
-
 export default function BoardPage() {
   const { user, isGm } = useAuth();
 
@@ -1128,7 +1038,7 @@ export default function BoardPage() {
         </div>
       </div>
 
-      {user && <DiscordLink user={user} />}
+      {user && <DiscordLinkButtons user={user} />}
 
       {loadError && <Msg kind="err">{loadError}</Msg>}
       {loading && <div className="ss-note"><span className="pre">&gt; </span>Завантаження…</div>}
