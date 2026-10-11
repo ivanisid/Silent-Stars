@@ -5,6 +5,7 @@ import {
   decide, mergeFields, mergeGroup, mergeLimited, mechMaxPatch, profileActorName, pilotIdentityUpdate,
   matchGroup, suggestActors, resolveLinks, pendingMechs, mergeDestroyed, combineItemUpdates, MECH_FIELDS, PILOT_FIELDS, MODULE,
   idleDecision, MAX_IDLE_SKIPS, isFreshCreating, CREATING_TTL, syncOption, artSrc, artUpdate,
+  linksKey, linksDecision, LINKS_REFRESH_MS,
 } from './sync.js';
 
 let n = 0;
@@ -348,6 +349,22 @@ test('pilotIdentityUpdate: портрет іде з версією id', () => {
   const actor = { ...artActor('', ''), system: { callsign: 'AMON', level: 2, player_name: 'x' }, flags: {} };
   const u = pilotIdentityUpdate({ name: 'Amon', callsign: 'AMON', ll: 2, player: 'x', portrait: 'pilots/n/AMON/AMON.png', portraitId: ID1 }, actor);
   assert.equal(u.img, 'pilots/n/AMON/AMON.png?v=3f2a9c10');
+});
+
+test('linksDecision: список змінився — звітуємо одразу', () => {
+  const a = linksKey([{ pilotId: 'p', mechId: '1', actor: 'Amon' }]);
+  const b = linksKey([{ pilotId: 'p', mechId: '2', actor: 'Amon' }]);
+  assert.equal(linksDecision({ lastKey: a, key: b, lastAt: 1000, now: 1001 }), true);
+});
+test('linksDecision: без змін — лише раз на 30 хв', () => {
+  const k = linksKey([{ pilotId: 'p', mechId: '1', actor: 'Amon' }]);
+  assert.equal(linksDecision({ lastKey: k, key: k, lastAt: 1000, now: 1000 + LINKS_REFRESH_MS - 1 }), false);
+  assert.equal(linksDecision({ lastKey: k, key: k, lastAt: 1000, now: 1000 + LINKS_REFRESH_MS }), true);
+});
+test('linksKey: порядок не важить', () => {
+  const x = { pilotId: 'p', mechId: '1', actor: 'A' };
+  const y = { pilotId: 'q', mechId: '2', actor: 'B' };
+  assert.equal(linksKey([x, y]), linksKey([y, x]));
 });
 
 console.log(`\n${n} тестів пройдено`);

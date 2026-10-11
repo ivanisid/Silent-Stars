@@ -268,6 +268,21 @@ export const api = {
     if (error) throw new Error(error.message);
   },
 
+  // Які мехи пілота мають збережений файл COMP/CON і коли його оновлено: { [mechId]: updated_at }.
+  listCompconProfiles: async (pilotId) => {
+    const { data, error } = await supabase.from('pilot_compcon').select('mech_id, updated_at').eq('pilot_id', pilotId);
+    if (error) throw new Error(error.message);
+    return Object.fromEntries((data || []).map((r) => [String(r.mech_id), r.updated_at]));
+  },
+
+  // Мехи пілота, зв'язані з акторами Foundry (звітує модуль, див. foundry-sync «links»):
+  // { [mechId]: { actor, seenAt } }. Таблиці може ще не бути — тоді порожньо.
+  listFoundryLinks: async (pilotId) => {
+    const { data, error } = await supabase.from('foundry_mech_links').select('mech_id, actor_name, seen_at').eq('pilot_id', pilotId);
+    if (error) return {};
+    return Object.fromEntries((data || []).map((r) => [String(r.mech_id), { actor: r.actor_name, seenAt: r.seen_at }]));
+  },
+
   // М'яке видалення: файл із Foundry і зі сховища прибирає синхронізатор.
   deleteArt: async (id) => {
     const { error } = await supabase.rpc('art_delete', { p_id: id });

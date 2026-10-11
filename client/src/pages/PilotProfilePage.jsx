@@ -39,7 +39,7 @@ const SAVE_DEBOUNCE_MS = 800;
 
 export default function PilotProfilePage() {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, isGm } = useAuth();
   const [pilot, setPilot] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [state, dispatch] = useReducer(pilotReducer, null);
@@ -51,6 +51,12 @@ export default function PilotProfilePage() {
 
   // Портрет і арти мехів: окремо від state пілота, бо живуть у сховищі, а не в JSON.
   const [art, setArt] = useState({ portrait: null, mechs: {} });
+
+  // Файли COMP/CON по мехах ({ mechId: updated_at }) і зв'язки мехів з акторами Foundry
+  // ({ mechId: { actor, seenAt } }) — окремі таблиці, не state пілота.
+  const [compconFiles, setCompconFiles] = useState(null);
+  const [foundryLinks, setFoundryLinks] = useState({});
+  const loadCompconFiles = () => api.listCompconProfiles(id).then(setCompconFiles).catch(() => setCompconFiles({}));
 
   const saveTimer = useRef(null);
   const isFirstStateSet = useRef(true);
@@ -81,6 +87,12 @@ export default function PilotProfilePage() {
       cancelled = true;
       unsubscribe();
     };
+  }, [id]);
+
+  useEffect(() => {
+    loadCompconFiles();
+    api.listFoundryLinks(id).then(setFoundryLinks);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Бій у Foundry (ХП, структура, заряди…) записує функція foundry-sync. Вливаємо ці
@@ -179,6 +191,8 @@ export default function PilotProfilePage() {
         canEditArt={own}
         onUploadPortrait={(file) => uploadArt('portrait', null, file)}
         onRemoveArt={removeArt}
+        compconFiles={compconFiles}
+        onCompconSaved={loadCompconFiles}
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 22 }}>
@@ -196,6 +210,10 @@ export default function PilotProfilePage() {
         canEditArt={own}
         onUploadMechArt={(mechId, file) => uploadArt('mech', mechId, file)}
         onRemoveArt={removeArt}
+        compconFiles={compconFiles}
+        onCompconSaved={loadCompconFiles}
+        foundryLinks={foundryLinks}
+        isGm={isGm}
       />
       {/* Особисті покращення — одразу під мехами: ангар і ліцензування стосуються саме їх. */}
       <UpgradesPanel state={state} dispatch={dispatch} />

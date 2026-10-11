@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
-import { compconProfiles, mapCompconPilot, mechClashMessage, mechNameClashes, mergeMechsByName } from '../pilot/compconImport';
+import { compconProfiles, findImportTarget, mapCompconPilot, mechClashMessage, mechNameClashes, mergeMechsByName } from '../pilot/compconImport';
 import { pushLog, llTier } from '../pilot/logic';
 import { Menu, Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
 
@@ -150,10 +150,31 @@ export default function PilotSelectPage() {
       const mapped = mapCompconPilot(json);
 
       // Same character, different COMP/CON save per mech build (campaign has multiple mech
-      // slots) — matched by callsign (kept constant per character in Foundry), since the
-      // "name" field is what tends to vary between per-mech COMP/CON saves. Merge the mech(s)
+      // slots) — matched by callsign, then by callsign without the profile decorations
+      // («CHEMBER (MASTIFF)» → CHEMBER), then by name (findImportTarget). Merge the mech(s)
       // into the existing pilot instead of creating a duplicate.
-      const existing = pilots.find((p) => p.callsign.trim().toLowerCase() === mapped.callsign.trim().toLowerCase());
+      const target = findImportTarget(pilots, mapped);
+      if (target.ambiguous) {
+        throw new Error(
+          `Файл підходить кільком пілотам (${target.ambiguous.map((p) => p.callsign).join(', ')}). ` +
+          'Відкрийте профіль потрібного й натисніть «Оновити з COMP/CON JSON».',
+        );
+      }
+      const existing = target.pilot;
+      // Нового пілота створюємо лише з явної згоди: інакше файл другого профілю тихо давав дубль.
+      if (!existing && pilots.length > 0) {
+        const ok = await ask({
+          title: 'НОВИЙ ПІЛОТ?',
+          question: `Серед ваших пілотів немає «${mapped.callsign}» — створити нового?`,
+          lines: [
+            `ім'я з файлу: ${mapped.name}`,
+            `мехи: ${mapped.state.mechs.map((m) => m.name).join(', ') || '—'}`,
+            { t: 'Якщо це мех наявного пілота — відкрийте його профіль і натисніть «Оновити з COMP/CON JSON».', ink: 'var(--text-dimmer)' },
+          ],
+          yesLabel: 'СТВОРИТИ',
+        });
+        if (!ok) return;
+      }
 
       if (existing) {
         const full = await api.getPilot(existing.id);

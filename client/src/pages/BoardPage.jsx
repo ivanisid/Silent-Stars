@@ -30,6 +30,21 @@ function deadlineIsPast(iso) {
   return !Number.isNaN(d.getTime()) && d < new Date();
 }
 
+// Коли склад затвердиться сам: у дедлайн набору, а без дедлайну — у час гри.
+function autoAt(slot) {
+  return slot.signupDeadline || slot.gameAt || null;
+}
+
+// Склад, який затвердив би сервер (private.auto_roster): гарантовані, далі пріоритет
+// (d20 + бонус), рівні — хто раніше записався; стільки, скільки місць.
+function autoRoster(slot) {
+  const prio = (g) => (g.roll === null ? -Infinity : g.roll + (g.rollBonus || 0));
+  return [...slot.signups]
+    .sort((a, b) => (b.guaranteed - a.guaranteed) || prio(b) - prio(a) || new Date(a.createdAt) - new Date(b.createdAt))
+    .slice(0, slot.seats)
+    .map((g) => g.id);
+}
+
 // The badge sits on the card header, whose background is the theme's saturated primary
 // — a status colour there can land gold-on-gold. It takes the header's own ink and
 // leans on wording plus emphasis instead; the words already say the state.
@@ -39,8 +54,10 @@ function statusBadge(slot) {
   // played and paid for. A slot passes through the first on its way to the second.
   if (slot.status === 'closed') return { text: 'ГРА ЗАВЕРШЕНА', strong: true };
   if (slot.status === 'approved') return { text: 'СКЛАД ЗАТВЕРДЖЕНО · ЗАПИС ЗАКРИТО', strong: true };
-  // The deadline is a hint for players, not a lock — only the GM closing the slot ends signup.
-  if (deadlineIsPast(slot.signupDeadline)) return { text: 'ДЕДЛАЙН МИНУВ · НАБІР ЩЕ ВІДКРИТО', strong: true };
+  // Дедлайн настав, а планувальник (раз на 5 хв, private.auto_approve_rosters) ще не дійшов.
+  if (deadlineIsPast(autoAt(slot))) {
+    return { text: slot.signups.length ? 'ДЕДЛАЙН МИНУВ · СКЛАД ЗАТВЕРДЖУЄТЬСЯ' : 'ДЕДЛАЙН МИНУВ · ЗАПИСІВ НЕМАЄ', strong: true };
+  }
   return { text: 'НАБІР ВІДКРИТО', strong: false };
 }
 
@@ -292,7 +309,8 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   // GM roster picks (signup ids) before resolving.
-  const [picked, setPicked] = useState(() => new Set());
+  // Відмітки ГМа. null — ще не чіпав: тоді відмічено склад за правилами (autoRoster).
+  const [pickedRaw, setPicked] = useState(null);
   const [editReward, setEditReward] = useState(false);
   const [rMana, setRMana] = useState(0);
   const [rPr, setRPr] = useState(0);
@@ -319,10 +337,12 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   const rewarded = slot.signups.filter((g) => g.approved === true && g.pilotId).length;
   const mySignup = slot.signups.find((g) => g.userId === user.id);
   const contest = slot.signups.length > slot.seats;
-  // Пріоритет (d20 + бонус) кидається під час запису; вищий іде вгору списку, рівні — у порядку запису.
+  // Пріоритет (d20 + бонус) кидається під час запису, але має значення лише в контесті —
+  // поки місць вистачає, його не показуємо, а список іде в порядку запису.
   // Гарантоване місце (бонус +9) — над усіма: воно входить у склад, хоч би що відмітив ГМ.
   const priority = (g) => (g.guaranteed ? 1000 : g.roll === null ? -1 : g.roll + (g.rollBonus || 0));
-  const ranked = [...slot.signups].sort((a, b) => priority(b) - priority(a));
+  const ranked = contest ? [...slot.signups].sort((a, b) => priority(b) - priority(a)) : slot.signups;
+  const picked = pickedRaw ?? new Set(autoRoster(slot));
   // Скільки реально піде в склад: відмічені ГМом плюс гарантовані.
   const rosterSize = new Set([...picked, ...slot.signups.filter((g) => g.guaranteed).map((g) => g.id)]).size;
   const deadlinePassed = deadlineIsPast(slot.signupDeadline);
@@ -386,7 +406,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
 
   function togglePick(id) {
     setPicked((prev) => {
-      const next = new Set(prev);
+      const next = new Set(prev ?? picked);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
@@ -451,7 +471,16 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
         {slot.description && <Description text={slot.description} />}
 
         {contest && isOpen && (
-          <div style={{ fontSize: 11, color: 'var(--warn)', letterSpacing: 1 }}>:: Учасників більше, ніж місць — склад визначає пріоритет.</div>
+          <div style={{ fontSize: 11, color: 'var(--warn)', letterSpacing: 1 }}>:: Учасників більше, ніж місць — склад визначає пріоритет (d20 + бонус).</div>
+        )}
+        {isOpen && slot.signups.length > 0 && (
+          <div style={{ fontSize: 11, color: 'var(--text-grey)', letterSpacing: 1, lineHeight: 1.6 }}>
+            <span className="pre">&gt; </span>
+            {autoAt(slot)
+              ? `Склад затвердиться автоматично ${formatDT(autoAt(slot))}${slot.signupDeadline ? '' : ' (час гри)'}: `
+              : 'Без дедлайну й часу гри склад затверджує ГМ: '}
+            {contest ? `перші ${slot.seats} за пріоритетом і гарантовані місця.` : 'усі записані — місць вистачає.'}
+          </div>
         )}
 
         {slot.signups.length > 0 && (
@@ -528,10 +557,10 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                     </button>
                   )}
                   <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                    {g.guaranteed && (
+                    {contest && g.guaranteed && (
                       <span style={{ color: GOLD, whiteSpace: 'nowrap', letterSpacing: 1 }} title={`Бонус +${g.rollBonus}`}>◆ ГАРАНТОВАНЕ МІСЦЕ</span>
                     )}
-                    {!g.guaranteed && g.roll !== null && (
+                    {contest && !g.guaranteed && g.roll !== null && (
                       <span
                         style={{ display: 'flex', alignItems: 'baseline', gap: 6, whiteSpace: 'nowrap' }}
                         title={`d20: ${g.roll}${g.rollBonus > 0 ? ` + бонус ${g.rollBonus}` : ''}`}
@@ -594,7 +623,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                 run(() => api.boardSignup(slot.id, pilotId, mech));
               }}
             >
-              ЗАПИСАТИСЬ · d20
+              ЗАПИСАТИСЬ
             </button>
           </div>
         )}
@@ -747,6 +776,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                         lines: [
                           `у складі: ${rosterSize} з ${slot.signups.length}`,
                           'запис на гру закриється',
+                          ...(autoAt(slot) ? [`без вас склад затвердився б сам ${formatDT(autoAt(slot))}`] : []),
                           'хто потрапив у склад, витрачає бонус',
                           'якщо був контест, ті, хто не потрапив, зберігають бонус і отримують ще +3',
                           'нагорода поки НЕ нараховується — це станеться, коли ви завершите гру',
@@ -1009,7 +1039,7 @@ export default function BoardPage() {
       ? 'На наступну гру місце гарантоване — кидати не треба.'
       : myBonus > 0
         ? 'Бонус додається до d20 при записі: +3 за кожен програний контест, +9 — гарантоване місце. Згорає, коли потрапите в склад.'
-        : 'При записі кидається d20 — це ваш пріоритет. Бонус до нього накопичується за програні контести.';
+        : 'Поки місць вистачає, у склад ідуть усі. Коли охочих більше, ніж місць, склад визначає пріоритет — d20 + бонус, що накопичується за програні контести.';
 
   return (
     <PageShell narrow>

@@ -141,3 +141,29 @@ export function spentText(use, prCost) {
   if (prCost) parts.push(`${prCost} PR`);
   return parts.length ? `Списано ${parts.join(' + ')}.` : 'Без витрат.';
 }
+
+// Повний ремонт / передрук: що саме зламано (рядки для вікна) і скільки ремкомплектів
+// коштував би той самий ремонт частинами (HP, структура, реактор, знищені системи —
+// без зарядів, бо вони купуються за PR окремо). Порожній damage — ремонтувати нічого.
+export function fullRepairSummary(m) {
+  const damage = [];
+  let kits = 0;
+  for (const what of ['hp', 'structureMax', 'reactorMax']) {
+    const plan = repairPlan(m, what);
+    if (!plan) continue;
+    damage.push(...plan.lines);
+    kits += plan.kits;
+  }
+  (m.items || []).forEach((it, i) => {
+    if (it.destroyed) {
+      damage.push(`${it.name}: ЗНИЩЕНО`);
+      kits += repairPlan(m, 'item', i)?.kits || 0;
+    } else if (isLimited(it) && it.current < it.max) {
+      damage.push(`${it.name}: заряди ${it.current} / ${it.max}`);
+    }
+  });
+  if (m.repairCurrent < m.repairMax) damage.push(`Ремкомплекти: ${m.repairCurrent} / ${m.repairMax}`);
+  if (m.overcharge > 0) damage.push('Overcharge: скинути');
+  if (m.corePower === false) damage.push('Core Power: витрачено');
+  return { damage, kits };
+}

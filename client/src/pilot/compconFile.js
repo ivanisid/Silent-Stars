@@ -30,3 +30,27 @@ export async function importCompconFile(file, { state, pilotId, dispatch, withBo
   }
   return { ok: true, text };
 }
+
+const fmtDate = (iso) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+// Чи є в апці файл COMP/CON для мехів пілота — з нього модуль Foundry створює актора.
+// files — { mechId: updated_at } (api.listCompconProfiles) або null, поки вантажиться.
+// kind: 'loading' | 'empty' (мехів немає) | 'ok' | 'partial' | 'none'.
+export function compconStatus(mechs, files) {
+  if (!files) return { kind: 'loading', text: 'Перевіряю файл COMP/CON…' };
+  const list = mechs || [];
+  if (!list.length) return { kind: 'empty', text: 'ФАЙЛ НЕ ЗАВАНТАЖЕНО · мехів ще немає' };
+  const withFile = list.filter((m) => files[String(m.id)]);
+  const missing = list.filter((m) => !files[String(m.id)]).map((m) => m.name);
+  const latest = withFile.map((m) => files[String(m.id)]).sort().pop();
+  if (!withFile.length) return { kind: 'none', text: 'ФАЙЛ НЕ ЗАВАНТАЖЕНО — актора у Foundry не створити', missing };
+  if (missing.length) {
+    return { kind: 'partial', text: `ФАЙЛ ОНЛАЙН ДЛЯ ${withFile.length} З ${list.length} · немає: ${missing.join(', ')}`, missing };
+  }
+  return { kind: 'ok', text: `ФАЙЛ ОНЛАЙН · оновлено ${fmtDate(latest)}`, missing: [] };
+}

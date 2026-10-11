@@ -170,6 +170,19 @@ export function idleDecision({ last, fp, skips, needFull }) {
   return fp === last ? 'skip' : 'full';
 }
 
+// Звіт про зв'язки мехів (дія links): коли список змінився, а без змін — раз на
+// LINKS_REFRESH_MS, щоб апка бачила, що зв'язок досі живий.
+export const LINKS_REFRESH_MS = 30 * 60 * 1000;
+
+export function linksKey(list) {
+  return list.map((l) => `${l.pilotId}:${l.mechId}:${l.actor}`).sort().join('|');
+}
+
+export function linksDecision({ lastKey, key, lastAt, now }) {
+  if (lastKey !== key) return true;
+  return !lastAt || now - lastAt >= LINKS_REFRESH_MS;
+}
+
 // ----- Злиття одного поля -----
 
 export function decide(A, F, B, appTime, foundryTime) {

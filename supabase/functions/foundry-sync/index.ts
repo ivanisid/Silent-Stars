@@ -21,6 +21,11 @@
 //     → { url } — тимчасове посилання на арт (art_uploads.id) у сховищі. Модуль кладе файл
 //       у Data свого Foundry за шляхом foundry_path — так арти є й на локальних серверах ГМів.
 //
+//   POST { action: 'links', world, links: [{ pilotId, mechId, actor }] }
+//     Які мехи цей світ Foundry зв'язав з акторами. Замінює список світу в
+//     foundry_mech_links; апка за ним блокує ручне списання стану меха.
+//     → { ok: true, count }
+//
 //   POST { action: 'push', updates: [{ pilotId, updatedAt, pilot?, mechs?, log? }] }
 //     Кожне оновлення накладається на state пілота лише якщо updated_at у базі досі той,
 //     що бачив модуль (оптимістичне блокування). Інакше — conflict, і модуль повторить
@@ -51,6 +56,8 @@ const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'content-type, x-foundry-key',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  // Браузер кешує відповідь на OPTIONS добу — без цього кожен цикл модуля був двома запитами.
+  'Access-Control-Max-Age': '86400',
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...CORS } });
@@ -314,6 +321,38 @@ function applyPatch(state: any, u: any) {
   return { next, changes };
 }
 
+// ----- links -----
+
+async function links(world: string, list: any[]) {
+  if (!world) return { error: 'world обов\'язковий' };
+  const seen = new Date().toISOString();
+  const rows = new Map<string, any>();
+  for (const l of list) {
+    const pilotId = String(l?.pilotId || '');
+    const mechId = String(l?.mechId || '');
+    if (!pilotId || !mechId) continue;
+    rows.set(`${pilotId}:${mechId}`, {
+      world, pilot_id: pilotId, mech_id: mechId, actor_name: String(l?.actor || '').slice(0, 200), seen_at: seen,
+    });
+  }
+  // Зв'язки до пілотів, яких уже немає, відкидає FK — тому пілоти перевіряються заздалегідь.
+  const ids = [...new Set([...rows.values()].map((r) => r.pilot_id))];
+  const { data: alive, error: e1 } = ids.length
+    ? await db.from('pilots').select('id').in('id', ids)
+    : { data: [], error: null };
+  if (e1) throw new Error(e1.message);
+  const ok = new Set((alive || []).map((p: any) => p.id));
+  const fresh = [...rows.values()].filter((r) => ok.has(r.pilot_id));
+
+  const { error: e2 } = await db.from('foundry_mech_links').delete().eq('world', world);
+  if (e2) throw new Error(e2.message);
+  if (fresh.length) {
+    const { error: e3 } = await db.from('foundry_mech_links').insert(fresh);
+    if (e3) throw new Error(e3.message);
+  }
+  return { ok: true, count: fresh.length };
+}
+
 async function pushOne(u: any) {
   if (!u?.pilotId || !u?.updatedAt) return { pilotId: u?.pilotId, ok: false, error: 'pilotId і updatedAt обов\'язкові' };
   const { data: row, error } = await db.from('pilots').select('state, updated_at').eq('id', u.pilotId).maybeSingle();
@@ -359,6 +398,10 @@ Deno.serve(async (req) => {
     if (body.action === 'art') {
       const r = await artUrl(String(body.id || ''));
       return json(r, r.error ? 404 : 200);
+    }
+    if (body.action === 'links') {
+      const r = await links(String(body.world || '').slice(0, 200), Array.isArray(body.links) ? body.links.slice(0, 1000) : []);
+      return json(r, r.error ? 400 : 200);
     }
     if (body.action === 'push') {
       const updates = Array.isArray(body.updates) ? body.updates.slice(0, 100) : [];

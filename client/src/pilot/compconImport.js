@@ -2,6 +2,7 @@ import { createDefaultPilotState } from './pilotDefaults';
 import { mergeMechState } from './mechMerge';
 import { MAX_LL } from './constants';
 import { clamp, nowTs, skillCapMax } from './logic';
+import { bonusText, mechBonuses } from './mechBonuses';
 
 // Imports a "Save Pilot" export from COMP/CON (the Lancer TTRPG companion app).
 // COMP/CON tracks a much richer character sheet than this app (full mech loadouts,
@@ -172,10 +173,11 @@ export function mapPilotBuild(d) {
 // and the raw export doesn't persist those already-summed totals. Per the Lancer core rules:
 // Mech HP = Frame HP + Grit + 2×Hull; Repair Cap = Frame Repair Cap + floor(Hull÷2).
 // `mechSkills` is the pilot's HASE array in that fixed order, so mechSkills[0] is Hull.
-function mapMech(m, grit, hull, limitedBonus, build) {
+// Плюс бонуси систем і кор-бонусів (Personalizations +2, Reinforced Frame +5…) — mechBonuses.js.
+function mapMech(m, grit, hull, limitedBonus, build, bonuses) {
   const frameStats = m.frameData?.stats || {};
-  const hpMax = (frameStats.hp || 10) + grit + 2 * hull;
-  const repairMax = (frameStats.repcap || 0) + Math.floor(hull / 2);
+  const hpMax = (frameStats.hp || 10) + grit + 2 * hull + bonuses.hp.total;
+  const repairMax = (frameStats.repcap || 0) + Math.floor(hull / 2) + bonuses.repcap.total;
   const liveHp = m.stats?.current?.hp;
 
   return {
@@ -197,6 +199,12 @@ function mapMech(m, grit, hull, limitedBonus, build) {
     corePower: m.corePower ?? true,
     overcharge: 0,
     items: collectItems(m, limitedBonus),
+    // Звідки взялись бонуси до HP і ремкомплектів — для підказки на картці меха.
+    hpBonus: bonusText(bonuses.hp.parts),
+    repairBonus: bonusText(bonuses.repcap.parts),
+    // Власна драбина Overcharge (Heatfall Coolant System); null — звичайна OC_STEPS.
+    ocSteps: bonuses.overcharge?.steps || null,
+    ocSource: bonuses.overcharge?.name || '',
     // Збірка пілота з цього файлу: у COMP/CON скіли, таланти, кор-бонуси й ліцензії належать
     // пілоту, а не меху; кожен мех = окремий файл, тому зберігаємо їх на мехові.
     build,
@@ -306,7 +314,7 @@ export function mapCompconPilot(json) {
     },
     skillTriggers: mapSkillTriggers(d.skills, skillCapMax(level, 0)),
     mechs: (d.mechs || []).map((m) =>
-      mapMech(m, d.stats?.max?.grit || 0, d.mechSkills?.[0] || 0, limitedBonusFor(d, m).total, mapPilotBuild(d)),
+      mapMech(m, d.stats?.max?.grit || 0, d.mechSkills?.[0] || 0, limitedBonusFor(d, m).total, mapPilotBuild(d), mechBonuses(d, m)),
     ),
     actionLog: [
       { ts: nowTs(), msg: `Імпортовано з COMP/CON (${d.callsign || d.name || 'пілот'})` },
@@ -322,6 +330,16 @@ export function mapCompconPilot(json) {
             (b.total === 0 ? ' — перевірте максимуми вручну' : ''),
         };
       }),
+      // Бонуси до HP / ремкомплектів / Overcharge — щоб сума не виглядала вигаданою.
+      ...(d.mechs || []).flatMap((m) => {
+        const b = mechBonuses(d, m);
+        const parts = [
+          b.hp.parts.length && `HP ${bonusText(b.hp.parts)}`,
+          b.repcap.parts.length && `ремкомплекти ${bonusText(b.repcap.parts)}`,
+          b.overcharge && `Overcharge ${b.overcharge.steps.join(' → ')} (${b.overcharge.name})`,
+        ].filter(Boolean);
+        return parts.length ? [{ ts: nowTs(), msg: `Бонуси «${m.name || m.frameData?.name || 'мех'}»: ${parts.join(' · ')}` }] : [];
+      }),
     ],
   };
 
@@ -331,4 +349,31 @@ export function mapCompconPilot(json) {
     background: (d.background || '').trim() || 'Бекграунд не вказано.',
     state,
   };
+}
+
+// Позивний / ім'я без прикрас, якими гравці розрізняють профілі в COMP/CON:
+// «CHEMBER (MASTIFF)», «Stella″», «CHEMBER※» → «chember», «stella».
+export function pilotKey(s) {
+  return String(s || '')
+    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+// Наявний пілот гравця, до якого належить файл COMP/CON. Раніше збіг шукався лише за
+// точним позивним, і файл другого профілю («CHEMBER (MASTIFF)») створював дубль пілота —
+// файл для Foundry діставався дублю, а не справжньому пілоту. Порядок: точний позивний,
+// позивний без прикрас, ім'я без прикрас. Кілька кандидатів на кроці — { ambiguous }.
+export function findImportTarget(pilots, mapped) {
+  const steps = [
+    (p) => p.callsign.trim().toLowerCase() === mapped.callsign.trim().toLowerCase(),
+    (p) => !!pilotKey(mapped.callsign) && pilotKey(p.callsign) === pilotKey(mapped.callsign),
+    (p) => !!pilotKey(mapped.name) && pilotKey(p.name) === pilotKey(mapped.name),
+  ];
+  for (const match of steps) {
+    const found = (pilots || []).filter(match);
+    if (found.length === 1) return { pilot: found[0] };
+    if (found.length > 1) return { ambiguous: found };
+  }
+  return {};
 }

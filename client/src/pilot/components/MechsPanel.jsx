@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { OC_STEPS, mechSlots } from '../constants';
+import { OC_STEPS, PR_SERVICES, SHOP_DATA, mechSlots } from '../constants';
+import { shopPrice } from '../logic';
 import { showUpgrade } from '../../components/overlayBus';
 import {
   KIT_PR,
@@ -10,6 +11,7 @@ import {
   isLimited,
   itemRefillPr,
   reactorLeft,
+  fullRepairSummary,
   repairPlan,
   repairQuoteLines,
   spentText,
@@ -20,7 +22,29 @@ import ArtSlot from './ArtSlot.jsx';
 import { isMechNameTaken } from '../compconImport';
 import { importCompconFile } from '../compconFile';
 
-export default function MechsPanel({ state, dispatch, pilotId, mechArt = {}, canEditArt, onUploadMechArt, onRemoveArt }) {
+// Зв'язок з Foundry вважається робочим, якщо модуль звітував про нього за останні 14 днів:
+// між іграми синхронізація мовчить (ГМ не тримає світ відкритим), але бій іде лише там.
+const LINK_FRESH_MS = 14 * 24 * 3600e3;
+
+function freshLink(link) {
+  if (!link?.seenAt) return null;
+  const t = new Date(link.seenAt).getTime();
+  return Number.isFinite(t) && Date.now() - t < LINK_FRESH_MS ? link : null;
+}
+
+function ago(iso) {
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (min < 2) return 'щойно';
+  if (min < 60) return `${min} хв тому`;
+  const h = Math.round(min / 60);
+  if (h < 48) return `${h} год тому`;
+  return `${Math.round(h / 24)} дн тому`;
+}
+
+export default function MechsPanel({
+  state, dispatch, pilotId, mechArt = {}, canEditArt, onUploadMechArt, onRemoveArt,
+  compconFiles, onCompconSaved, foundryLinks = {}, isGm = false,
+}) {
   const d = state.mechDraft;
   const [ask, dialog] = useConfirm();
   const nameTaken = isMechNameTaken(state.mechs, d.name);
@@ -48,7 +72,7 @@ export default function MechsPanel({ state, dispatch, pilotId, mechArt = {}, can
         )}
         {state.mechs.length === 0 && (
           <div className="ss-slot" style={{ minHeight: 54, justifyContent: 'flex-start', padding: '0 16px', fontSize: 12, color: 'var(--text-dimmer)' }}>
-            <span className="pre">&gt; </span>Мехів ще немає. Додайте вручну нижче або з COMP/CON JSON (меню «⋯» у профілі).
+            <span className="pre">&gt; </span>Мехів ще немає. Завантажте файл COMP/CON кнопкою «Оновити з COMP/CON JSON» під профілем — пілот і мех прийдуть разом.
           </div>
         )}
         {state.mechs.map((m) => (
@@ -62,6 +86,9 @@ export default function MechsPanel({ state, dispatch, pilotId, mechArt = {}, can
             canEditArt={canEditArt}
             onUploadArt={(file) => onUploadMechArt(m.id, file)}
             onRemoveArt={onRemoveArt}
+            hasFile={compconFiles ? !!compconFiles[String(m.id)] : null}
+            link={freshLink(foundryLinks[String(m.id)])}
+            isGm={isGm}
           />
         ))}
 
@@ -74,15 +101,16 @@ export default function MechsPanel({ state, dispatch, pilotId, mechArt = {}, can
         </div>
         {nameTaken && <div className="error-box">Мех з назвою «{d.name.trim()}» уже є. Назви мехів мають бути різні.</div>}
 
-        <CompconMechImport state={state} dispatch={dispatch} pilotId={pilotId} />
+        <CompconMechImport state={state} dispatch={dispatch} pilotId={pilotId} onSaved={onCompconSaved} />
       </div>
     </Panel>
   );
 }
 
 // Мех з іншого профілю COMP/CON без зміни даних пілота: файл зберігається, і з нього
-// модуль Foundry створить актора.
-function CompconMechImport({ state, dispatch, pilotId }) {
+// модуль Foundry створить актора. Основний шлях — «Оновити з COMP/CON JSON» під профілем;
+// цей — для другого профілю (інші таланти й ліцензії під іншого меха).
+function CompconMechImport({ state, dispatch, pilotId, onSaved }) {
   const fileRef = useRef(null);
   const [msg, setMsg] = useState(null);
 
@@ -92,6 +120,7 @@ function CompconMechImport({ state, dispatch, pilotId }) {
     if (!file) return;
     try {
       setMsg(await importCompconFile(file, { state, pilotId, dispatch, withBond: false }));
+      onSaved?.();
     } catch (err) {
       setMsg({ ok: false, text: err.message });
     }
@@ -99,14 +128,14 @@ function CompconMechImport({ state, dispatch, pilotId }) {
 
   return (
     <div className="ss-box" style={{ gap: 10 }}>
-      <FieldLabel>ДОДАТИ МЕХА З COMP/CON</FieldLabel>
+      <FieldLabel>ДРУГИЙ ПРОФІЛЬ COMP/CON</FieldLabel>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
         <button className="btn-ghost" type="button" title="Завантажити файл COMP/CON: додає меха або оновлює меха з такою самою назвою; дані пілота не змінюються" onClick={() => fileRef.current?.click()} style={{ fontSize: 11, padding: '6px 12px' }}>
           ФАЙЛ JSON
         </button>
         <input ref={fileRef} type="file" accept=".json,application/json" onChange={handleFile} style={{ display: 'none' }} />
         <div className="ss-note" style={{ flex: '1 1 220px', minWidth: 0 }}>
-          Додає або оновлює лише меха — дані пілота не змінюються. Меха з такою самою назвою буде оновлено.
+          Лише для меха з іншого профілю COMP/CON (інші таланти/ліцензії). Звичайно досить «Оновити з COMP/CON JSON» під профілем — він приносить пілота й меха разом.
         </div>
       </div>
       {msg && (
@@ -161,7 +190,7 @@ function FieldLabel({ children }) {
   return <div className="ss-label" style={{ lineHeight: '16px' }}>{children}</div>;
 }
 
-function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt, onRemoveArt }) {
+function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt, onRemoveArt, hasFile, link, isGm }) {
   const [msg, setMsg] = useState('');
   const [addType, setAddType] = useState('weapon');
   const [addName, setAddName] = useState('');
@@ -175,6 +204,12 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
   const build = m.build;
   const [open, setOpen] = useState({ items: false, skills: false, talents: false, core: false });
   const fold = (key) => ({ open: open[key], onToggle: () => setOpen((o) => ({ ...o, [key]: !o[key] })) });
+  // Мех зв'язаний з актором Foundry: шкода, заряди й Overcharge приходять звідти, тож ручне
+  // списання тут заблоковане — лишаються ремонт і покупки. ГМ може розблокувати для правки.
+  const [unlocked, setUnlocked] = useState(false);
+  const locked = !!link && !(isGm && unlocked);
+  const lockTitle = 'Стан приходить із Foundry — змінюйте його в бою там. Тут — ремонт і покупки';
+  const ocSteps = m.ocSteps?.length === 4 ? m.ocSteps : OC_STEPS;
 
   // Ремонт: вікно з розкладом «ремкомплекти / докупівля за PR», «ТАК» неактивна, коли PR бракує.
   async function repair(what, idx) {
@@ -236,11 +271,50 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
     if (ok) dispatch({ type: 'REMOVE_MECH', id: m.id });
   }
 
+  // Повний ремонт / передрук — та сама послуга, що в магазині: 100 PR або 500 М.
+  // Вікно показує, що саме зламано, і скільки коштував би ремонт частинами.
   async function fullRepair() {
+    const { damage, kits } = fullRepairSummary(m);
+    if (!damage.length) {
+      setMsg('>> Мех цілий — ремонтувати нічого.');
+      return;
+    }
+    const prCost = PR_SERVICES.find((x) => x.key === 'fullrepair').cost;
+    const manaCost = shopPrice(SHOP_DATA.find((x) => x.key === 'fullrepair'));
+    const mana = state.mana.balance;
+    const res = await ask({
+      title: 'ПОВНИЙ РЕМОНТ / ПЕРЕДРУК',
+      question: `Відновити «${m.name}» повністю за ${prCost} PR або ${manaCost} М?`,
+      lines: [
+        ...damage.map((t) => ({ t: `> ${t}`, ink: 'var(--text)' })),
+        { t: 'Після ремонту все до максимуму: HP, структура, реактор, ремкомплекти, заряди; Overcharge скинуто, Core Power заряджено.', ink: 'var(--text-dimmer)' },
+        { t: `PR: ${pr}${pr >= prCost ? ` → ${pr - prCost}` : ' — бракує'} · Мана: ${mana}${mana >= manaCost ? ` → ${mana - manaCost}` : ' — бракує'}`, ink: 'var(--text)' },
+      ],
+      note: kits
+        ? `Частинами може бути дешевше: кнопки «МАКС» і «РЕМОНТ» на картці — разом ${kits} рем. (у меха ${m.repairCurrent}, решта по ${KIT_PR} PR); заряди — окремо.`
+        : undefined,
+      yesLabel: `${prCost} PR`,
+      canYes: pr >= prCost,
+      altLabel: `${manaCost} М`,
+      canAlt: mana >= manaCost,
+    });
+    if (res === true) {
+      dispatch({ type: 'PR_FULL_REPAIR', id: m.id });
+      setMsg(`>> Повний ремонт. Списано ${prCost} PR.`);
+    } else if (res === 'alt') {
+      dispatch({ type: 'SHOP_BUY', key: 'fullrepair', mechId: m.id });
+      setMsg(`>> Повний ремонт. Списано ${manaCost} М.`);
+    }
+  }
+
+  // ГМ: виправити стан без витрат (помилка синхронізації, рішення за столом).
+  async function resetState() {
     const ok = await ask({
-      title: 'ПОВНИЙ РЕМОНТ',
-      question: `Повністю відремонтувати «${m.name}»?`,
-      lines: ['HP, ремкомплекти, структура, реактор, заряди — до максимуму', 'без списання PR чи ремкомплектів (ручна правка)'],
+      title: 'СКИНУТИ СТАН МЕХА',
+      tone: 'gm',
+      question: `Відновити «${m.name}» без витрат?`,
+      lines: ['HP, ремкомплекти, структура, реактор, заряди — до максимуму', 'PR, мана й ремкомплекти не списуються (ручна правка ГМа)'],
+      yesLabel: 'СКИНУТИ',
     });
     if (ok) dispatch({ type: 'FULL_REPAIR_MECH', id: m.id });
   }
@@ -268,15 +342,43 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
           <div className="title-font" style={{ fontSize: 20, letterSpacing: 1, color: 'var(--text-bright)' }}>{m.name.toUpperCase()}</div>
           {frameLabel && <span className="ss-tag accent">{frameLabel}</span>}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-            <button className="btn-ghost" type="button" title="Повністю відновити цього меха: HP, ремкомплекти, структуру, реактор, заряди й знищені системи; Overcharge скидається, Core Power заряджається. PR не списуються" onClick={fullRepair}>ПОВНИЙ РЕМОНТ</button>
+            <button className="btn-ghost" type="button" title="Повний ремонт / передрук за 100 PR або 500 М: усе до максимуму. Перед оплатою вікно покаже, що зламано" onClick={fullRepair}>ПОВНИЙ РЕМОНТ</button>
             <Menu
               items={[
                 { label: editing ? 'ЗАКРИТИ РЕДАГУВАННЯ' : 'РЕДАГУВАТИ', onClick: () => dispatch({ type: 'TOGGLE_MECH_EDIT', id: m.id }) },
+                isGm && link && { label: unlocked ? 'ЗАБЛОКУВАТИ РУЧНІ ЗМІНИ' : 'РОЗБЛОКУВАТИ РУЧНІ ЗМІНИ (ГМ)', onClick: () => setUnlocked((u) => !u) },
+                isGm && { label: 'СКИНУТИ СТАН БЕЗ ВИТРАТ (ГМ)…', onClick: resetState },
                 { label: 'ВИДАЛИТИ…', danger: true, onClick: removeMech },
-              ]}
+              ].filter(Boolean)}
             />
           </div>
         </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {link ? (
+            <span className="ss-tag ok" title={`Актор «${link.actor || '—'}» · остання синхронізація ${ago(link.seenAt)}`}>
+              ⇄ FOUNDRY · {ago(link.seenAt).toUpperCase()}
+            </span>
+          ) : (
+            <span className="ss-tag" title="Модуль Foundry не повідомляв про зв'язок з цим мехом останні 14 днів — стан ведеться в апці вручну">
+              FOUNDRY · НЕ ЗВ'ЯЗАНО
+            </span>
+          )}
+          {hasFile != null && (
+            <span
+              className={`ss-tag ${hasFile ? 'ok' : 'bad'}`}
+              title={hasFile ? 'Файл COMP/CON цього меха збережено в апці' : 'Немає файлу COMP/CON — ГМ не зможе створити з нього актора. Завантажте «Оновити з COMP/CON JSON»'}
+            >
+              {hasFile ? '● ФАЙЛ ОНЛАЙН' : '○ ФАЙЛ НЕ ЗАВАНТАЖЕНО'}
+            </span>
+          )}
+        </div>
+        {locked && (
+          <div className="ss-note" style={{ fontSize: 11 }}>
+            <span className="pre">&gt; </span>Шкода, заряди, Overcharge і Core Power приходять із Foundry. Тут — ремонт за ремкомплекти, PR і ману.
+          </div>
+        )}
+        {isGm && link && unlocked && <Msg kind="warn">Ручні зміни розблоковано (ГМ) — наступна синхронізація може їх перезаписати.</Msg>}
 
         {msg && <Msg kind="ok">{msg}</Msg>}
 
@@ -286,9 +388,9 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
             <FieldLabel>HP</FieldLabel>
             <div className="ss-stepper">
-              <button type="button" title="Отримати пошкодження" onClick={() => dispatch({ type: 'DEC_MECH_HP', id: m.id })}>−</button>
-              <div className="v">{m.hpCurrent} / {m.hpMax}</div>
-              <button type="button" title="+1 HP" onClick={() => dispatch({ type: 'INC_MECH_HP', id: m.id })}>+</button>
+              <button type="button" disabled={locked} title={locked ? lockTitle : 'Отримати пошкодження'} onClick={() => dispatch({ type: 'DEC_MECH_HP', id: m.id })}>−</button>
+              <div className="v" title={m.hpBonus ? `Макс. HP з бонусами: ${m.hpBonus}` : undefined}>{m.hpCurrent} / {m.hpMax}</div>
+              <button type="button" disabled={locked} title={locked ? lockTitle : '+1 HP'} onClick={() => dispatch({ type: 'INC_MECH_HP', id: m.id })}>+</button>
             </div>
             <div className="ss-track-actions">
               <button className="btn-ghost sm" type="button" title={isBalor(m) ? 'BALOR — без ремкомплекту' : '1 ремкомплект'} onClick={() => repair('hp')}>
@@ -299,7 +401,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
             <FieldLabel>РЕМКОМПЛЕКТИ</FieldLabel>
             <div className="ss-stepper">
-              <button type="button" title="Витратити ремкомплект" onClick={() => dispatch({ type: 'DEC_MECH_REPAIR', id: m.id })}>−</button>
+              <button type="button" disabled={locked} title={locked ? lockTitle : 'Витратити ремкомплект'} onClick={() => dispatch({ type: 'DEC_MECH_REPAIR', id: m.id })}>−</button>
               <div className="v">{m.repairCurrent} / {m.repairMax}</div>
               <button
                 type="button"
@@ -345,7 +447,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
             <FieldLabel>СТРУКТУРА</FieldLabel>
             <Track size="lg" value={st} max={MECH_STRUCTURE} label="Структура" />
             <div className="ss-track-actions">
-              <button type="button" className="ss-sq" title="Отримати пошкодження" disabled={st <= 0} onClick={() => dispatch({ type: 'DAMAGE_MECH', id: m.id, what: 'structure' })}>−</button>
+              <button type="button" className="ss-sq" title={locked ? lockTitle : 'Отримати пошкодження'} disabled={locked || st <= 0} onClick={() => dispatch({ type: 'DAMAGE_MECH', id: m.id, what: 'structure' })}>−</button>
               <button type="button" className="ss-sq" title="Відновити 1" disabled={st >= MECH_STRUCTURE} onClick={() => repair('structure')}>+</button>
               <button className="btn-ghost sm" type="button" disabled={st >= MECH_STRUCTURE} title="Відновити структуру до максимуму за ремкомплекти; яких бракує, докуповуються по 10 PR" onClick={() => repair('structureMax')}>МАКС</button>
             </div>
@@ -354,19 +456,19 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
             <FieldLabel>РЕАКТОР</FieldLabel>
             <Track size="lg" value={rx} max={MECH_REACTOR} label="Реактор" />
             <div className="ss-track-actions">
-              <button type="button" className="ss-sq" title="Отримати пошкодження" disabled={rx <= 0} onClick={() => dispatch({ type: 'DAMAGE_MECH', id: m.id, what: 'reactor' })}>−</button>
+              <button type="button" className="ss-sq" title={locked ? lockTitle : 'Отримати пошкодження'} disabled={locked || rx <= 0} onClick={() => dispatch({ type: 'DAMAGE_MECH', id: m.id, what: 'reactor' })}>−</button>
               <button type="button" className="ss-sq" title="Відновити 1" disabled={rx >= MECH_REACTOR} onClick={() => repair('reactor')}>+</button>
               <button className="btn-ghost sm" type="button" disabled={rx >= MECH_REACTOR} title="Відновити реактор до максимуму за ремкомплекти; яких бракує, докуповуються по 10 PR" onClick={() => repair('reactorMax')}>МАКС</button>
             </div>
           </div>
 
           <div className="ss-tile" style={{ padding: 0 }}>
-            <button type="button" className="ss-sq" style={{ height: '100%', width: 28, border: 'none', borderRight: '1px solid var(--input-border)' }} disabled={oc <= 0} title="Overcharge на крок назад" onClick={() => dispatch({ type: 'SHIFT_MECH_OVERCHARGE', id: m.id, dir: -1 })}>−</button>
+            <button type="button" className="ss-sq" style={{ height: '100%', width: 28, border: 'none', borderRight: '1px solid var(--input-border)' }} disabled={locked || oc <= 0} title={locked ? lockTitle : 'Overcharge на крок назад'} onClick={() => dispatch({ type: 'SHIFT_MECH_OVERCHARGE', id: m.id, dir: -1 })}>−</button>
             <span style={{ color: 'var(--text-dim)', fontSize: 18, lineHeight: 1 }}>✸</span>
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span className="big">{OC_STEPS[oc]}</span>
-                <span className="cap">OVERCHARGE</span>
+                <span className="big">{ocSteps[oc]}</span>
+                <span className="cap" title={m.ocSource ? `${m.ocSource}: ${ocSteps.join(' → ')}` : undefined}>OVERCHARGE{m.ocSource ? ' ◆' : ''}</span>
               </div>
               <div style={{ display: 'flex', gap: 2, width: 48, height: 2 }}>
                 {[0, 1, 2, 3].map((i) => (
@@ -374,9 +476,9 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
                 ))}
               </div>
             </div>
-            <button type="button" className="ss-sq" style={{ height: '100%', width: 28, border: 'none', borderLeft: '1px solid var(--input-border)' }} disabled={oc >= 3} title="Overcharge на крок уперед: +1 → +1D3 → +1D6 → +1D6+4" onClick={() => dispatch({ type: 'SHIFT_MECH_OVERCHARGE', id: m.id, dir: 1 })}>+</button>
+            <button type="button" className="ss-sq" style={{ height: '100%', width: 28, border: 'none', borderLeft: '1px solid var(--input-border)' }} disabled={locked || oc >= 3} title={locked ? lockTitle : `Overcharge на крок уперед: ${ocSteps.join(' → ')}${m.ocSource ? ` (${m.ocSource})` : ''}`} onClick={() => dispatch({ type: 'SHIFT_MECH_OVERCHARGE', id: m.id, dir: 1 })}>+</button>
           </div>
-          <button type="button" className="ss-tile" onClick={() => dispatch({ type: 'TOGGLE_MECH_CORE', id: m.id })} title="Перемкнути Core power">
+          <button type="button" className="ss-tile" disabled={locked} onClick={() => dispatch({ type: 'TOGGLE_MECH_CORE', id: m.id })} title={locked ? lockTitle : 'Перемкнути Core power'}>
             <span style={{ color: m.corePower ? 'var(--success)' : 'var(--text-faint)', fontSize: 16, lineHeight: 1 }}>◈</span>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
               <span className="big" style={{ fontSize: 16, color: m.corePower ? 'var(--success)' : 'var(--text-faint)' }}>{m.corePower ? 'ЗАРЯДЖЕНО' : 'ВИТРАЧЕНО'}</span>
@@ -412,9 +514,9 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
                       {lim && (
                         <>
                           <div className="ss-stepper sm" style={{ background: 'transparent' }}>
-                            <button type="button" title="Витратити 1 заряд" onClick={() => dispatch({ type: 'DEC_ITEM', id: m.id, idx: i })}>−</button>
+                            <button type="button" disabled={locked} title={locked ? lockTitle : 'Витратити 1 заряд'} onClick={() => dispatch({ type: 'DEC_ITEM', id: m.id, idx: i })}>−</button>
                             <div className="v">{it.current} / {it.max}</div>
-                            <button type="button" title="Повернути 1 заряд без списання PR" onClick={() => dispatch({ type: 'INC_ITEM', id: m.id, idx: i })}>+</button>
+                            <button type="button" disabled={locked} title={locked ? lockTitle : 'Повернути 1 заряд без списання PR'} onClick={() => dispatch({ type: 'INC_ITEM', id: m.id, idx: i })}>+</button>
                           </div>
                           {it.current < it.max && (
                             <button
@@ -444,7 +546,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
                           ЗНИЩЕНО · РЕМОНТ
                         </button>
                       ) : (
-                        <button type="button" className="ss-icon ghost" title="Позначити знищеним" onClick={() => dispatch({ type: 'MARK_ITEM_DESTROYED', id: m.id, idx: i })}>
+                        <button type="button" className="ss-icon ghost" disabled={locked} title={locked ? lockTitle : 'Позначити знищеним'} onClick={() => dispatch({ type: 'MARK_ITEM_DESTROYED', id: m.id, idx: i })}>
                           ⊘
                         </button>
                       )}

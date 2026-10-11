@@ -1322,9 +1322,14 @@ function reduce(state, action) {
       // Компоненти перевіряють це заздалегідь і показують помилку; тут — страховка.
       if (mechNameClashes(state.mechs, mechs).length) return state;
       const names = mechs.map((m) => m.name).join(', ') || '—';
+      // Бонуси до HP / Overcharge з файлу — щоб нове HP не виглядало вигаданим.
+      const bonuses = mechs
+        .map((m) => [m.hpBonus && `HP ${m.hpBonus}`, m.ocSteps && `Overcharge до ${m.ocSteps[m.ocSteps.length - 1]} (${m.ocSource})`].filter(Boolean))
+        .map((parts, i) => (parts.length ? `${mechs[i].name}: ${parts.join(' · ')}` : ''))
+        .filter(Boolean);
       return log(
         { ...state, mechs: mergeMechsByName(state.mechs, mechs) },
-        `Мех(и) підтягнуто з COMP/CON («${callsign}»): ${names}`,
+        `Мех(и) підтягнуто з COMP/CON («${callsign}»): ${names}` + (bonuses.length ? ` · бонуси — ${bonuses.join('; ')}` : ''),
       );
     }
 

@@ -103,8 +103,15 @@ async function signup(discordId: string, username: string, slotId: string, pilot
   });
   const mech = (pilot?.state?.mechs || []).find((m: any) => m.id === mechId);
   const head = pilot ? `✅ Записано: **${pilot.callsign}**${mech ? ` на ▮ ${mech.name}` : ''}. ` : '✅ Записано. ';
+  // Пріоритет має значення лише тоді, коли охочих більше, ніж місць.
+  const [{ count }, { data: slot }] = await Promise.all([
+    db.from('game_signups').select('id', { count: 'exact', head: true }).eq('slot_id', slotId),
+    db.from('game_slots').select('seats').eq('id', slotId).maybeSingle(),
+  ]);
+  const contest = slot != null && (count ?? 0) > slot.seats;
   let tail: string;
-  if (s.guaranteed) tail = `🛡 **Гарантоване місце** — бонус +${s.roll_bonus}, кидати не треба.`;
+  if (!contest) tail = 'Місць поки вистачає всім — склад затвердиться автоматично в дедлайн набору.';
+  else if (s.guaranteed) tail = `🛡 **Гарантоване місце** — бонус +${s.roll_bonus}, кидати не треба.`;
   else {
     const bonus = s.roll_bonus ? ` + бонус ${s.roll_bonus}` : '';
     tail = `Пріоритет **${s.roll + (s.roll_bonus || 0)}** (d20: ${s.roll}${bonus}).`;
