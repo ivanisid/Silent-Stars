@@ -778,7 +778,7 @@
   --text-dimmer: #6f7c8c;
   --text-muted: #7b8897;
   --text-grey: #808b98;
-  --text-faint: #4e5966;
+  --text-faint: #66727f;
   --input-bg: #05070a;
   --input-border: #273445;
   --btn-bg: #1a2633;
@@ -824,7 +824,7 @@
   --rule: color-mix(in oklch, var(--kt) 25%, transparent); --overlay: #000000cc; --shadow: #000; --scrollbar: color-mix(in oklch, var(--kf) 40%, #1a1814);
   --accent: var(--ka); --accent-hover: color-mix(in oklch, var(--ka) 60%, #fff); --accent-dim: color-mix(in oklch, var(--ka) 45%, #000);
   --text: #ece6da; --text-bright: #fff; --text-soft: #d6d0c4; --text-soft-dim: #b0aa9e; --text-info: color-mix(in oklch, var(--ka) 70%, #fff);
-  --text-dim: #a29c90; --text-dimmer: #8a8478; --text-muted: #968f83; --text-grey: #8f8a80; --text-faint: #5c574e;
+  --text-dim: #a29c90; --text-dimmer: #8a8478; --text-muted: #968f83; --text-grey: #8f8a80; --text-faint: #827c71;
   --input-bg: color-mix(in oklch, var(--kf) 8%, #040403); --input-border: color-mix(in oklch, var(--kf) 25%, #2a2620);
   --btn-bg: var(--kf); --btn-border: var(--kt); --btn-hover: color-mix(in oklch, var(--kf) 80%, #fff);
 }
@@ -835,7 +835,7 @@
   --rule: color-mix(in oklch, var(--kf) 25%, transparent); --overlay: #2a211799; --shadow: #2a211733; --scrollbar: color-mix(in oklch, var(--kl) 40%, #bfb29a);
   --accent-hover: color-mix(in oklch, var(--ka) 70%, #000); --accent-dim: color-mix(in oklch, var(--ka) 45%, #fff);
   --text: #2a2117; --text-bright: #120d08; --text-soft: #3e3428; --text-soft-dim: #5a4e40; --text-info: color-mix(in oklch, var(--ka) 80%, #000);
-  --text-dim: #6a5e4e; --text-dimmer: #6e6252; --text-muted: #6e6252; --text-grey: #74695a; --text-faint: #a89c88;
+  --text-dim: #6a5e4e; --text-dimmer: #6e6252; --text-muted: #6e6252; --text-grey: #74695a; --text-faint: #7d7262;
   --input-bg: #fffdf8; --input-border: color-mix(in oklch, var(--kf) 30%, #d8ccb6); --btn-hover: color-mix(in oklch, var(--kf) 80%, #000);
   --gm: #8a5a00; --gm-ink: #8a5a00; --gm-dim: #b8955a;
   --danger: #F44336;
