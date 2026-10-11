@@ -94,7 +94,7 @@ export function renderPersonal(cal: CalendarData, mine: Set<string>) {
     components: [{
       type: 3,
       custom_id: 'cal',
-      placeholder: 'Мої дні, коли хочу грати',
+      placeholder: 'Дні, коли хочу грати',
       min_values: 0,
       max_values: cal.days.length,
       options: cal.days.map((d) => ({
