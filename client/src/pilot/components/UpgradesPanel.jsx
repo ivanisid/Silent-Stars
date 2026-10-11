@@ -261,7 +261,6 @@ export default function UpgradesPanel({ state, dispatch }) {
           <div style={{ margin: 'auto 24px 20px', border: '1px solid var(--panel-border)', background: 'var(--panel-sunken)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 10, letterSpacing: 2, color: 'var(--accent)' }}>ВНЕСОК</span>
-              <span style={{ fontSize: 10, color: 'var(--text-dimmer)' }}>ресурси можна вносити частинами</span>
               {st.k !== 'own' && st.part && (
                 <button type="button" className="ss-up-refund" onClick={refund} title="Повернути все внесене в це покращення на гаманець">
                   Повернути внесене

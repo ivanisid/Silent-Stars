@@ -97,25 +97,11 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
   const pickedGames = picked ? gamesByDay[picked] || [] : [];
   const pickedDate = picked ? days.find((d) => dayKey(d) === picked) : null;
 
-  if (disabled) {
-    return (
-      <Panel title="Календар" sub="ХОЧУ ГРАТИ · 2 ТИЖНІ">
-        <div className="ss-body">
-          <div className="ss-note" style={{ fontSize: 12 }}>
-            <span className="pre">&gt; </span>Календар ще не ввімкнено — з'явиться після оновлення бази.
-          </div>
-        </div>
-      </Panel>
-    );
-  }
+  if (disabled) return null;
 
   return (
     <Panel title="Календар" sub="ХОЧУ ГРАТИ · 2 ТИЖНІ">
       <div className="ss-body">
-        <div style={{ fontSize: 11, color: 'var(--text-grey)', lineHeight: 1.6 }}>
-          <span className="pre">&gt; </span>Оберіть зручні вам для гри дні на наступні 2 тижні. Вас сповістять, якщо гру буде
-          заплановано на той самий день.
-        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }}>
           {days.map((d) => {
             const k = dayKey(d);

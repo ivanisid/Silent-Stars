@@ -96,7 +96,7 @@ export default function AccountDialog({ onClose }) {
           <DiscordAccountSection user={user} />
 
           <form onSubmit={saveNick} style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px dashed var(--input-border)', paddingTop: 16 }}>
-            <div className="field-label" style={{ marginBottom: 0 }}>НІКНЕЙМ {byNick && <span style={{ color: 'var(--text-faint)' }}>· він же логін</span>}</div>
+            <div className="field-label" style={{ marginBottom: 0 }}>НІКНЕЙМ</div>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 className="ss-input"

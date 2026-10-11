@@ -308,7 +308,6 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
       question: `Відновити «${m.name}» повністю за ${prCost} PR або ${manaCost} М?`,
       lines: [
         ...damage.map((t) => ({ t: `> ${t}`, ink: 'var(--text)' })),
-        { t: 'Після ремонту все до максимуму: HP, структура, реактор, ремкомплекти, заряди; Overcharge скинуто, Core Power заряджено.', ink: 'var(--text-dimmer)' },
         { t: `PR: ${pr}${pr >= prCost ? ` → ${pr - prCost}` : ' — бракує'} · Мана: ${mana}${mana >= manaCost ? ` → ${mana - manaCost}` : ' — бракує'}`, ink: 'var(--text)' },
       ],
       note: kits

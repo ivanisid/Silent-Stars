@@ -170,7 +170,6 @@ export default function PilotSelectPage() {
           lines: [
             `ім'я з файлу: ${mapped.name}`,
             `мехи: ${mapped.state.mechs.map((m) => m.name).join(', ') || '—'}`,
-            { t: 'Якщо це мех наявного пілота — відкрийте його профіль і натисніть «Оновити з COMP/CON JSON».', ink: 'var(--text-dimmer)' },
           ],
           yesLabel: 'СТВОРИТИ',
         });

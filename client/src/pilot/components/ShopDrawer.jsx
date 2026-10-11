@@ -20,8 +20,6 @@ const TABS = [
   { key: 'ins', title: 'INSURANCE' },
 ];
 
-const REPAIR_ALL = 'HP, структура, реактор, ремкомплекти й заряди — до максимуму. Знищене відновлюється, Core Power заряджається.';
-
 function Svg({ size = 18, children }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="square" style={{ flex: 'none' }}>
@@ -188,7 +186,7 @@ export default function ShopDrawer({ state, dispatch }) {
             title: byMana ? 'LUXURY' : 'PRINTER',
             question: `Повний ремонт / передрук «${m.name}»?`,
             price,
-            lines: [{ t: REPAIR_ALL, ink: 'var(--text-dim)' }],
+            lines: [],
             action: byMana ? { type: 'SHOP_BUY', key: 'fullrepair', mechId: m.id } : { type: 'PR_FULL_REPAIR', id: m.id },
             done: `«${m.name}» передруковано.`,
           }),
