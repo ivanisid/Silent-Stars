@@ -99,7 +99,7 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
 
   if (disabled) {
     return (
-      <Panel title="КАЛЕНДАР ГРАВЦІВ" sub="ХОЧУ ГРАТИ · 2 ТИЖНІ">
+      <Panel title="Календар" sub="ХОЧУ ГРАТИ · 2 ТИЖНІ">
         <div className="ss-body">
           <div className="ss-note" style={{ fontSize: 12 }}>
             <span className="pre">&gt; </span>Календар ще не ввімкнено — з'явиться після оновлення бази.
@@ -110,12 +110,11 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
   }
 
   return (
-    <Panel title="КАЛЕНДАР ГРАВЦІВ" sub="ХОЧУ ГРАТИ · 2 ТИЖНІ">
+    <Panel title="Календар" sub="ХОЧУ ГРАТИ · 2 ТИЖНІ">
       <div className="ss-body">
         <div style={{ fontSize: 11, color: 'var(--text-grey)', lineHeight: 1.6 }}>
-          <span className="pre">&gt; </span>«+» на дні — відмітити «хочу грати» (ще раз — зняти); клік по дню — хто відмітив.
-          ГМ бачить, коли збирається найбільше людей. <span style={{ color: 'var(--gm-ink)' }}>Золота рамка</span> — на
-          цей день уже є гра. У Discord — команда <code>/calendar</code>.
+          <span className="pre">&gt; </span>Оберіть зручні вам для гри дні на наступні 2 тижні. Вас сповістять, якщо гру буде
+          заплановано на той самий день.
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }}>
           {days.map((d) => {
@@ -165,7 +164,7 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
                   type="button"
                   disabled={busy}
                   aria-pressed={me}
-                  title={me ? 'Зняти відмітку «хочу грати»' : 'Хочу грати цього дня'}
+                  title={me ? 'Зняти відмітку' : 'Хочу грати цього дня'}
                   onClick={(e) => {
                     e.stopPropagation();
                     toggle(k);
@@ -185,7 +184,7 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
                     cursor: 'pointer',
                   }}
                 >
-                  {me ? '✓' : '+'}
+                  {me ? '−' : '+'}
                 </button>
               </div>
             );
@@ -194,29 +193,23 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
 
         {picked && pickedDate && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 10px', border: '1px solid var(--input-border)', background: 'var(--panel-inset)' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-bright)', letterSpacing: 1 }}>
-              {WEEKDAYS[pickedDate.getDay()]} {pad(pickedDate.getDate())}.{pad(pickedDate.getMonth() + 1)} · хочуть грати: {pickedPlayers.length}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-soft)', lineHeight: 1.6 }}>
-              {pickedPlayers.length ? pickedPlayers.map((p) => p.nick).join(', ') : 'Поки ніхто.'}
+            {/* Хто відмітив обраний день — лічильник і так є в клітинці, тут лише імена. */}
+            <div style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.6 }}>
+              <span style={{ color: 'var(--text-bright)', letterSpacing: 1 }}>
+                {WEEKDAYS[pickedDate.getDay()]} {pad(pickedDate.getDate())}.{pad(pickedDate.getMonth() + 1)}:
+              </span>{' '}
+              {pickedPlayers.length ? pickedPlayers.map((p) => p.nick).join(', ') : 'поки ніхто не відмітив'}
             </div>
             {pickedGames.length > 0 && (
               <div style={{ fontSize: 11, color: 'var(--text-dimmer)' }}>
                 Ігри цього дня: {pickedGames.map((s) => `«${s.title || 'без назви'}» (${s.signups.length}/${s.seats})`).join(', ')}
               </div>
             )}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {user && (
-                <button className={mine(picked) ? 'btn-ghost' : 'btn'} type="button" disabled={busy} onClick={() => toggle(picked)}>
-                  {mine(picked) ? 'ЗНЯТИ ВІДМІТКУ' : '✓ ХОЧУ ГРАТИ ЦЬОГО ДНЯ'}
-                </button>
-              )}
-              {isGm && (
-                <button className="btn-gm" type="button" onClick={() => onCreateForDay(pickedDate)}>
-                  + СТВОРИТИ ГРУ НА ЦЕЙ ДЕНЬ
-                </button>
-              )}
-            </div>
+            {isGm && (
+              <button className="btn-gm" type="button" style={{ alignSelf: 'flex-start' }} onClick={() => onCreateForDay(pickedDate)}>
+                + СТВОРИТИ ГРУ НА ЦЕЙ ДЕНЬ
+              </button>
+            )}
           </div>
         )}
         {error && <Msg kind="err">{error}</Msg>}

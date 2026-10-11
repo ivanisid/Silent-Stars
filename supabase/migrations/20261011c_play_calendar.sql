@@ -141,3 +141,42 @@ drop trigger if exists discord_calendar_notify on public.play_availability;
 create trigger discord_calendar_notify
   after insert or delete on public.play_availability
   for each statement execute function private.discord_calendar_notify();
+
+-- ----- «Гру заплановано на ваш день» -----
+-- Тригер оголошень гри тепер ще й позначає, що в гри з'явилась (або змінилась) дата:
+-- scheduled = true. discord-sync тоді пінгує тих, хто відмітив цей день у календарі й ще
+-- не записаний. Решта тіла — як у 20261002b (статус → event, нове оголошення → post).
+create or replace function private.discord_notify()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  sid uuid;
+  ev text;
+  sched boolean := false;
+begin
+  if tg_table_name = 'game_slots' then
+    sid := coalesce(new.id, old.id);
+    if tg_op = 'UPDATE' and new.status is distinct from old.status then
+      ev := new.status;
+    end if;
+    sched := tg_op <> 'DELETE' and new.game_at is not null and new.status = 'open'
+      and (tg_op = 'INSERT' or new.game_at is distinct from old.game_at);
+  else
+    sid := coalesce(new.slot_id, old.slot_id);
+  end if;
+  perform net.http_post(
+    url := 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/discord-sync',
+    body := jsonb_build_object(
+      'slot_id', sid,
+      'post', tg_table_name = 'game_slots' and tg_op = 'INSERT',
+      'event', ev,
+      'scheduled', sched),
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-sync-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'discord_sync_secret')));
+  return null;
+end;
+$function$;

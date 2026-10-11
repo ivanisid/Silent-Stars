@@ -8,7 +8,7 @@
 // Розгортається з verify_jwt = false; натомість перевіряє x-sync-secret із vault.
 
 import { adminClient, syncSlot } from '../_shared/discord.ts';
-import { notifyStatus, remind } from '../_shared/notify.ts';
+import { notifyCalendarMatch, notifyStatus, remind } from '../_shared/notify.ts';
 import { syncRoles } from '../_shared/roles.ts';
 import { syncCalendar } from '../_shared/calendar.ts';
 
@@ -86,5 +86,7 @@ Deno.serve(async (req) => {
   // Ігри видно в закріпленому календарі — створення, перенесення, скасування, запис.
   await attempt('calendar', () => syncCalendar(db));
   const notified = typeof event === 'string' ? await attempt('notify', () => notifyStatus(db, slot_id, event, body)) : undefined;
+  // У гри з'явилась дата — тим, хто відмітив цей день у календарі.
+  if (body.scheduled === true) await attempt('calendar-match', () => notifyCalendarMatch(db, slot_id));
   return Response.json({ result, notified, errors }, { status: errors.length ? 500 : 200 });
 });

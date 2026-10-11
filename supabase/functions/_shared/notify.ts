@@ -95,3 +95,35 @@ export async function remind(db: SupabaseClient) {
   }
   return sent;
 }
+
+// Гру заплановано (або перенесено) на день, який гравці відмітили в календарі: пінгуємо
+// тих, хто відмітив і ще не записаний. Discord знаємо для прив'язаних акаунтів і для тих,
+// хто відмічався з Discord без прив'язки. Один раз на гру й день (discord_reminders).
+export async function notifyCalendarMatch(db: SupabaseClient, slotId: string) {
+  const view = await loadSlotView(db, slotId);
+  if (!view?.slot.game_at || view.slot.status !== 'open') return 'skip';
+  const { slot, signups } = view;
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date(slot.game_at));
+  if (!(await claim(db, slotId, `cal:${day}`))) return 'already';
+
+  const { data: marks, error } = await db.from('play_availability').select('user_id, discord_user_id').eq('day', day);
+  if (error) throw new Error(error.message);
+  const userIds = [...new Set((marks || []).map((m: any) => m.user_id).filter(Boolean))];
+  const { data: links } = userIds.length
+    ? await db.from('discord_links').select('user_id, discord_user_id').in('user_id', userIds)
+    : { data: [] as any[] };
+  const byUser = new Map((links || []).map((l: any) => [l.user_id, l.discord_user_id]));
+  const signed = new Set(signups.flatMap((g) => [g.userId, g.discordId]).filter(Boolean));
+  const ids = [...new Set((marks || [])
+    .filter((m: any) => !signed.has(m.user_id) && !signed.has(m.discord_user_id))
+    .map((m: any) => (m.user_id ? byUser.get(m.user_id) : m.discord_user_id))
+    .filter(Boolean))] as string[];
+  if (!ids.length) return 'nobody';
+
+  const t = unix(slot.game_at);
+  await post(db, slotId,
+    `📅 ${titleOf(slot)} заплановано на <t:${t}:F> — день, який ви відмітили в календарі: ` +
+      `${ids.map((id) => `<@${id}>`).join(' ')}. Записатись — кнопка під оголошенням.`,
+    ids);
+  return 'notified';
+}
