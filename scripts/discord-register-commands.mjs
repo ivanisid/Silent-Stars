@@ -12,6 +12,7 @@ if (!DISCORD_APP_ID || !DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
 
 const STRING = 3;
 const INTEGER = 4;
+const BOOLEAN = 5;
 
 const commands = [
   {
@@ -40,6 +41,9 @@ const commands = [
   {
     name: 'calendar',
     description: 'Календар гравців: відмітити дні, коли хочу грати (2 тижні вперед)',
+    options: [
+      { type: BOOLEAN, name: 'pin', description: 'Опублікувати й закріпити спільний календар у цьому каналі (лише ГМ)' },
+    ],
   },
   {
     name: 'board',

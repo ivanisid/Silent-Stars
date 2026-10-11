@@ -7,7 +7,12 @@
 -- Хто відмічає: акаунт апки (user_id) або Discord без прив'язки (discord_user_id) — так само,
 -- як із записом на гру. Прив'язаний Discord пише від імені акаунта.
 --
--- Відкат: drop function public.calendar_list(date, date), public.discord_calendar_set(text, text, date[], date, date);
+-- У Discord: /calendar (особисте меню відміток) і спільне закріплене повідомлення-календар,
+-- яке ГМ публікує командою /calendar pin:true, а discord-sync оновлює сам.
+--
+-- Відкат: drop trigger discord_calendar_notify on public.play_availability;
+-- drop function private.discord_calendar_notify(); drop table public.discord_calendar_message;
+-- drop function public.calendar_list(date, date), public.discord_calendar_set(text, text, date[], date, date);
 -- drop table public.play_availability;
 
 create table if not exists public.play_availability (
@@ -102,3 +107,37 @@ grant execute on function public.discord_calendar_set(text, text, date[], date, 
 
 -- Відкритий календар оновлюється наживо, коли хтось відмічає дні (зокрема з Discord).
 alter publication supabase_realtime add table public.play_availability;
+
+-- ----- Закріплене повідомлення-календар у Discord -----
+
+-- Одне на сервер. rendered_day — день, від якого рахувалось вікно: планувальник перемальовує
+-- повідомлення, коли настає новий день.
+create table if not exists public.discord_calendar_message (
+  id smallint primary key default 1 check (id = 1),
+  channel_id text not null,
+  message_id text not null,
+  rendered_day date
+);
+alter table public.discord_calendar_message enable row level security;
+-- Політик немає навмисно: читає й пише лише discord-sync / discord-interactions (service role).
+
+-- Будь-яка відмітка (з апки чи Discord) → перемалювати календар. На інструкцію, а не на рядок:
+-- заміна відміток з меню Discord — це delete + insert кількох рядків.
+create or replace function private.discord_calendar_notify()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+begin
+  if exists (select 1 from discord_calendar_message) then
+    perform private.discord_post_event(jsonb_build_object('mode', 'calendar'));
+  end if;
+  return null;
+end;
+$function$;
+
+drop trigger if exists discord_calendar_notify on public.play_availability;
+create trigger discord_calendar_notify
+  after insert or delete on public.play_availability
+  for each statement execute function private.discord_calendar_notify();

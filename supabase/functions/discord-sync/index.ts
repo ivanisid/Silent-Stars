@@ -2,12 +2,15 @@
 //   * тригером discord_notify (через pg_net) на кожну зміну game_slots / game_signups —
 //     неважливо, з апки чи з Discord; при зміні статусу гри приходить ще й event;
 //   * планувальником pg_cron кожні 10 хвилин з mode = 'remind' — нагадування перед грою;
-//   * тригерами на discord_links / pilots з mode = 'roles' — ролі LANCER і LLn.
+//   * тригерами на discord_links / pilots з mode = 'roles' — ролі LANCER і LLn;
+//   * тригером на play_availability з mode = 'calendar' — закріплений календар гравців
+//     (його ж оновлюють зміни ігор і, раз на добу, планувальник — вікно 2 тижнів зсувається).
 // Розгортається з verify_jwt = false; натомість перевіряє x-sync-secret із vault.
 
 import { adminClient, syncSlot } from '../_shared/discord.ts';
 import { notifyStatus, remind } from '../_shared/notify.ts';
 import { syncRoles } from '../_shared/roles.ts';
+import { syncCalendar } from '../_shared/calendar.ts';
 
 const db = adminClient();
 let secret: string | null = null;
@@ -46,8 +49,19 @@ Deno.serve(async (req) => {
     }
   }
 
+  if (mode === 'calendar') {
+    try {
+      return Response.json({ calendar: await syncCalendar(db) });
+    } catch (err) {
+      console.error('discord-sync calendar', err);
+      return Response.json({ error: String(err) }, { status: 500 });
+    }
+  }
+
   if (mode === 'remind') {
     try {
+      // Новий день — зсунути вікно закріпленого календаря; збій тут не скасовує нагадувань.
+      await syncCalendar(db, { onlyIfStale: true }).catch((err) => console.error('discord-sync calendar', err));
       return Response.json({ reminded: await remind(db) });
     } catch (err) {
       console.error('discord-sync remind', err);
@@ -69,6 +83,8 @@ Deno.serve(async (req) => {
     }
   };
   const result = await attempt('sync', () => syncSlot(db, slot_id, post === true));
+  // Ігри видно в закріпленому календарі — створення, перенесення, скасування, запис.
+  await attempt('calendar', () => syncCalendar(db));
   const notified = typeof event === 'string' ? await attempt('notify', () => notifyStatus(db, slot_id, event, body)) : undefined;
   return Response.json({ result, notified, errors }, { status: errors.length ? 500 : 200 });
 });

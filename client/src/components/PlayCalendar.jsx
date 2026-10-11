@@ -114,7 +114,8 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
       <div className="ss-body">
         <div style={{ fontSize: 11, color: 'var(--text-grey)', lineHeight: 1.6 }}>
           <span className="pre">&gt; </span>«+» на дні — відмітити «хочу грати» (ще раз — зняти); клік по дню — хто відмітив.
-          ГМ бачить, коли збирається найбільше людей. У Discord — команда <code>/calendar</code>.
+          ГМ бачить, коли збирається найбільше людей. <span style={{ color: 'var(--gm-ink)' }}>Золота рамка</span> — на
+          цей день уже є гра. У Discord — команда <code>/calendar</code>.
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }}>
           {days.map((d) => {
@@ -141,8 +142,10 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
                   padding: '6px 6px 5px',
                   textAlign: 'left',
                   cursor: 'pointer',
-                  border: `1px solid ${picked === k ? 'var(--accent)' : 'var(--input-border)'}`,
-                  borderLeft: `3px solid ${me ? 'var(--accent)' : 'transparent'}`,
+                  // День з грою — золота рамка й смуга згори: видно з першого погляду.
+                  border: `1px solid ${picked === k ? 'var(--accent)' : games.length ? 'var(--gm-ink)' : 'var(--input-border)'}`,
+                  borderLeft: `3px solid ${me ? 'var(--accent)' : games.length ? 'var(--gm-ink)' : 'transparent'}`,
+                  boxShadow: games.length ? 'inset 0 3px 0 var(--gm-ink)' : undefined,
                   // Чим більше охочих, тим насиченіше тло.
                   background: n
                     ? `color-mix(in srgb, var(--accent) ${Math.round(8 + (n / max) * 30)}%, var(--panel-sunken))`
@@ -154,7 +157,7 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
                   {WEEKDAYS[d.getDay()]} {pad(d.getDate())}.{pad(d.getMonth() + 1)}
                 </span>
                 <span className="title-font" style={{ fontSize: 18, lineHeight: 1, color: n ? 'var(--text-bright)' : 'var(--text-faint)' }}>{n}</span>
-                <span style={{ fontSize: 9, letterSpacing: 1, color: 'var(--text-dimmer)', minHeight: 11 }}>
+                <span style={{ fontSize: 9, letterSpacing: 1, color: games.length ? 'var(--gm-ink)' : 'var(--text-dimmer)', minHeight: 11 }}>
                   {games.length ? `▮ ${games.length} ${games.length === 1 ? 'ГРА' : 'ІГОР'}` : ''}
                 </span>
                 {/* Своя відмітка — одним кліком, без відкриття дня. */}
