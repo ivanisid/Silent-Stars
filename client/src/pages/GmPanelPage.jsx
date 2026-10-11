@@ -57,6 +57,8 @@ export default function GmPanelPage() {
   const [q, setQ] = useState('');
   const [pilots, setPilots] = useState([]);
   const [profiles, setProfiles] = useState([]);
+  // Discord гравців, які його прив'язали: { userId: { name, id } }.
+  const [discord, setDiscord] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [ask, dialog] = useConfirm();
@@ -104,11 +106,12 @@ export default function GmPanelPage() {
     if (!isGm) return undefined;
     let cancelled = false;
     setLoading(true);
-    Promise.all([api.gmListAllPilots(), api.gmListProfiles()])
-      .then(([pilotList, profileList]) => {
+    Promise.all([api.gmListAllPilots(), api.gmListProfiles(), api.gmListDiscordLinks()])
+      .then(([pilotList, profileList, discordLinks]) => {
         if (cancelled) return;
         setPilots(pilotList);
         setProfiles(profileList);
+        setDiscord(discordLinks);
         setLoadError('');
       })
       .catch((err) => {
@@ -139,6 +142,7 @@ export default function GmPanelPage() {
         userId,
         nick: nickById.get(userId) || 'невідомий гравець',
         role: roleById.get(userId) || 'player',
+        discord: discord[userId] || null,
         pilots: list,
       }))
       .sort((a, b) => {
@@ -148,18 +152,20 @@ export default function GmPanelPage() {
         if (aOwn !== bOwn) return aOwn ? 1 : -1;
         return a.nick.localeCompare(b.nick, 'uk');
       });
-  }, [pilots, profiles, user?.id]);
+  }, [pilots, profiles, discord, user?.id]);
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return groups;
+    // Гравця шукаємо й за Discord-іменем.
+    const own = (g) => g.nick.toLowerCase().includes(needle) || (g.discord?.name || '').toLowerCase().includes(needle);
     return groups
       .map((g) =>
-        g.nick.toLowerCase().includes(needle)
+        own(g)
           ? g
           : { ...g, pilots: g.pilots.filter((p) => p.callsign.toLowerCase().includes(needle) || p.name.toLowerCase().includes(needle)) },
       )
-      .filter((g) => g.pilots.length > 0 || g.nick.toLowerCase().includes(needle));
+      .filter((g) => g.pilots.length > 0 || own(g));
   }, [groups, q]);
 
   // Role still resolving — don't flash a redirect for an actual GM on refresh.
@@ -185,7 +191,8 @@ export default function GmPanelPage() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>ГРАВЦІВ <span style={{ color: 'var(--text-bright)' }}>{groups.length}</span></div>
         <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>ПЕРСОНАЖІВ <span style={{ color: 'var(--text-bright)' }}>{pilots.length}</span></div>
-        <input className="ss-input sm m-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ гравець або позивний" style={{ marginLeft: 'auto', width: 220 }} />
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>З DISCORD <span style={{ color: 'var(--text-bright)' }}>{groups.filter((g) => g.discord).length}</span></div>
+        <input className="ss-input sm m-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ гравець, Discord або позивний" style={{ marginLeft: 'auto', width: 220 }} />
       </div>
 
       {dialog}
@@ -203,6 +210,16 @@ export default function GmPanelPage() {
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
                 {group.nick}
                 {group.role === 'gm' && <span className="ss-tag gm" style={{ padding: '1px 6px' }}>ГМ</span>}
+                {/* Discord — лише якщо гравець прив'язав його до акаунта. */}
+                {group.discord && (
+                  <span
+                    className="ss-tag"
+                    style={{ padding: '1px 6px', textTransform: 'none', userSelect: 'all' }}
+                    title={`Discord прив'язано · ID ${group.discord.id}`}
+                  >
+                    DISCORD · {group.discord.name || group.discord.id}
+                  </span>
+                )}
               </span>
             }
             sub={group.pilots.length ? `${group.pilots.length} ${plural(group.pilots.length)}` : 'ПЕРСОНАЖІВ НЕМАЄ'}

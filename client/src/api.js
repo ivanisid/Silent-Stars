@@ -129,6 +129,14 @@ export const api = {
     return data;
   },
 
+  // ГМ-панель: Discord гравців, які його прив'язали — { userId: { name, id } }. До міграції
+  // 20261011d функції немає — тоді порожньо, панель працює як раніше.
+  gmListDiscordLinks: async () => {
+    const { data, error } = await supabase.rpc('gm_discord_links');
+    if (error) return {};
+    return Object.fromEntries((data || []).map((l) => [l.user_id, { name: l.discord_username || '', id: l.discord_user_id }]));
+  },
+
   // ГМ робить іншого учасника ГМом ('gm') або знімає роль ('player'). Свою роль змінити
   // не можна — це перевіряє сервер (gm_set_role).
   gmSetRole: async (userId, role) => {
