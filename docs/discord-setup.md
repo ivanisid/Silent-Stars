@@ -94,6 +94,10 @@
    ```bash
    DISCORD_APP_ID=... DISCORD_BOT_TOKEN=... DISCORD_GUILD_ID=... node scripts/discord-register-commands.mjs
    ```
+   Без ПК і токена (токен бота вже в секретах Supabase) — у SQL-редакторі Supabase:
+   ```sql
+   select private.discord_post_event('{"mode":"register_commands"}'::jsonb);
+   ```
 7. ГМ прив'язує свій Discord і запускає `/board`, щоб опублікувати вже наявні ігри.
 
 ## Розгортання
