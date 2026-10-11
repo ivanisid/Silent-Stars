@@ -599,7 +599,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
               );
             })}
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--input-bg)' }}>
-              <span style={{ color: 'var(--accent)' }}>&gt;</span>
+              <span className="pre" style={{ color: 'var(--accent)' }}>&gt;</span>
               <div className="ss-seg sm">
                 <button type="button" className={addType === 'weapon' ? 'on' : ''} title="Додати як зброю" onClick={() => setAddType('weapon')}>ЗБРОЯ</button>
                 <button type="button" className={addType === 'system' ? 'on' : ''} title="Додати як систему" onClick={() => setAddType('system')}>СИСТЕМА</button>

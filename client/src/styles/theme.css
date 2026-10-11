@@ -166,13 +166,13 @@
   --text: #212121;
   --text-bright: #000;
   --text-soft: #494949;
-  --text-soft-dim: #656565;
+  --text-soft-dim: #5c5c5c;
   --text-info: #5c1a20;
-  --text-dim: #755e61;
-  --text-dimmer: #656565;
+  --text-dim: #6e575a;
+  --text-dimmer: #5c5c5c;
   --text-muted: #424242;
-  --text-grey: #666666;
-  --text-faint: #828282;
+  --text-grey: #5c5c5c;
+  --text-faint: #5c5c5c;
   --input-bg: #eeeeee;
   --input-border: #c4c9cd;
   --btn-bg: #991E2A;
@@ -775,10 +775,10 @@
   --text-soft-dim: #8996a5;
   --text-info: #c0d3e6;
   --text-dim: #8592a1;
-  --text-dimmer: #6f7c8c;
+  --text-dimmer: #778494;
   --text-muted: #7b8897;
   --text-grey: #808b98;
-  --text-faint: #66727f;
+  --text-faint: #798592;
   --input-bg: #05070a;
   --input-border: #273445;
   --btn-bg: #1a2633;
@@ -824,7 +824,7 @@
   --rule: color-mix(in oklch, var(--kt) 25%, transparent); --overlay: #000000cc; --shadow: #000; --scrollbar: color-mix(in oklch, var(--kf) 40%, #1a1814);
   --accent: var(--ka); --accent-hover: color-mix(in oklch, var(--ka) 60%, #fff); --accent-dim: color-mix(in oklch, var(--ka) 45%, #000);
   --text: #ece6da; --text-bright: #fff; --text-soft: #d6d0c4; --text-soft-dim: #b0aa9e; --text-info: color-mix(in oklch, var(--ka) 70%, #fff);
-  --text-dim: #a29c90; --text-dimmer: #8a8478; --text-muted: #968f83; --text-grey: #8f8a80; --text-faint: #827c71;
+  --text-dim: #a29c90; --text-dimmer: #9b9589; --text-muted: #9b9488; --text-grey: #9a958b; --text-faint: #9a9489;
   --input-bg: color-mix(in oklch, var(--kf) 8%, #040403); --input-border: color-mix(in oklch, var(--kf) 25%, #2a2620);
   --btn-bg: var(--kf); --btn-border: var(--kt); --btn-hover: color-mix(in oklch, var(--kf) 80%, #fff);
 }
@@ -835,7 +835,7 @@
   --rule: color-mix(in oklch, var(--kf) 25%, transparent); --overlay: #2a211799; --shadow: #2a211733; --scrollbar: color-mix(in oklch, var(--kl) 40%, #bfb29a);
   --accent-hover: color-mix(in oklch, var(--ka) 70%, #000); --accent-dim: color-mix(in oklch, var(--ka) 45%, #fff);
   --text: #2a2117; --text-bright: #120d08; --text-soft: #3e3428; --text-soft-dim: #5a4e40; --text-info: color-mix(in oklch, var(--ka) 80%, #000);
-  --text-dim: #6a5e4e; --text-dimmer: #6e6252; --text-muted: #6e6252; --text-grey: #74695a; --text-faint: #7d7262;
+  --text-dim: #695d4d; --text-dimmer: #695d4e; --text-muted: #695d4e; --text-grey: #675d4e; --text-faint: #685d4e;
   --input-bg: #fffdf8; --input-border: color-mix(in oklch, var(--kf) 30%, #d8ccb6); --btn-hover: color-mix(in oklch, var(--kf) 80%, #000);
   --gm: #8a5a00; --gm-ink: #8a5a00; --gm-dim: #b8955a;
   --danger: #F44336;

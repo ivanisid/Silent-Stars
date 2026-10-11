@@ -584,3 +584,7 @@
 :root[data-theme='karrakin'] .modal-box.danger .modal-header::before { background: #fff4e8; }
 :root[data-theme='karrakin'] .modal-box .btn-danger { background: transparent; color: var(--danger); border-color: var(--danger); outline-color: color-mix(in oklch, var(--danger) 40%, transparent); }
 :root[data-theme='karrakin'] .modal-box .btn-danger:hover:not(:disabled) { background: var(--danger); color: #fff4e8; }
+/* Аудит сторінок: решта тексту, меншого за 10px. Інлайнові 9px (календар, покращення, бонд,
+   дошка) перекриваються лише через !important. */
+:root[data-theme='karrakin'] :is(.ss-shop .tab .k, .ss-rail .nav .code, .ss-rail .themes .tag, .gm-row > [data-l]::before) { font-size: 10px; }
+:root[data-theme='karrakin'] [style*='font-size: 9px'] { font-size: 10px !important; }

@@ -242,8 +242,8 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
       </button>
       <div style={{ flex: '1 1 220px', minWidth: 0, fontSize: 11, lineHeight: 1.5, overflowWrap: 'anywhere', color: importMsg ? (importMsg.ok ? 'var(--success)' : 'var(--danger)') : 'var(--text-dimmer)' }}>
         {importMsg
-          ? `${importMsg.ok ? '>>' : '!!'} ${importMsg.at} · ${importMsg.text}`
-          : '> Цієї сесії файлів ще не завантажували.'}
+          ? <><span className="pre">{importMsg.ok ? '>>' : '!!'} </span>{importMsg.at} · {importMsg.text}</>
+          : <><span className="pre">&gt; </span>Цієї сесії файлів ще не завантажували.</>}
       </div>
     </div>
     </>
