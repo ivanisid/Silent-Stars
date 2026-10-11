@@ -138,11 +138,11 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
                   color: 'var(--text)',
                 }}
               >
-                <span style={{ fontSize: 9, letterSpacing: 1, color: weekend ? 'var(--warn)' : 'var(--text-dimmer)' }}>
+                <span style={{ fontSize: 10, letterSpacing: 1, color: weekend ? 'var(--warn)' : 'var(--text-dimmer)' }}>
                   {WEEKDAYS[d.getDay()]} {pad(d.getDate())}.{pad(d.getMonth() + 1)}
                 </span>
                 <span className="title-font" style={{ fontSize: 18, lineHeight: 1, color: n ? 'var(--text-bright)' : 'var(--text-faint)' }}>{n}</span>
-                <span style={{ fontSize: 9, letterSpacing: 1, color: games.length ? 'var(--gm-ink)' : 'var(--text-dimmer)', minHeight: 11 }}>
+                <span style={{ fontSize: 10, letterSpacing: 1, color: games.length ? 'var(--gm-ink)' : 'var(--text-dimmer)', minHeight: 11 }}>
                   {games.length ? `▮ ${games.length} ${games.length === 1 ? 'ГРА' : 'ІГОР'}` : ''}
                 </span>
                 {/* Своя відмітка — одним кліком, без відкриття дня. */}

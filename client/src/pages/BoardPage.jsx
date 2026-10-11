@@ -1030,7 +1030,7 @@ export default function BoardPage() {
           <div className="title-font" style={{ fontSize: 24, lineHeight: 1, color: myBonus > 0 ? GOLD : 'var(--text-dimmer)' }}>
             {myBonus >= 9 ? '◆' : `+${myBonus}`}
           </div>
-          <div style={{ fontSize: 9, color: 'var(--text-dimmer)', letterSpacing: 1 }}>БОНУС</div>
+          <div style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>БОНУС</div>
         </div>
         <div style={{ flex: 1, minWidth: 0, padding: '10px 14px', fontSize: 11, lineHeight: 1.6, color: 'var(--text-grey)', textWrap: 'pretty' }}>
           {myBonus >= 9 ? <span style={{ color: GOLD }}>+{myBonus} · </span> : null}

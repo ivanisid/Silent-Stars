@@ -295,7 +295,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
   // Повний ремонт / передрук — та сама послуга, що в магазині: 100 PR або 500 М.
   // Вікно показує, що саме зламано, і скільки коштував би ремонт частинами.
   async function fullRepair() {
-    const { damage, kits } = fullRepairSummary(m);
+    const { damage } = fullRepairSummary(m);
     if (!damage.length) {
       setMsg('>> Мех цілий — ремонтувати нічого.');
       return;
@@ -310,9 +310,6 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
         ...damage.map((t) => ({ t: `> ${t}`, ink: 'var(--text)' })),
         { t: `PR: ${pr}${pr >= prCost ? ` → ${pr - prCost}` : ' — бракує'} · Мана: ${mana}${mana >= manaCost ? ` → ${mana - manaCost}` : ' — бракує'}`, ink: 'var(--text)' },
       ],
-      note: kits
-        ? `Частинами може бути дешевше: кнопки «МАКС» і «РЕМОНТ» на картці — разом ${kits} рем. (у меха ${m.repairCurrent}, решта по ${KIT_PR} PR); заряди — окремо.`
-        : undefined,
       yesLabel: `${prCost} PR`,
       canYes: pr >= prCost,
       altLabel: `${manaCost} М`,

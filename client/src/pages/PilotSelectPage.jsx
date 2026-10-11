@@ -306,7 +306,7 @@ export default function PilotSelectPage() {
             >
               {/* Увесь рядок — посилання на профіль; меню «⋯» — окрема кнопка поверх. */}
               <Link to={`/pilots/${p.id}`} aria-label={`Профіль ${p.callsign}`} style={{ position: 'absolute', inset: 0 }} />
-              <div className={portraits[p.id] ? '' : 'ss-hatch'} style={{ width: 72, height: 72, border: '1px solid var(--input-border)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: 'var(--text-faint)', textAlign: 'center', lineHeight: 1.4 }}>
+              <div className={portraits[p.id] ? '' : 'ss-hatch'} style={{ width: 72, height: 72, border: '1px solid var(--input-border)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text-faint)', textAlign: 'center', lineHeight: 1.4 }}>
                 {portraits[p.id] ? (
                   <img src={portraits[p.id]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }} />
                 ) : (
