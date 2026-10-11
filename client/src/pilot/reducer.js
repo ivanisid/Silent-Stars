@@ -1207,6 +1207,23 @@ function reduce(state, action) {
       );
     }
     // Позначка «знищено» безкоштовна; ремонт — через MECH_REPAIR (1 ремкомплект).
+    // «↶ Скасувати» на картці меха: помилковий клік по безкоштовному списанню (структура,
+    // реактор, ремкомплект, «знищено»), які без цього повертаються лише за ремкомплекти / PR.
+    // Повертає одне поле до значення перед кліком; картка пропонує це лише одразу після дії.
+    case 'UNDO_MECH_FIELD': {
+      const m = findMech(state, action.id);
+      if (!m) return state;
+      const note = `${m.name}: скасовано «${action.label}» (помилковий клік)`;
+      if (action.field === 'destroyed') {
+        const it = m.items?.[action.idx];
+        if (!it || !it.destroyed) return state;
+        return log(updateItem(state, m.id, action.idx, (x) => ({ ...x, destroyed: false })), note);
+      }
+      if (!['structureFilled', 'reactorFilled', 'repairCurrent'].includes(action.field)) return state;
+      const v = Number(action.value);
+      if (!Number.isFinite(v) || (m[action.field] || 0) === v) return state;
+      return log(updateMech(state, m.id, (mm) => ({ ...mm, [action.field]: v })), note);
+    }
     case 'MARK_ITEM_DESTROYED': {
       const m = findMech(state, action.id);
       const it = m?.items?.[action.idx];

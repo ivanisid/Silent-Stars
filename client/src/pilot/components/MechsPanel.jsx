@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { OC_STEPS, PR_SERVICES, SHOP_DATA, mechSlots } from '../constants';
 import { shopPrice } from '../logic';
 import { showUpgrade } from '../../components/overlayBus';
@@ -211,6 +211,27 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
   const lockTitle = 'Стан приходить із Foundry — змінюйте його в бою там. Тут — ремонт і покупки';
   const ocSteps = m.ocSteps?.length === 4 ? m.ocSteps : OC_STEPS;
 
+  // Скасування помилкового кліку: структура, реактор, ремкомплект і «знищено» без нього
+  // повертаються лише за ремкомплекти / PR. Кнопка живе 30 с і зникає після будь-якої
+  // іншої дії з цим мехом (тоді значення вже могло змінитися з іншої причини).
+  const [undo, setUndo] = useState(null);
+  const undoTimer = useRef(null);
+  useEffect(() => () => clearTimeout(undoTimer.current), []);
+  function lose(action, u) {
+    dispatch(action);
+    clearTimeout(undoTimer.current);
+    setUndo(u);
+    undoTimer.current = setTimeout(() => setUndo(null), 30000);
+  }
+  function act(action) {
+    if (undo) setUndo(null);
+    dispatch(action);
+  }
+  // Значення ще те, що поставив клік, — інакше скасування вже не про нього.
+  const undoValid = undo && (undo.field === 'destroyed'
+    ? !!items[undo.idx]?.destroyed && items[undo.idx]?.name === undo.name
+    : (m[undo.field] || 0) === undo.after);
+
   // Ремонт: вікно з розкладом «ремкомплекти / докупівля за PR», «ТАК» неактивна, коли PR бракує.
   async function repair(what, idx) {
     const plan = repairPlan(m, what, idx);
@@ -383,6 +404,23 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
         {isGm && link && unlocked && <Msg kind="warn">Ручні зміни розблоковано (ГМ) — наступна синхронізація може їх перезаписати.</Msg>}
 
         {msg && <Msg kind={msg.startsWith('!!') ? 'err' : 'ok'}>{msg}</Msg>}
+        {undoValid && (
+          <div className="warn-box" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ flex: 1, minWidth: 160 }}>:: {undo.label}. Випадково?</span>
+            <button
+              type="button"
+              className="btn-ghost sm"
+              title="Повернути значення до кліку без витрат — лише одразу після дії"
+              onClick={() => {
+                dispatch({ type: 'UNDO_MECH_FIELD', id: m.id, field: undo.field, value: undo.value, idx: undo.idx, label: undo.label });
+                clearTimeout(undoTimer.current);
+                setUndo(null);
+              }}
+            >
+              ↶ СКАСУВАТИ
+            </button>
+          </div>
+        )}
 
         {editing && <MechEdit mech={m} state={state} dispatch={dispatch} />}
 
@@ -390,9 +428,9 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
             <FieldLabel>HP</FieldLabel>
             <div className="ss-stepper">
-              <button type="button" disabled={locked} title={locked ? lockTitle : 'Отримати пошкодження'} onClick={() => dispatch({ type: 'DEC_MECH_HP', id: m.id })}>−</button>
+              <button type="button" disabled={locked} title={locked ? lockTitle : 'Отримати пошкодження'} onClick={() => act({ type: 'DEC_MECH_HP', id: m.id })}>−</button>
               <div className="v" title={m.hpBonus ? `Макс. HP з бонусами: ${m.hpBonus}` : undefined}>{m.hpCurrent} / {m.hpMax}</div>
-              <button type="button" disabled={locked} title={locked ? lockTitle : '+1 HP'} onClick={() => dispatch({ type: 'INC_MECH_HP', id: m.id })}>+</button>
+              <button type="button" disabled={locked} title={locked ? lockTitle : '+1 HP'} onClick={() => act({ type: 'INC_MECH_HP', id: m.id })}>+</button>
             </div>
             <div className="ss-track-actions">
               <button className="btn-ghost sm" type="button" title={isBalor(m) ? 'BALOR — без ремкомплекту' : '1 ремкомплект'} onClick={() => repair('hp')}>
@@ -403,7 +441,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
             <FieldLabel>РЕМКОМПЛЕКТИ</FieldLabel>
             <div className="ss-stepper">
-              <button type="button" disabled={locked} title={locked ? lockTitle : 'Витратити ремкомплект'} onClick={() => dispatch({ type: 'DEC_MECH_REPAIR', id: m.id })}>−</button>
+              <button type="button" disabled={locked} title={locked ? lockTitle : 'Витратити ремкомплект'} onClick={() => lose({ type: 'DEC_MECH_REPAIR', id: m.id }, { field: 'repairCurrent', value: m.repairCurrent, after: Math.max(0, m.repairCurrent - 1), label: 'ремкомплект −1' })}>−</button>
               <div className="v">{m.repairCurrent} / {m.repairMax}</div>
               <button
                 type="button"
@@ -449,7 +487,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
             <FieldLabel>СТРУКТУРА</FieldLabel>
             <Track size="lg" value={st} max={MECH_STRUCTURE} label="Структура" />
             <div className="ss-track-actions">
-              <button type="button" className="ss-sq" title={locked ? lockTitle : 'Отримати пошкодження'} disabled={locked || st <= 0} onClick={() => dispatch({ type: 'DAMAGE_MECH', id: m.id, what: 'structure' })}>−</button>
+              <button type="button" className="ss-sq" title={locked ? lockTitle : 'Отримати пошкодження'} disabled={locked || st <= 0} onClick={() => lose({ type: 'DAMAGE_MECH', id: m.id, what: 'structure' }, { field: 'structureFilled', value: m.structureFilled || 0, after: (m.structureFilled || 0) + 1, label: 'структура −1' })}>−</button>
               <button type="button" className="ss-sq" title="Відновити 1" disabled={st >= MECH_STRUCTURE} onClick={() => repair('structure')}>+</button>
               <button className="btn-ghost sm" type="button" disabled={st >= MECH_STRUCTURE} title="Відновити структуру до максимуму за ремкомплекти; яких бракує, докуповуються по 10 PR" onClick={() => repair('structureMax')}>МАКС</button>
             </div>
@@ -458,14 +496,14 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
             <FieldLabel>РЕАКТОР</FieldLabel>
             <Track size="lg" value={rx} max={MECH_REACTOR} label="Реактор" />
             <div className="ss-track-actions">
-              <button type="button" className="ss-sq" title={locked ? lockTitle : 'Отримати пошкодження'} disabled={locked || rx <= 0} onClick={() => dispatch({ type: 'DAMAGE_MECH', id: m.id, what: 'reactor' })}>−</button>
+              <button type="button" className="ss-sq" title={locked ? lockTitle : 'Отримати пошкодження'} disabled={locked || rx <= 0} onClick={() => lose({ type: 'DAMAGE_MECH', id: m.id, what: 'reactor' }, { field: 'reactorFilled', value: m.reactorFilled || 0, after: (m.reactorFilled || 0) + 1, label: 'реактор −1' })}>−</button>
               <button type="button" className="ss-sq" title="Відновити 1" disabled={rx >= MECH_REACTOR} onClick={() => repair('reactor')}>+</button>
               <button className="btn-ghost sm" type="button" disabled={rx >= MECH_REACTOR} title="Відновити реактор до максимуму за ремкомплекти; яких бракує, докуповуються по 10 PR" onClick={() => repair('reactorMax')}>МАКС</button>
             </div>
           </div>
 
           <div className="ss-tile" style={{ padding: 0 }}>
-            <button type="button" className="ss-sq" style={{ height: '100%', width: 28, border: 'none', borderRight: '1px solid var(--input-border)' }} disabled={locked || oc <= 0} title={locked ? lockTitle : 'Overcharge на крок назад'} onClick={() => dispatch({ type: 'SHIFT_MECH_OVERCHARGE', id: m.id, dir: -1 })}>−</button>
+            <button type="button" className="ss-sq" style={{ height: '100%', width: 28, border: 'none', borderRight: '1px solid var(--input-border)' }} disabled={locked || oc <= 0} title={locked ? lockTitle : 'Overcharge на крок назад'} onClick={() => act({ type: 'SHIFT_MECH_OVERCHARGE', id: m.id, dir: -1 })}>−</button>
             <span style={{ color: 'var(--text-dim)', fontSize: 18, lineHeight: 1 }}>✸</span>
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -478,9 +516,9 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
                 ))}
               </div>
             </div>
-            <button type="button" className="ss-sq" style={{ height: '100%', width: 28, border: 'none', borderLeft: '1px solid var(--input-border)' }} disabled={locked || oc >= 3} title={locked ? lockTitle : `Overcharge на крок уперед: ${ocSteps.join(' → ')}${m.ocSource ? ` (${m.ocSource})` : ''}`} onClick={() => dispatch({ type: 'SHIFT_MECH_OVERCHARGE', id: m.id, dir: 1 })}>+</button>
+            <button type="button" className="ss-sq" style={{ height: '100%', width: 28, border: 'none', borderLeft: '1px solid var(--input-border)' }} disabled={locked || oc >= 3} title={locked ? lockTitle : `Overcharge на крок уперед: ${ocSteps.join(' → ')}${m.ocSource ? ` (${m.ocSource})` : ''}`} onClick={() => act({ type: 'SHIFT_MECH_OVERCHARGE', id: m.id, dir: 1 })}>+</button>
           </div>
-          <button type="button" className="ss-tile" disabled={locked} onClick={() => dispatch({ type: 'TOGGLE_MECH_CORE', id: m.id })} title={locked ? lockTitle : 'Перемкнути Core power'}>
+          <button type="button" className="ss-tile" disabled={locked} onClick={() => act({ type: 'TOGGLE_MECH_CORE', id: m.id })} title={locked ? lockTitle : 'Перемкнути Core power'}>
             <span style={{ color: m.corePower ? 'var(--success)' : 'var(--text-faint)', fontSize: 16, lineHeight: 1 }}>◈</span>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
               <span className="big" style={{ fontSize: 16, color: m.corePower ? 'var(--success)' : 'var(--text-faint)' }}>{m.corePower ? 'ЗАРЯДЖЕНО' : 'ВИТРАЧЕНО'}</span>
@@ -516,9 +554,9 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
                       {lim && (
                         <>
                           <div className="ss-stepper sm" style={{ background: 'transparent' }}>
-                            <button type="button" disabled={locked} title={locked ? lockTitle : 'Витратити 1 заряд'} onClick={() => dispatch({ type: 'DEC_ITEM', id: m.id, idx: i })}>−</button>
+                            <button type="button" disabled={locked} title={locked ? lockTitle : 'Витратити 1 заряд'} onClick={() => act({ type: 'DEC_ITEM', id: m.id, idx: i })}>−</button>
                             <div className="v">{it.current} / {it.max}</div>
-                            <button type="button" disabled={locked} title={locked ? lockTitle : 'Повернути 1 заряд без списання PR'} onClick={() => dispatch({ type: 'INC_ITEM', id: m.id, idx: i })}>+</button>
+                            <button type="button" disabled={locked} title={locked ? lockTitle : 'Повернути 1 заряд без списання PR'} onClick={() => act({ type: 'INC_ITEM', id: m.id, idx: i })}>+</button>
                           </div>
                           {it.current < it.max && (
                             <button
@@ -548,7 +586,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
                           ЗНИЩЕНО · РЕМОНТ
                         </button>
                       ) : (
-                        <button type="button" className="ss-icon ghost" disabled={locked} title={locked ? lockTitle : 'Позначити знищеним'} onClick={() => dispatch({ type: 'MARK_ITEM_DESTROYED', id: m.id, idx: i })}>
+                        <button type="button" className="ss-icon ghost" disabled={locked} title={locked ? lockTitle : 'Позначити знищеним'} onClick={() => lose({ type: 'MARK_ITEM_DESTROYED', id: m.id, idx: i }, { field: 'destroyed', idx: i, name: it.name, label: `${it.name}: знищено` })}>
                           ⊘
                         </button>
                       )}
