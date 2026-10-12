@@ -1716,3 +1716,15 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 .ss-flag { flex: none; display: block; padding: 0; margin: -9px 0; background: transparent; border: none; }
 .ss-flag img { display: block; height: 46px; width: auto; filter: drop-shadow(0 2px 3px #0008); transition: transform .15s; }
 .ss-flag:hover img { transform: translateY(-2px); }
+
+/* Лого FERUM VOX у шапці: потрійний клік вмикає/вимикає каскад; під курсором ледь глючить. */
+.ss-logo { flex: none; display: block; padding: 0; background: transparent; border: none; cursor: pointer; }
+.ss-logo img { display: block; }
+.ss-logo:hover { animation: ssLogoGlitch 2.4s steps(1) infinite; }
+@keyframes ssLogoGlitch {
+  0%, 18%, 23%, 61%, 64%, 100% { transform: none; filter: none; }
+  19% { transform: translate(1px, 0); filter: drop-shadow(1px 0 #ff4fd8aa) drop-shadow(-1px 0 #4fe3ffaa); }
+  21% { transform: translate(-1px, 1px); filter: drop-shadow(-1px 0 #ff4fd8aa) drop-shadow(1px 0 #4fe3ffaa); }
+  62% { transform: skewX(-6deg); opacity: .85; }
+}
+@media (prefers-reduced-motion: reduce) { .ss-logo:hover { animation: none; } }
