@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import NavDrawer from './NavDrawer.jsx';
 import { houseInfo, nextHouse, useThemeState } from '../theme';
+import { toggle as toggleCascade } from '../cascade/engine.js';
 
 // Спільний набір компонентів інтерфейсу 2a: сторінка з фоновою сіткою, шапка, панель,
 // меню «⋯», вікно підтвердження (замість window.confirm), лічильник-трек, повідомлення.
@@ -18,11 +19,21 @@ export function PageShell({ children, narrow = false }) {
 }
 
 // Лого FERUM VOX; у темі KARRAKIN замість нього прапор вибраного дому — клік перемикає
-// на наступний дім.
+// на наступний дім. Потрійний клік по лого вмикає/вимикає ефекти каскаду поверх теми.
 function HeaderMark() {
   const { theme, house } = useThemeState();
+  const clicks = useRef({ n: 0, t: 0 });
   if (theme !== 'karrakin') {
-    return <img src="/logo-ferum-vox.webp" alt="" width="28" height="28" style={{ display: 'block' }} />;
+    const onClick = () => {
+      const now = Date.now(), c = clicks.current;
+      c.n = now - c.t < 500 ? c.n + 1 : 1; c.t = now;
+      if (c.n === 3) { c.n = 0; toggleCascade(); }
+    };
+    return (
+      <button type="button" className="ss-logo" aria-label="FERUM VOX" onClick={onClick}>
+        <img src="/logo-ferum-vox.webp" alt="" width="28" height="28" />
+      </button>
+    );
   }
   const h = houseInfo(house);
   return (

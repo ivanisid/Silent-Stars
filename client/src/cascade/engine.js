@@ -301,6 +301,13 @@ export function trigger(o) {
   evT = setTimeout(() => { if (r.dataset.cascade === 'event') delete r.dataset.cascade; ev = null; }, o.duration || 60000);
 }
 export function end() { clearTimeout(evT); ev = null; const r = document.documentElement; if (r.dataset.cascade === 'event') delete r.dataset.cascade; }
+// toggle() — ручний каскад без строку (потрійний клік по лого FERUM VOX): вмикає, а якщо
+// каскад уже йде (ручний чи спонтанний) — зупиняє. Тему CASCADING не чіпає.
+export function toggle() {
+  const r = document.documentElement;
+  if (r.dataset.cascade != null) { clearTimeout(evT); ev = null; delete r.dataset.cascade; return false; }
+  r.dataset.cascade = 'manual'; return true;
+}
 
 // Для перевірки з консолі: SSCascade.trigger({ stage: 3 }), SSCascade.end().
-if (typeof window !== 'undefined') window.SSCascade = { start, trigger, end, DATA, AUTO };
+if (typeof window !== 'undefined') window.SSCascade = { start, trigger, end, toggle, DATA, AUTO };
