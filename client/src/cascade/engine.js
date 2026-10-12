@@ -34,7 +34,7 @@ let onTick = () => {};
 export function start(getOpts = defaultOpts) {
   const O = () => (getOpts && getOpts()) || {};
   const C = DATA, rnd = (a, b) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
-  const on = () => root.dataset.theme === 'cascading' || root.dataset.cascade != null;
+  const on = () => root.dataset.cascade !== 'off' && (root.dataset.theme === 'cascading' || root.dataset.cascade != null);
   const root = document.documentElement, timers = new Set(), orig = new Map(), posFix = [], cracks = [];
   let nodes = [], lastScan = 0, t0 = 0, V = '', stage = 0;
   let mx = -1, my = -1, mt = 0, vx = 0, vy = 0, precog = null, preAt = 0, hist = [], snaps = [], snapAt = 0, ghosts = [], raf = 0;
@@ -301,11 +301,17 @@ export function trigger(o) {
   evT = setTimeout(() => { if (r.dataset.cascade === 'event') delete r.dataset.cascade; ev = null; }, o.duration || 60000);
 }
 export function end() { clearTimeout(evT); ev = null; const r = document.documentElement; if (r.dataset.cascade === 'event') delete r.dataset.cascade; }
-// toggle() — ручний каскад без строку (потрійний клік по лого FERUM VOX): вмикає, а якщо
-// каскад уже йде (ручний чи спонтанний) — зупиняє. Тему CASCADING не чіпає.
+// toggle() — потрійний клік по лого FERUM VOX. У темі CASCADING вимикає її ефекти
+// (data-cascade="off") і вмикає знову; в інших темах вмикає ручний каскад без строку, а якщо
+// каскад уже йде (ручний чи спонтанний) — зупиняє.
 export function toggle() {
   const r = document.documentElement;
-  if (r.dataset.cascade != null) { clearTimeout(evT); ev = null; delete r.dataset.cascade; return false; }
+  clearTimeout(evT); ev = null;
+  if (r.dataset.theme === 'cascading') {
+    if (r.dataset.cascade === 'off') delete r.dataset.cascade; else r.dataset.cascade = 'off';
+    return r.dataset.cascade !== 'off';
+  }
+  if (r.dataset.cascade != null) { delete r.dataset.cascade; return false; }
   r.dataset.cascade = 'manual'; return true;
 }
 

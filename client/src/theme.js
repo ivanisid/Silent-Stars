@@ -106,6 +106,8 @@ function publish(next) {
 function paint({ theme, house }) {
   const root = document.documentElement;
   root.dataset.theme = theme;
+  // Вимкнення ефектів CASCADING (cascade/engine.js toggle) стосується лише цієї теми.
+  if (theme !== 'cascading' && root.dataset.cascade === 'off') delete root.dataset.cascade;
   if (theme === 'karrakin') root.dataset.house = house;
   else delete root.dataset.house;
   syncThemeColor();
