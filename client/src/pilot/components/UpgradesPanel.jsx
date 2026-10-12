@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Panel, useConfirm } from '../../components/kit.jsx';
 import { onShowUpgrade } from '../../components/overlayBus';
-import { INSURANCE_PACKS, UPGRADES, UPGRADE_GROUPS } from '../constants';
+import { INSURANCE_PACKS, UPGRADES, UPGRADE_GROUPS, insurancePack } from '../constants';
 
 // «Особисті покращення» (інтерфейс 2c, замість «Особистого ангару»). Ліворуч — список за
 // групами зі станом, праворуч — деталі обраного: ефект, уточнення, внесок частинами й
 // покупка. Внесок, повернення й покупка пишуться в журнал операцій (з відкатом).
 //
-// Стани: own — придбано; ready — внесок зібрано повністю; buy — з гаманцем вистачає;
-// poor — не вистачає.
+// Стани: own — придбано; locked — спершу потрібне інше покращення (requires); ready —
+// внесок зібрано повністю; buy — з гаманцем вистачає; poor — не вистачає.
 
 const INTRO =
   '«Гільдія пропонує ряд додаткових послуг всім її учасникам. Від додаткових послуг менеджерів, до більшої кількості можливостей у вашому особистому ангарі. Одноразові вкладення які полегшать ваш подальший шлях в роботі найманця»';
@@ -30,6 +30,7 @@ export function upgradeStatus(state, up) {
   const lack = { mana: Math.max(0, rest.mana - state.mana.balance), pr: Math.max(0, rest.pr - state.pr) };
   let k = 'poor';
   if (state.hangar.owned[up.key]) k = 'own';
+  else if (up.requires && !state.hangar.owned[up.requires]) k = 'locked';
   else if (!rest.mana && !rest.pr) k = 'ready';
   else if (!lack.mana && !lack.pr) k = 'buy';
   return { k, dep, rest, lack, part: dep.mana > 0 || dep.pr > 0 };
@@ -40,11 +41,15 @@ const DOT = {
   ready: { bg: 'transparent', bd: 'var(--success)' },
   buy: { bg: 'transparent', bd: 'var(--accent)' },
   poor: { bg: 'transparent', bd: 'var(--input-border)' },
+  locked: { bg: 'transparent', bd: 'var(--input-border)' },
 };
+
+const titleOf = (key) => UPGRADES.find((u) => u.key === key)?.title || key;
 
 function subText(up, st) {
   if (st.k === 'own') return 'придбано';
   if (st.k === 'ready') return 'зібрано · можна придбати';
+  if (st.k === 'locked') return `потрібен «${titleOf(up.requires)}»`;
   if (st.part) return `внесено ${st.dep.mana} / ${up.mana} М${up.pr ? ` · ${st.dep.pr} / ${up.pr} PR` : ''}`;
   return `${up.mana} М${up.pr ? ` · ${up.pr} PR` : ''}`;
 }
@@ -59,6 +64,7 @@ const BADGE = {
   own: { label: 'АКТИВНЕ', ink: 'var(--success)', bd: 'var(--ok-border)', bg: 'var(--ok-bg)' },
   ready: { label: 'ЗІБРАНО', ink: 'var(--success)', bd: 'var(--ok-border)', bg: 'transparent' },
   buy: { label: 'ДОСТУПНЕ', ink: 'var(--accent)', bd: 'var(--accent-dim)', bg: 'transparent' },
+  locked: { label: 'ЗАКРИТО', ink: 'var(--text-dim)', bd: 'var(--input-border)', bg: 'transparent' },
 };
 
 // Рядок внеску однієї валюти: іконка, «внесено / ціна», смуга, кнопки.
@@ -125,6 +131,7 @@ export default function UpgradesPanel({ state, dispatch }) {
     ready: 'Внесок зібрано повністю.',
     buy: `Решта: ${both(st.rest.mana, st.rest.pr)}. Можна доплатити й придбати одразу.`,
     poor: `Не вистачає ${both(st.lack.mana, st.lack.pr)}. Внесене зберігається в покращенні.`,
+    locked: `Спершу потрібен «${titleOf(up.requires)}».`,
   }[st.k];
 
   const put = (currency, amount) => {
@@ -159,6 +166,7 @@ export default function UpgradesPanel({ state, dispatch }) {
     ready: { label: 'ПРИДБАТИ', cls: 'btn' },
     buy: { label: 'ДОПЛАТИТИ Й ПРИДБАТИ', cls: 'btn' },
     poor: { label: 'ПРИДБАТИ', cls: 'btn-remain' },
+    locked: { label: 'ПРИДБАТИ', cls: 'btn-remain' },
   }[st.k];
 
   return (
@@ -242,7 +250,7 @@ export default function UpgradesPanel({ state, dispatch }) {
               <>
                 <span style={{ fontSize: 10, letterSpacing: 2, color: 'var(--text-dimmer)', marginTop: 6 }}>ВІДКРИВАЄ В МАГАЗИНІ</span>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 6 }}>
-                  {INSURANCE_PACKS.map((p) => (
+                  {INSURANCE_PACKS.map((b) => insurancePack(b, state.hangar.owned)).map((p) => (
                     <div key={p.key} style={{ padding: 10, border: '1px dashed var(--input-border)', background: 'var(--panel-sunken)', display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-bright)' }}>
                         <span style={{ color: 'var(--text-dimmer)', display: 'flex' }}>
@@ -250,7 +258,8 @@ export default function UpgradesPanel({ state, dispatch }) {
                         </span>
                         {p.title}
                       </span>
-                      <span style={{ fontSize: 10, color: 'var(--text-dimmer)', lineHeight: 1.4 }}>{p.desc} · 1 раз</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-dimmer)', lineHeight: 1.4 }}>{p.desc}</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{[p.pr ? `${p.pr} PR` : '', p.mana ? `${p.mana} М` : ''].filter(Boolean).join(' + ')}</span>
                     </div>
                   ))}
                 </div>
@@ -297,7 +306,7 @@ export default function UpgradesPanel({ state, dispatch }) {
                 type="button"
                 className={btn.cls}
                 style={{ height: 36, padding: '0 18px', letterSpacing: 2, ...(btn.style || {}) }}
-                disabled={st.k === 'own' || st.k === 'poor'}
+                disabled={st.k === 'own' || st.k === 'poor' || st.k === 'locked'}
                 title={st.k === 'poor' ? `Не вистачає ${both(st.lack.mana, st.lack.pr)}` : undefined}
                 onClick={buy}
               >

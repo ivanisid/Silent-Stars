@@ -2,6 +2,8 @@ import {
   SHOP_DATA,
   PR_PACK_SIZE,
   UPGRADES,
+  INSURANCE_PACKS,
+  insurancePack,
   WEEKLY_DOWNTIME_DATA,
   PR_SERVICES,
   PR_CAP_BASE,
@@ -687,7 +689,7 @@ function reduce(state, action) {
     // і наявних коштів. amount — число або 'all' («Все можливе»).
     case 'UPGRADE_DEPOSIT': {
       const up = UPGRADES.find((u) => u.key === action.key);
-      if (!up || state.hangar.owned[up.key]) return state;
+      if (!up || state.hangar.owned[up.key] || (up.requires && !state.hangar.owned[up.requires])) return state;
       const cur = action.currency === 'pr' ? 'pr' : 'mana';
       const price = up[cur];
       const dep = upgradeDeposit(state, up.key);
@@ -729,7 +731,7 @@ function reduce(state, action) {
     // Покупка: доплачується решта ціни, внесок зараховується.
     case 'UPGRADE_BUY': {
       const up = UPGRADES.find((u) => u.key === action.key);
-      if (!up || state.hangar.owned[up.key]) return state;
+      if (!up || state.hangar.owned[up.key] || (up.requires && !state.hangar.owned[up.requires])) return state;
       const dep = upgradeDeposit(state, up.key);
       const restM = Math.max(0, up.mana - dep.mana);
       const restP = Math.max(0, up.pr - dep.pr);
@@ -748,6 +750,42 @@ function reduce(state, action) {
         `Покращення «${up.title}» придбано за ${up.mana} М${up.pr ? ` + ${up.pr} PR` : ''}` + (paid ? ` (доплачено ${paid})` : ' (з внеску)'),
         true,
       );
+    }
+
+    // ---------- Страхові поліси (вкладка INSURANCE) ----------
+    // Купівля: PR і мана списуються разом; кожного типу — один невикористаний поліс.
+    case 'INSURANCE_BUY': {
+      const base = INSURANCE_PACKS.find((x) => x.key === action.key);
+      const policies = state.hangar.policies || {};
+      if (!base || !state.hangar.owned.insure || policies[base.key]) return state;
+      const p = insurancePack(base, state.hangar.owned);
+      if (p.pr > state.pr || p.mana > state.mana.balance) return state;
+      let next = { ...state, pr: state.pr - p.pr, hangar: { ...state.hangar, policies: { ...policies, [p.key]: 1 } } };
+      if (p.mana) next = { ...next, mana: pushManaHistory({ ...state.mana, balance: state.mana.balance - p.mana }, `−${p.mana} · поліс «${p.title}»`) };
+      const paid = [p.pr ? `${p.pr} PR` : '', p.mana ? `${p.mana} М` : ''].filter(Boolean).join(' і ');
+      return log(next, `Страховий поліс «${p.title}» придбано за ${paid}`, true);
+    }
+    // Використання: поліс зникає; пакети меха відновлюють обраного меха.
+    case 'INSURANCE_USE': {
+      const base = INSURANCE_PACKS.find((x) => x.key === action.key);
+      const policies = { ...(state.hangar.policies || {}) };
+      if (!base || !policies[base.key]) return state;
+      const p = insurancePack(base, state.hangar.owned);
+      delete policies[p.key];
+      let next = { ...state, hangar: { ...state.hangar, policies } };
+      let what = '';
+      if (p.mech) {
+        const m = findMech(state, action.mechId);
+        if (!m) return state;
+        const fix = {
+          recover: fullyRepaired,
+          structure: (mm) => ({ ...mm, hpCurrent: mm.hpMax, structureFilled: 0 }),
+          reactor: (mm) => ({ ...mm, reactorFilled: 0 }),
+        }[p.key];
+        next = updateMech(next, m.id, fix);
+        what = ` — ${m.name}`;
+      }
+      return log(next, `Страховий поліс «${p.title}» використано${what}`, true);
     }
 
     // ---------- Пул PR ----------

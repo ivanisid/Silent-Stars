@@ -1660,7 +1660,6 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 }
 .ss-shop .price:hover:not(:disabled) { background: var(--btn-hover); }
 .ss-shop .price:disabled { background: transparent; color: var(--text-faint); border: 1px dashed var(--input-border); cursor: not-allowed; }
-.ss-shop .price.na:disabled { color: var(--text-dim); border-style: solid; cursor: default; }
 .ss-shop .lock {
   position: relative;
   flex: none;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { SHOP_DATA, PR_SERVICES, LIMITED_REFILL_PR, PR_PACK_SIZE, INSURANCE_PACKS } from '../constants';
+import { SHOP_DATA, PR_SERVICES, LIMITED_REFILL_PR, PR_PACK_SIZE, INSURANCE_PACKS, insurancePack } from '../constants';
 import { KIT_PR, KITS_FULL_PR, isLimited, itemRefillPr } from '../repair';
 import { derivePilotView } from '../derive';
 import { useConfirm } from '../../components/kit.jsx';
@@ -68,6 +68,9 @@ export default function ShopDrawer({ state, dispatch }) {
   const { prCap } = derivePilotView(state);
   const mechs = state.mechs;
   const fund = !!state.hangar.owned.insure;
+  const policies = state.hangar.policies || {};
+  const packs = INSURANCE_PACKS.map((b) => insurancePack(b, state.hangar.owned));
+  const heldCount = packs.filter((p) => policies[p.key]).length;
   const one = mechs.length === 1;
 
   // ---------- Підтвердження й виконання ----------
@@ -287,7 +290,60 @@ export default function ShopDrawer({ state, dispatch }) {
           }),
       },
     ],
+    ins: packs.map((p) => {
+      const cost = [p.pr ? `${p.pr} PR` : '', p.mana ? `${p.mana} М` : ''].filter(Boolean).join(' + ');
+      if (!policies[p.key]) {
+        return {
+          key: p.key,
+          title: p.title,
+          price: cost,
+          note: p.desc,
+          block: lackPr(p.pr) || lackMana(p.mana),
+          run: () => buyPolicy(p, cost),
+        };
+      }
+      return {
+        key: p.key,
+        title: p.title,
+        price: 'ВИКОРИСТАТИ',
+        note: `придбано · ${p.desc}`,
+        block: p.mech ? noMech : '',
+        ...(p.mech
+          ? { targets: mechs.map((m) => ({ key: m.id, title: m.name, note: frameOf(m) || '—', price: 'ВИКОРИСТАТИ', block: '', run: () => applyPolicy(p, m) })) }
+          : { run: () => applyPolicy(p) }),
+      };
+    }),
   };
+
+  async function buyPolicy(p, cost) {
+    const yes = await ask({
+      title: 'INSURANCE',
+      question: `Придбати поліс «${p.title}»?`,
+      lines: [
+        { t: p.desc, ink: 'var(--text-dim)' },
+        p.pr > 0 && { t: `PR: ${pr} → ${pr - p.pr}`, ink: 'var(--text)' },
+        p.mana > 0 && { t: `Мана: ${mana} → ${mana - p.mana} М`, ink: 'var(--text)' },
+      ],
+      yesLabel: 'ПРИДБАТИ',
+      canYes: pr >= p.pr && mana >= p.mana,
+    });
+    if (!yes) return;
+    dispatch({ type: 'INSURANCE_BUY', key: p.key });
+    setMsg(`>> Поліс «${p.title}» придбано. Списано ${cost}.`);
+  }
+
+  async function applyPolicy(p, m) {
+    const yes = await ask({
+      title: 'INSURANCE',
+      question: m ? `Використати поліс «${p.title}» для «${m.name}»?` : `Використати поліс «${p.title}»?`,
+      lines: [{ t: p.desc, ink: 'var(--text-dim)' }],
+      yesLabel: 'ВИКОРИСТАТИ',
+    });
+    if (!yes) return;
+    dispatch({ type: 'INSURANCE_USE', key: p.key, mechId: m?.id });
+    setExpanded(null);
+    setMsg(`>> Поліс «${p.title}» використано${m ? ` — ${m.name}` : ''}.`);
+  }
 
   function pressRow(r) {
     if (r.targets) {
@@ -299,8 +355,8 @@ export default function ShopDrawer({ state, dispatch }) {
 
   // Рядки в порядку показу: розгорнута позиція тягне за собою свої цілі.
   const shown = [];
-  if (tab === 'ins') {
-    INSURANCE_PACKS.forEach((p) => shown.push({ kind: 'pack', key: p.key, p }));
+  if (tab === 'ins' && !fund) {
+    packs.forEach((p) => shown.push({ kind: 'pack', key: p.key, p }));
   } else {
     rows[tab].forEach((r) => {
       shown.push({ kind: 'row', key: r.key, r });
@@ -373,7 +429,7 @@ export default function ShopDrawer({ state, dispatch }) {
                 {tabBtn(
                   'ins',
                   fund ? <IconShield size={18} /> : <IconLock size={18} />,
-                  fund ? <span className="n" style={{ color: 'var(--success)' }}>0</span> : <span className="n" style={{ color: 'var(--text-faint)' }}>—</span>,
+                  fund ? <span className="n" style={{ color: 'var(--success)' }}>{heldCount}</span> : <span className="n" style={{ color: 'var(--text-faint)' }}>—</span>,
                   'ПОЛІС',
                   fund ? ' fund' : '',
                 )}
@@ -394,15 +450,12 @@ export default function ShopDrawer({ state, dispatch }) {
                 {shown.map((s, i) => {
                   if (s.kind === 'pack') {
                     return (
-                      <div key={s.key} className="row" style={{ opacity: fund ? 1 : 0.45 }}>
+                      <div key={s.key} className="row" style={{ opacity: 0.45 }}>
                         <div className="bg" style={{ opacity: fa(i) }} />
                         <div className="tx">
                           <span className="tt">{s.p.title}</span>
-                          <span className="nt">{s.p.desc} · 1 раз</span>
+                          <span className="nt">{s.p.desc}</span>
                         </div>
-                        {fund && (
-                          <button type="button" className="price na" disabled title="Ціну ще не визначено">— PR</button>
-                        )}
                       </div>
                     );
                   }

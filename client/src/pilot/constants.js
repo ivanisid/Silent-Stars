@@ -109,6 +109,17 @@ export const UPGRADES = [
     notes: ['Після покупки ви можете скористатись послугою одного з пакетів відразу після наступного завершення місії.'],
   },
   {
+    key: 'insure2',
+    group: 'ФІНАНСОВИЙ МЕНЕДЖЕР',
+    title: 'Страховий фонд покращення',
+    mana: 1000,
+    pr: 0,
+    requires: 'insure',
+    quote: '«Підпишіть тут, тут, тут і тут і там… Так. Ви не можете розповсюджувати інформацію що гільдія надає цю чи подібні послуги.»',
+    effect: ['Заміняє пакет «Second chance» на «To hell and back».', 'Пакет «To hell and back» — ваш клон не втрачає особистості та пам’яті. Ви це ви, мабуть...'],
+    notes: [],
+  },
+  {
     key: 'parking',
     group: 'ОСОБИСТИЙ АНГАР',
     title: 'Розширений ангар',
@@ -161,13 +172,28 @@ export const SHOP_DATA = [
 ];
 
 // Страхові пакети — вкладка INSURANCE, відкривається покращенням «Страховий фонд».
-// Ціни й правила полісів ще не визначені: у магазині пакети видно, але купити не можна.
+// Ціна — PR і мана разом. Поліс одноразовий, кожного типу — не більше одного
+// (state.hangar.policies, {key: 1}). Використовує гравець сам після місії; mech — поліс
+// застосовується до меха. «Страховий фонд покращення» (insure2) заміняє пакет клона.
 export const INSURANCE_PACKS = [
-  { key: 'hell', title: 'To hell and back', desc: 'Будь-яка шкода чи втрата меха' },
-  { key: 'scratch', title: 'Just a scratch', desc: 'Шкода структури та хп' },
-  { key: 'reactor', title: 'I paid for a whole reactor...', desc: 'Шкода структури та хп' },
-  { key: 'oracle', title: 'Oracle LMG-I', desc: 'Зламані системи та зброя' },
+  { key: 'recover', title: 'Full recover', desc: 'Покриває будь-яку завдану шкоду чи втрату фрейму', pr: 100, mana: 100, mech: true },
+  { key: 'structure', title: 'Structure repair', desc: 'Покриває шкоду структури та хп', pr: 50, mana: 200, mech: true },
+  { key: 'reactor', title: 'Reactor maintenance', desc: 'Покриває шкоду стресу', pr: 50, mana: 200, mech: true },
+  {
+    key: 'clone',
+    title: 'Second chance',
+    desc: 'Ваш клон продовжить вашу справу у разі найгіршого',
+    pr: 0,
+    mana: 2000,
+    mech: false,
+    upgraded: { title: 'To hell and back', desc: 'Ваш клон не втрачає особистості та пам’яті. Ви це ви, мабуть...' },
+  },
 ];
+
+// Пакет з урахуванням покращення фонду.
+export function insurancePack(p, owned) {
+  return owned?.insure2 && p.upgraded ? { ...p, ...p.upgraded } : p;
+}
 
 // Щотижневі дії — 1 заряд на тиждень, відновлюється щопонеділка.
 // minTier — з якого тіру дія доступна: чотири дії відкриваються лише на Тірі 2 і
