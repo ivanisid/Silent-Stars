@@ -246,7 +246,6 @@ export default function PilotProfilePage() {
       compconFiles={compconFiles}
       importCompcon={importCompcon}
       importNote={importNote}
-      showPortrait={!mobile}
     />
   );
   const mana = <ManaPanel state={state} dispatch={dispatch} />;
