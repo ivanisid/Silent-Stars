@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api';
-import { THEMES, applyTheme, hasHouses, houseInfo, useThemeState } from '../theme';
+import { THEMES, applyTheme, houseInfo, useThemeState } from '../theme';
 import { announceOpen, modalIsOpen, onOtherOpen } from './overlayBus';
 import AccountDialog from './AccountDialog.jsx';
 
@@ -206,7 +206,7 @@ export default function NavDrawer() {
               </Icon>
             </span>
             <span className="lbl" style={{ color: 'var(--text)' }}>
-              тема: {current.label}{hasHouses(theme) ? ` · ${houseInfo(house).label}` : ''} <span style={{ color: 'var(--accent)' }}>{themeMenu && open ? '▾' : '▸'}</span>
+              тема: {current.label} <span style={{ color: 'var(--accent)' }}>{themeMenu && open ? '▾' : '▸'}</span>
             </span>
           </button>
           <button
