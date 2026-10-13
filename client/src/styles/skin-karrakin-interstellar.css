@@ -300,8 +300,9 @@
 
 /* ---------- Портрет пілота в арці ---------- */
 :root[data-theme='karrakin-interstellar'] .m-stack:has(> .kk-arch) { grid-template-columns: minmax(0, 1fr) 168px !important; }
-:root[data-theme='karrakin-interstellar'] .kk-arch { position: relative; width: 168px; height: 220px; margin-top: 40px; flex: none; }
-:root[data-theme='karrakin-interstellar'] .kk-arch > svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+/* Арка 168×220; висота блоку — за вмістом, щоб підпис зі шляхом Foundry ішов під аркою, а не на її лінії. */
+:root[data-theme='karrakin-interstellar'] .kk-arch { position: relative; width: 168px; min-height: 220px; margin-top: 40px; flex: none; }
+:root[data-theme='karrakin-interstellar'] .kk-arch > svg { position: absolute; top: 0; left: 0; width: 168px; height: 220px; overflow: visible; pointer-events: none; }
 :root[data-theme='karrakin-interstellar'] .kk-arch-bg path { fill: var(--s4); }
 :root[data-theme='karrakin-interstellar'] .kk-arch-fg { z-index: 1; }
 :root[data-theme='karrakin-interstellar'] .kk-arch .kt { stroke: var(--kt); }
@@ -314,8 +315,9 @@
 :root[data-theme='karrakin-interstellar'] .kk-arch .leaf-t { fill: color-mix(in srgb, var(--kt) 30%, transparent); stroke: var(--kt); }
 :root[data-theme='karrakin-interstellar'] .kk-arch .leaf-a { fill: color-mix(in srgb, var(--ka) 18%, transparent); stroke: var(--ka); }
 :root[data-theme='karrakin-interstellar'] .kk-arch .keystone { fill: var(--s3); stroke: var(--kgl); }
-:root[data-theme='karrakin-interstellar'] .kk-arch .ss-portrait { position: absolute; inset: 0; width: 168px !important; height: 220px; }
-:root[data-theme='karrakin-interstellar'] .kk-arch .ss-art { height: 220px !important; border: none !important; background: var(--s5) !important; clip-path: path('M12 212V86A72 72 0 0 1 156 86V212Z'); }
+/* !important — сильніше за мобільні .m-portrait (140px), інакше портрет займав лише верх арки. */
+:root[data-theme='karrakin-interstellar'] .kk-arch .ss-portrait { position: relative; width: 168px !important; height: auto !important; gap: 8px !important; }
+:root[data-theme='karrakin-interstellar'] .kk-arch .ss-art { flex: none; height: 220px !important; border: none !important; background: var(--s5) !important; clip-path: path('M12 212V86A72 72 0 0 1 156 86V212Z'); }
 :root[data-theme='karrakin-interstellar'] .kk-arch .ss-hatch { padding-top: 30px !important; }
 :root[data-theme='karrakin-interstellar'] .kk-arch .ss-hatch > div:first-child { font-family: var(--k-cinzel); font-size: 10px !important; letter-spacing: 2.5px !important; color: var(--t2) !important; background: var(--s5); padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--kt) 33%, transparent); }
 

@@ -10,6 +10,8 @@ import { useConfirm } from '../../components/kit.jsx';
 
 // У вузькій рамці видно кінець шляху — саме він розрізняє файли; повний шлях — у підказці
 // і в буфері після кліку.
+const NO_HOVER = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: none)').matches;
+
 function shortPath(p) {
   const parts = p.split('/');
   return parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : p;
@@ -63,18 +65,35 @@ export default function ArtSlot({ art, label, emptyText, compact = false, classN
   }
 
   const showOverlay = canEdit && (hover || busy);
+  // На сенсорному екрані наведення немає — «прибрати» видно завжди. Кнопка поза рамкою
+  // картинки: у темах, де рамку обрізано формою (арка KARRAKIN INTERSTELLAR), вона не зникає.
+  const showRemove = canEdit && art && onRemove && !busy && (hover || NO_HOVER);
 
   return (
-    <div className={className} style={{ width, maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+    <div
+      className={className}
+      style={{ position: 'relative', width, maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
       {dialog}
+      {showRemove && (
+        <button
+          type="button"
+          onClick={remove}
+          title="Прибрати зображення"
+          aria-label="Прибрати зображення"
+          style={{ position: 'absolute', top: 6, right: 6, zIndex: 2, width: 28, height: 28, padding: 0, fontSize: 12, lineHeight: '26px', background: 'var(--overlay)', color: 'var(--text-bright)', border: '1px solid var(--input-border)', cursor: 'pointer' }}
+        >
+          ✕
+        </button>
+      )}
       <div
         role={canEdit ? 'button' : undefined}
         tabIndex={canEdit ? 0 : undefined}
         aria-label={canEdit ? label : undefined}
         onClick={() => canEdit && !busy && inputRef.current?.click()}
         onKeyDown={(e) => { if (canEdit && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); inputRef.current?.click(); } }}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
         className="ss-art"
         style={{
           position: 'relative',
@@ -111,17 +130,6 @@ export default function ArtSlot({ art, label, emptyText, compact = false, classN
           <div style={{ position: 'absolute', inset: 0, background: 'var(--overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ fontSize: 11, letterSpacing: 2, color: 'var(--text-bright)' }}>{busy ? 'ЗАВАНТАЖЕННЯ…' : `✎ ${label}`}</span>
           </div>
-        )}
-
-        {canEdit && art && onRemove && hover && !busy && (
-          <button
-            type="button"
-            onClick={remove}
-            title="Прибрати зображення"
-            style={{ position: 'absolute', top: 6, right: 6, width: 24, height: 24, padding: 0, fontSize: 12, lineHeight: '22px', background: 'var(--overlay)', color: 'var(--text-bright)', border: '1px solid var(--input-border)', cursor: 'pointer' }}
-          >
-            ✕
-          </button>
         )}
 
         <input

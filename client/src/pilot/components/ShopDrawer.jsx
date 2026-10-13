@@ -27,14 +27,14 @@ function Svg({ size = 18, children }) {
     </svg>
   );
 }
-const IconPr = () => <Svg><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z" /><circle cx="12" cy="12" r="3.5" /></Svg>;
-const IconMana = () => <Svg><circle cx="12" cy="12" r="9.5" /><path d="M8 16.5V8l4 4.5L16 8v8.5" /><path d="M6.5 14h11" /></Svg>;
+const IconPr = ({ size }) => <Svg size={size}><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z" /><circle cx="12" cy="12" r="3.5" /></Svg>;
+const IconMana = ({ size }) => <Svg size={size}><circle cx="12" cy="12" r="9.5" /><path d="M8 16.5V8l4 4.5L16 8v8.5" /><path d="M6.5 14h11" /></Svg>;
 const IconShield = ({ size }) => <Svg size={size}><path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z" /></Svg>;
 const IconLock = ({ size }) => <Svg size={size}><rect x="5" y="11" width="14" height="10" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></Svg>;
 
 const frameOf = (m) => [m.frameSource, m.frame].filter(Boolean).join(' ').toUpperCase();
 
-export default function ShopDrawer({ state, dispatch }) {
+export default function ShopDrawer({ state, dispatch, mobile = false }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState('repair');
   const [expanded, setExpanded] = useState(null);
@@ -383,7 +383,7 @@ export default function ShopDrawer({ state, dispatch }) {
     cancelAnimationFrame(raf.current);
     setGlow(null);
   };
-  const fa = (i) => (glow ? glow[i] ?? 0.1 : 0.1);
+  const fa = (i) => (mobile ? 0.55 : glow ? glow[i] ?? 0.1 : 0.1);
 
   const tabBtn = (key, icon, num, label, extraCls = '') => {
     const on = open && tab === key;
@@ -401,6 +401,130 @@ export default function ShopDrawer({ state, dispatch }) {
       </button>
     );
   };
+
+  const tabBtns = (iconSize) => (
+    <>
+      {tabBtn('repair', <IconPr size={iconSize} />, <span className="n">{pr}</span>, 'PR')}
+      {tabBtn('mana', <IconMana size={iconSize} />, <span className="n">{mana}</span>, 'МАНА')}
+      {tabBtn(
+        'ins',
+        fund ? <IconShield size={iconSize} /> : <IconLock size={iconSize} />,
+        fund ? <span className="n" style={{ color: 'var(--success)' }}>{heldCount}</span> : <span className="n" style={{ color: 'var(--text-faint)' }}>—</span>,
+        'ПОЛІС',
+        fund ? ' fund' : '',
+      )}
+    </>
+  );
+
+  const list = (
+    <div className="list" ref={listRef}>
+      {shown.map((s, i) => {
+        if (s.kind === 'pack') {
+          return (
+            <div key={s.key} className="row" style={{ opacity: 0.45 }}>
+              <div className="bg" style={{ opacity: fa(i) }} />
+              <div className="tx">
+                <span className="tt">{s.p.title}</span>
+                <span className="nt">{s.p.desc}</span>
+              </div>
+            </div>
+          );
+        }
+        if (s.kind === 'target') {
+          const t = s.t;
+          return (
+            <div key={s.key} className="row sub">
+              <div className="bg" style={{ opacity: fa(i) }} />
+              <div className="tx">
+                <span className="tt">{t.title}</span>
+                <span className={`nt${t.block ? ' bad' : ''}`}>{t.block || t.note}</span>
+              </div>
+              <button type="button" className="price" disabled={!!t.block} title={t.block || undefined} onClick={t.run}>
+                {t.price}
+              </button>
+            </div>
+          );
+        }
+        const r = s.r;
+        const multi = r.targets && (r.list || r.targets.length > 1);
+        const isOpen = expanded === r.key && !r.block;
+        return (
+          <div key={s.key} className="row">
+            <div className="bg" style={{ opacity: fa(i) }} />
+            <div className="tx">
+              <span className="tt">{r.title}</span>
+              <span className={`nt${r.block ? ' bad' : ''}`}>{r.block || r.note}</span>
+            </div>
+            <button
+              type="button"
+              className="price"
+              disabled={!!r.block}
+              title={r.block || (multi ? (isOpen ? 'Сховати список' : 'Показати, до чого застосувати') : undefined)}
+              aria-expanded={multi ? isOpen : undefined}
+              onClick={() => pressRow(r)}
+            >
+              {r.price}
+              {multi && !r.block ? ` ${isOpen ? '▾' : '▸'}` : ''}
+            </button>
+          </div>
+        );
+      })}
+      {tab === 'ins' && !fund && (
+        <button
+          type="button"
+          className="lock"
+          onClick={() => {
+            close();
+            showUpgrade('insure');
+          }}
+        >
+          <IconLock size={14} />
+          <span style={{ flex: 1, color: 'var(--text)' }}>Потрібен «Страховий фонд»</span>
+          Особисті покращення
+          <Svg size={12}><path d="M9 6l6 6-6 6" /></Svg>
+        </button>
+      )}
+    </div>
+  );
+
+  // Телефон: стрічка над таб-баром — стрілка й три вкладки в ряд; панель відкривається
+  // над стрічкою, висотою за вмістом, без затемнення сторінки.
+  if (mobile) {
+    return (
+      <>
+        {dialog}
+        <div className={`ss-shop m${open ? ' open' : ''}`}>
+          {open && (
+            <div className="body">
+              <div className="glass" />
+              <div className="line" />
+              <div className="head">
+                <span className="h">{TABS.find((t) => t.key === tab).title}</span>
+              </div>
+              {msg && <div className="msg">{msg}</div>}
+              {list}
+            </div>
+          )}
+          <div className="strip">
+            <div className="bev toggle">
+              <div className="b1" />
+              <div className="b2" />
+              <div className="c">
+                <button type="button" aria-label="Магазин" aria-expanded={open} onClick={() => (open ? close() : show(tab))}>
+                  <Svg size={14}><path d={open ? 'M6 9l6 6 6-6' : 'M6 15l6-6 6 6'} /></Svg>
+                </button>
+              </div>
+            </div>
+            <div className="bev tabs">
+              <div className="b1" />
+              <div className="b2" />
+              <div className="c">{tabBtns(14)}</div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -423,22 +547,13 @@ export default function ShopDrawer({ state, dispatch }) {
             <div className="bev tabs">
               <div className="b1" />
               <div className="b2" />
-              <div className="c">
-                {tabBtn('repair', <IconPr />, <span className="n">{pr}</span>, 'PR')}
-                {tabBtn('mana', <IconMana />, <span className="n">{mana}</span>, 'МАНА')}
-                {tabBtn(
-                  'ins',
-                  fund ? <IconShield size={18} /> : <IconLock size={18} />,
-                  fund ? <span className="n" style={{ color: 'var(--success)' }}>{heldCount}</span> : <span className="n" style={{ color: 'var(--text-faint)' }}>—</span>,
-                  'ПОЛІС',
-                  fund ? ' fund' : '',
-                )}
-              </div>
+              <div className="c">{tabBtns(18)}</div>
             </div>
           </div>
         </div>
 
-        <div className="wrap" aria-hidden={!open}>
+        {/* inert — щоб у закритому магазині кнопки не ловили фокус з клавіатури. */}
+        <div className="wrap" aria-hidden={!open} {...(open ? null : { inert: '' })}>
           <div style={{ paddingLeft: 10 }}>
             <div className="body" onMouseMove={glowMove} onMouseLeave={glowLeave}>
               <div className="glass" />
@@ -446,74 +561,7 @@ export default function ShopDrawer({ state, dispatch }) {
                 <span className="h">{TABS.find((t) => t.key === tab).title}</span>
               </div>
               {msg && <div className="msg">{msg}</div>}
-              <div className="list" ref={listRef}>
-                {shown.map((s, i) => {
-                  if (s.kind === 'pack') {
-                    return (
-                      <div key={s.key} className="row" style={{ opacity: 0.45 }}>
-                        <div className="bg" style={{ opacity: fa(i) }} />
-                        <div className="tx">
-                          <span className="tt">{s.p.title}</span>
-                          <span className="nt">{s.p.desc}</span>
-                        </div>
-                      </div>
-                    );
-                  }
-                  if (s.kind === 'target') {
-                    const t = s.t;
-                    return (
-                      <div key={s.key} className="row sub">
-                        <div className="bg" style={{ opacity: fa(i) }} />
-                        <div className="tx">
-                          <span className="tt">{t.title}</span>
-                          <span className={`nt${t.block ? ' bad' : ''}`}>{t.block || t.note}</span>
-                        </div>
-                        <button type="button" className="price" disabled={!!t.block} title={t.block || undefined} onClick={t.run}>
-                          {t.price}
-                        </button>
-                      </div>
-                    );
-                  }
-                  const r = s.r;
-                  const multi = r.targets && (r.list || r.targets.length > 1);
-                  const isOpen = expanded === r.key && !r.block;
-                  return (
-                    <div key={s.key} className="row">
-                      <div className="bg" style={{ opacity: fa(i) }} />
-                      <div className="tx">
-                        <span className="tt">{r.title}</span>
-                        <span className={`nt${r.block ? ' bad' : ''}`}>{r.block || r.note}</span>
-                      </div>
-                      <button
-                        type="button"
-                        className="price"
-                        disabled={!!r.block}
-                        title={r.block || (multi ? (isOpen ? 'Сховати список' : 'Показати, до чого застосувати') : undefined)}
-                        aria-expanded={multi ? isOpen : undefined}
-                        onClick={() => pressRow(r)}
-                      >
-                        {r.price}
-                        {multi && !r.block ? ` ${isOpen ? '▾' : '▸'}` : ''}
-                      </button>
-                    </div>
-                  );
-                })}
-                {tab === 'ins' && !fund && (
-                  <button
-                    type="button"
-                    className="lock"
-                    onClick={() => {
-                      close();
-                      showUpgrade('insure');
-                    }}
-                  >
-                    <IconLock size={14} />
-                    <span style={{ flex: 1, color: 'var(--text)' }}>Потрібен «Страховий фонд»</span>
-                    Особисті покращення
-                    <Svg size={12}><path d="M9 6l6 6-6 6" /></Svg>
-                  </button>
-                )}
-              </div>
+              {list}
             </div>
           </div>
         </div>

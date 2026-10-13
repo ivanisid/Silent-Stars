@@ -30,7 +30,10 @@ import UpgradesPanel from '../pilot/components/UpgradesPanel.jsx';
 import MechsPanel from '../pilot/components/MechsPanel.jsx';
 import VaultPanel from '../pilot/components/VaultPanel.jsx';
 import OperationsLogPanel from '../pilot/components/OperationsLogPanel.jsx';
-import { PageHeader, PageShell, SyncBadge } from '../components/kit.jsx';
+import { MobileHead, PageHeader, PageShell, SyncBadge } from '../components/kit.jsx';
+import { onShowUpgrade, showUpgrade } from '../components/overlayBus';
+import { useIsMobile } from '../useMobile';
+import { llTier } from '../pilot/logic';
 import { usePilotGames } from '../pilot/components/PilotGames.jsx';
 import NarrativeEditor from '../pilot/components/NarrativeEditor.jsx';
 
@@ -38,6 +41,15 @@ import ManaTxModal from '../pilot/components/modals/ManaTxModal.jsx';
 import LevelUpModal from '../pilot/components/modals/LevelUpModal.jsx';
 
 const SAVE_DEBOUNCE_MS = 800;
+
+// Вкладки профілю в мобільній версії.
+const MOBILE_TABS = [
+  { id: 'pilot', label: 'ПІЛОТ' },
+  { id: 'bond', label: 'БОНД' },
+  { id: 'mech', label: 'МЕХ' },
+  { id: 'vault', label: 'СКЛАД' },
+  { id: 'ops', label: 'ЛОГ' },
+];
 
 export default function PilotProfilePage() {
   const { id } = useParams();
@@ -50,6 +62,26 @@ export default function PilotProfilePage() {
   const [savedTick, setSavedTick] = useState(0);
   const [savedAt, setSavedAt] = useState('');
   const games = usePilotGames(id);
+  const mobile = useIsMobile();
+  const [tab, setTab] = useState('pilot');
+  // «Особисті покращення» з магазину: на телефоні панель живе у вкладці МЕХ — спершу
+  // перемикаємо вкладку, а вибір і прокрутку повторюємо, коли панель уже на сторінці.
+  const [pendingUpgrade, setPendingUpgrade] = useState(null);
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+  useEffect(() => {
+    if (!mobile) return undefined;
+    return onShowUpgrade((key) => {
+      if (tabRef.current === 'mech') return;
+      setTab('mech');
+      setPendingUpgrade(key);
+    });
+  }, [mobile]);
+  useEffect(() => {
+    if (tab !== 'mech' || pendingUpgrade == null) return;
+    setPendingUpgrade(null);
+    showUpgrade(pendingUpgrade);
+  }, [tab, pendingUpgrade]);
 
   // Портрет і арти мехів: окремо від state пілота, бо живуть у сховищі, а не в JSON.
   const [art, setArt] = useState({ portrait: null, mechs: {} });
@@ -200,6 +232,104 @@ export default function PilotProfilePage() {
     );
   }
 
+  const header = (
+    <Header
+      pilot={pilot}
+      state={state}
+      dispatch={dispatch}
+      onSaveMeta={saveMeta}
+      games={games}
+      portrait={art.portrait}
+      canEditArt={own}
+      onUploadPortrait={(file) => uploadArt('portrait', null, file)}
+      onRemoveArt={removeArt}
+      compconFiles={compconFiles}
+      importCompcon={importCompcon}
+      importNote={importNote}
+    />
+  );
+  const mana = <ManaPanel state={state} dispatch={dispatch} />;
+  const prPanel = <PrPanel state={state} dispatch={dispatch} />;
+  const bond = <BondMenu state={state} dispatch={dispatch} />;
+  const vault = <VaultPanel state={state} dispatch={dispatch} />;
+  const mechs = (
+    <MechsPanel
+      state={state}
+      dispatch={dispatch}
+      pilotId={id}
+      mechArt={art.mechs}
+      canEditArt={own}
+      onUploadMechArt={(mechId, file) => uploadArt('mech', mechId, file)}
+      onRemoveArt={removeArt}
+      compconFiles={compconFiles}
+      importCompcon={importCompcon}
+      foundryLinks={foundryLinks}
+      isGm={isGm}
+    />
+  );
+  const upgrades = <UpgradesPanel state={state} dispatch={dispatch} />;
+  const narrative = <NarrativeEditor state={state} dispatch={dispatch} games={games} saving={saveStatus === 'saving'} />;
+  // Один журнал для обох ролей: свої операції гравець відкочує сам, чужі —
+  // ГМ. Що видно, вирішує сервер, а не ця сторінка.
+  const opsLog = (
+    <OperationsLogPanel
+      pilotId={id}
+      refreshKey={savedTick}
+      onReverted={reloadPilot}
+      own={pilot?.user_id === user?.id}
+    />
+  );
+  const modals = (
+    <>
+      <ManaTxModal state={state} dispatch={dispatch} />
+      <LevelUpModal state={state} dispatch={dispatch} />
+    </>
+  );
+
+  // Телефон: шапка з вкладками, під кожною — наявні панелі у вузькій колонці; магазин —
+  // стрічкою над таб-баром.
+  if (mobile) {
+    const active = state.status === 'active';
+    return (
+      <PageShell className="m-profile">
+        <MobileHead
+          back="/pilots"
+          title={pilot.callsign}
+          right={
+            <>
+              <span className="tier">T{llTier(state.ll)} · LL{state.ll}</span>
+              <span className={`ss-tag ${active ? 'ok' : 'bad'}`} style={{ marginLeft: 'auto' }}>{active ? 'АКТИВНИЙ' : 'АРХІВ'}</span>
+            </>
+          }
+        >
+          <div className="ss-seg sm tabs5">
+            {MOBILE_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={tab === t.id ? 'on' : ''}
+                onClick={() => {
+                  setTab(t.id);
+                  window.scrollTo(0, 0);
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </MobileHead>
+        {compconDialog}
+        {tab === 'pilot' && <>{header}{mana}{prPanel}</>}
+        {tab === 'bond' && bond}
+        {tab === 'mech' && <>{mechs}{upgrades}</>}
+        {tab === 'vault' && vault}
+        {tab === 'ops' && <>{narrative}{opsLog}</>}
+        <ShopDrawer state={state} dispatch={dispatch} mobile />
+        {modals}
+      </PageShell>
+    );
+  }
+
   return (
     <PageShell>
       <PageHeader
@@ -208,59 +338,26 @@ export default function PilotProfilePage() {
         title={pilot.callsign}
         right={<SyncBadge saving={saveStatus === 'saving'} at={savedAt} />}
       />
-      <Header
-        pilot={pilot}
-        state={state}
-        dispatch={dispatch}
-        onSaveMeta={saveMeta}
-        games={games}
-        portrait={art.portrait}
-        canEditArt={own}
-        onUploadPortrait={(file) => uploadArt('portrait', null, file)}
-        onRemoveArt={removeArt}
-        compconFiles={compconFiles}
-        importCompcon={importCompcon}
-        importNote={importNote}
-      />
+      {header}
       {compconDialog}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 22 }}>
-        <ManaPanel state={state} dispatch={dispatch} />
-        <PrPanel state={state} dispatch={dispatch} />
+        {mana}
+        {prPanel}
       </div>
 
-      <BondMenu state={state} dispatch={dispatch} />
-      <VaultPanel state={state} dispatch={dispatch} />
-      <MechsPanel
-        state={state}
-        dispatch={dispatch}
-        pilotId={id}
-        mechArt={art.mechs}
-        canEditArt={own}
-        onUploadMechArt={(mechId, file) => uploadArt('mech', mechId, file)}
-        onRemoveArt={removeArt}
-        compconFiles={compconFiles}
-        importCompcon={importCompcon}
-        foundryLinks={foundryLinks}
-        isGm={isGm}
-      />
+      {bond}
+      {vault}
+      {mechs}
       {/* Особисті покращення — одразу під мехами: ангар і ліцензування стосуються саме їх. */}
-      <UpgradesPanel state={state} dispatch={dispatch} />
+      {upgrades}
       {/* <ContactsPanel state={state} dispatch={dispatch} /> — схована, див. імпорт вище */}
-      <NarrativeEditor state={state} dispatch={dispatch} games={games} saving={saveStatus === 'saving'} />
-      {/* Один журнал для обох ролей: свої операції гравець відкочує сам, чужі —
-          ГМ. Що видно, вирішує сервер, а не ця сторінка. */}
-      <OperationsLogPanel
-        pilotId={id}
-        refreshKey={savedTick}
-        onReverted={reloadPilot}
-        own={pilot?.user_id === user?.id}
-      />
+      {narrative}
+      {opsLog}
 
       <ShopDrawer state={state} dispatch={dispatch} />
 
-      <ManaTxModal state={state} dispatch={dispatch} />
-      <LevelUpModal state={state} dispatch={dispatch} />
+      {modals}
     </PageShell>
   );
 }

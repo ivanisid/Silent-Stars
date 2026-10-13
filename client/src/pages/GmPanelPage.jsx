@@ -3,7 +3,8 @@ import { Link, Navigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { llTier } from '../pilot/logic';
-import { ConfirmDialog, Menu, Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
+import { ConfirmDialog, Menu, Msg, MobileHead, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
+import { useIsMobile } from '../useMobile';
 
 function formatDate(iso) {
   if (!iso) return '—';
@@ -64,6 +65,7 @@ export default function GmPanelPage() {
   const [ask, dialog] = useConfirm();
   const [roleNote, setRoleNote] = useState('');
   const [deleting, setDeleting] = useState(null); // група, яку збираються видалити
+  const mobile = useIsMobile();
 
   async function deleteUser(group) {
     setDeleting(null);
@@ -180,6 +182,115 @@ export default function GmPanelPage() {
     return <Navigate to="/pilots" replace />;
   }
 
+  // Свою роль змінити не можна — меню лише в чужих групах.
+  const groupMenu = (group) =>
+    group.userId !== user?.id && (
+      <Menu
+        small
+        title="Роль учасника"
+        items={[
+          { header: 'РОЛЬ' },
+          group.role === 'gm'
+            ? { label: 'ПОНИЗИТИ ДО ГРАВЦЯ…', onClick: () => changeRole(group) }
+            : { label: 'ПІДВИЩИТИ ДО GM…', onClick: () => changeRole(group) },
+          { header: 'ПРОФІЛЬ' },
+          group.role === 'gm'
+            ? { label: 'ВИДАЛИТИ ПРОФІЛЬ — СПЕРШУ ПОНИЗИТИ', danger: true, disabled: true }
+            : { label: 'ВИДАЛИТИ ПРОФІЛЬ…', danger: true, onClick: () => setDeleting(group) },
+        ]}
+      />
+    );
+
+  // Телефон: замість 10-колонкової таблиці — картка пілота з сіткою 4×2.
+  if (mobile) {
+    return (
+      <PageShell>
+        <MobileHead
+          tone="gm"
+          section="OVERSIGHT"
+          title={<span style={{ color: 'var(--gm-ink)' }}>ГМ-ПАНЕЛЬ</span>}
+          right={<span className="ss-tag gm">ГМ</span>}
+        />
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>
+          <span>ГРАВЦІВ <span style={{ color: 'var(--text-bright)' }}>{groups.length}</span></span>
+          <span>ПЕРСОНАЖІВ <span style={{ color: 'var(--text-bright)' }}>{pilots.length}</span></span>
+          <span>З DISCORD <span style={{ color: 'var(--text-bright)' }}>{groups.filter((g) => g.discord).length}</span></span>
+        </div>
+        <input className="ss-input sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ гравець, Discord або позивний" style={{ width: '100%' }} />
+
+        {dialog}
+        {deleting && <DeleteUserDialog group={deleting} onYes={() => deleteUser(deleting)} onNo={() => setDeleting(null)} />}
+        {loadError && <Msg kind="err">{loadError}</Msg>}
+        {roleNote && <Msg kind="ok">{roleNote}</Msg>}
+        {loading && <div className="ss-note"><span className="pre">&gt; </span>Завантаження…</div>}
+
+        {!loading &&
+          shown.map((group) => (
+            <Panel
+              key={group.userId}
+              tone="gm"
+              title={
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  {group.nick}
+                  {group.role === 'gm' && <span className="ss-tag gm" style={{ padding: '1px 6px' }}>ГМ</span>}
+                </span>
+              }
+              sub={group.pilots.length ? `${group.pilots.length} ${plural(group.pilots.length)}` : 'ПЕРСОНАЖІВ НЕМАЄ'}
+              right={groupMenu(group)}
+            >
+              {group.discord && (
+                <div style={{ padding: '8px 14px 0' }}>
+                  <span className="ss-tag" style={{ padding: '1px 6px', textTransform: 'none', userSelect: 'all' }} title={`Discord прив'язано · ID ${group.discord.id}`}>
+                    DISCORD · {group.discord.name || group.discord.id}
+                  </span>
+                </div>
+              )}
+              {group.pilots.map((p, i) => {
+                const cells = [
+                  ['МАНА', p.mana],
+                  ['PR', p.pr],
+                  ['ЛЛ', p.ll],
+                  ['ІГОР', p.games],
+                  ['ХП', p.hp ? `${p.hp.current}/${p.hp.max}` : '—'],
+                  ['СТРЕС', p.stress],
+                  ['ТІР', llTier(p.ll)],
+                  ['МЕХІВ', p.mechCount],
+                ];
+                return (
+                  <Link
+                    key={p.id}
+                    to={`/pilots/${p.id}`}
+                    className="ss-roster-row num"
+                    style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 14px', borderTop: i || group.discord ? '1px solid var(--panel-border)' : 'none', marginTop: !i && group.discord ? 8 : 0, opacity: p.status === 'archive' ? 0.6 : 1, color: 'inherit' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+                      <span className="title-font" style={{ fontSize: 16, letterSpacing: 1, color: 'var(--text-bright)' }}>{p.callsign}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                      {p.status === 'archive' && <span className="ss-tag bad">АРХІВ</span>}
+                      <span style={{ marginLeft: 'auto', color: 'var(--text-faint)' }}>›</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '6px 8px' }}>
+                      {cells.map(([k, v]) => (
+                        <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: 10, letterSpacing: 1, color: 'var(--text-dimmer)' }}>{k}</span>
+                          <span style={{ fontSize: 12, color: 'var(--text-bright)' }}>{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>ОНОВЛЕНО {formatDate(p.updatedAt)}</span>
+                  </Link>
+                );
+              })}
+              {group.pilots.length === 0 && <div className="ss-note" style={{ padding: '10px 14px', fontSize: 12 }}><span className="pre">&gt; </span>Персонажів немає.</div>}
+            </Panel>
+          ))}
+        {!loading && shown.length === 0 && <div className="ss-note"><span className="pre">&gt; </span>Нічого не знайдено.</div>}
+
+        <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>FERUM VOX // GM OVERSIGHT</div>
+      </PageShell>
+    );
+  }
+
   return (
     <PageShell>
       <PageHeader
@@ -223,25 +334,7 @@ export default function GmPanelPage() {
               </span>
             }
             sub={group.pilots.length ? `${group.pilots.length} ${plural(group.pilots.length)}` : 'ПЕРСОНАЖІВ НЕМАЄ'}
-            right={
-              // Свою роль змінити не можна — меню лише в чужих групах.
-              group.userId !== user?.id && (
-                <Menu
-                  small
-                  title="Роль учасника"
-                  items={[
-                    { header: 'РОЛЬ' },
-                    group.role === 'gm'
-                      ? { label: 'ПОНИЗИТИ ДО ГРАВЦЯ…', onClick: () => changeRole(group) }
-                      : { label: 'ПІДВИЩИТИ ДО GM…', onClick: () => changeRole(group) },
-                    { header: 'ПРОФІЛЬ' },
-                    group.role === 'gm'
-                      ? { label: 'ВИДАЛИТИ ПРОФІЛЬ — СПЕРШУ ПОНИЗИТИ', danger: true, disabled: true }
-                      : { label: 'ВИДАЛИТИ ПРОФІЛЬ…', danger: true, onClick: () => setDeleting(group) },
-                  ]}
-                />
-              )
-            }
+            right={groupMenu(group)}
           >
             {group.pilots.length > 0 && (
               <div className="gm-thead" style={{ display: 'grid', gridTemplateColumns: COLS, gap: 10, padding: '6px 14px', fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1, borderBottom: '1px solid var(--panel-border)' }}>

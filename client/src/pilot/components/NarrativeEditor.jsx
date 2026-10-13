@@ -90,7 +90,7 @@ export default function NarrativeEditor({ state, dispatch, games, saving }) {
             </button>
           ))}
         </div>
-        <select className="ss-select sm" value={gameId} onChange={(e) => setGameId(e.target.value)} style={{ maxWidth: 220 }} title="Прив'язка до гри">
+        <select className="ss-select sm" value={gameId} onChange={(e) => setGameId(e.target.value)} style={{ maxWidth: 220 }} title="Прив'язка до гри" aria-label="Прив'язка до гри">
           <option value="">БЕЗ ГРИ</option>
           {gameOptions.map((g) => {
             const id = String(g.game_slots.id);

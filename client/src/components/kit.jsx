@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import NavDrawer from './NavDrawer.jsx';
+import MobileTabBar from './MobileTabBar.jsx';
+import { useIsMobile } from '../useMobile';
 import { hasHouses, houseInfo, nextHouse, useThemeState } from '../theme';
 import { toggle as toggleCascade } from '../cascade/engine.js';
 import { frame as kkFrame, houseStyle, spine as kkSpine } from '../styles/karrakin/frame.js';
@@ -10,15 +12,18 @@ import { frame as kkFrame, houseStyle, spine as kkSpine } from '../styles/karrak
 // меню «⋯», вікно підтвердження (замість window.confirm), лічильник-трек, повідомлення.
 // Уся візуальна частина — класи ss-* у styles/theme.css, кольори лише зі змінних теми.
 
-export function PageShell({ children, narrow = false }) {
+// На телефоні (≤640px) під сторінкою — нижній таб-бар замість рейки; шапка сторінки
+// (PageHeader / MobileHead) прилипає згори.
+export function PageShell({ children, narrow = false, className = '' }) {
   const { theme, house } = useThemeState();
+  const mobile = useIsMobile();
   const wrap = useRef(null);
   const spineSvg = useRef(null);
   useKkSpine(wrap, spineSvg, theme === 'karrakin-interstellar', house);
   return (
-    <div className="ss-page">
+    <div className="ss-page" data-mobile={mobile ? '' : undefined}>
       <div className="ss-grid" aria-hidden="true" />
-      <div ref={wrap} className={`ss-wrap${narrow ? ' narrow' : ''}`}>
+      <main ref={wrap} className={`ss-wrap${narrow ? ' narrow' : ''}${className ? ` ${className}` : ''}`}>
         {theme === 'karrakin-interstellar' && (
           <svg ref={spineSvg} className="kk-spine" aria-hidden="true">
             <path className="s" />
@@ -27,7 +32,8 @@ export function PageShell({ children, narrow = false }) {
           </svg>
         )}
         {children}
-      </div>
+      </main>
+      {mobile && <MobileTabBar />}
     </div>
   );
 }
@@ -171,9 +177,43 @@ function HeaderMark() {
   );
 }
 
+// Шапка мобільної версії: [прапор дому | лого] РОЗДІЛ / НАЗВА … праворуч. З back —
+// кнопка «‹» і назва в рядок. children — рядок під шапкою (вкладки профілю).
+// Лого FERUM VOX (у темах KARRAKIN — прапор дому) — на кожній сторінці, як і на ПК:
+// потрійний тап по ньому вмикає/вимикає ефекти каскаду.
+export function MobileHead({ section, title, back, right, tone, children }) {
+  const navigate = useNavigate();
+  return (
+    <div className={`ss-mhead${children ? ' stack' : ''}${tone === 'gm' ? ' gm' : ''}`}>
+      <div className="row">
+        <HeaderMark />
+        {back != null && (
+          <button type="button" className="ss-icon" aria-label="Назад" onClick={() => (typeof back === 'function' ? back() : navigate(back))}>‹</button>
+        )}
+        {back != null ? (
+          <h1 className="title-font h1 inline">{title}</h1>
+        ) : (
+          <div className="tt">
+            {section && <span className="sec">{section}</span>}
+            <h1 className="title-font h1">{title}</h1>
+          </div>
+        )}
+        {right && <div className="right">{right}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 // «[лого] > РОЗДІЛ / НАЗВА … нік». Навігація — ліва рейка, яка завжди на екрані.
+// На телефоні — мобільна шапка, а навігація в таб-барі (PageShell).
 export function PageHeader({ section, sectionTo, title, tag, right }) {
   const { user } = useAuth();
+  const mobile = useIsMobile();
+  if (mobile) {
+    const side = tag || right ? <>{tag}{right}</> : null;
+    return <MobileHead section={section} title={title} back={sectionTo} right={side} />;
+  }
   return (
     <div className="ss-head">
       <HeaderMark />
@@ -182,7 +222,7 @@ export function PageHeader({ section, sectionTo, title, tag, right }) {
       ) : (
         <span className="crumb"><span className="pre">&gt; </span>{section}<span className="sep"> /</span></span>
       )}
-      <div className="h1">{title}</div>
+      <h1 className="h1">{title}</h1>
       {tag}
       <div className="right">
         {right}
@@ -251,7 +291,31 @@ export function Msg({ kind = 'ok', children, style }) {
 // Кнопка «⋯» з випадним меню. items: [{label, onClick, danger, disabled}] | {header} | {node}.
 export function Menu({ items, icon = '⋯', small = false, width, title = 'Дії', children }) {
   const [open, setOpen] = useState(false);
+  // Меню вирівняне по правому краю кнопки; якщо так воно виходить за край екрана
+  // (кнопка біля лівого краю телефона), зсуваємо його рівно настільки, щоб вмістилось.
+  // Знизу не вміщується (на телефоні — над таб-баром і стрічкою магазину), а згори є
+  // місце — розкриваємо вгору.
+  const [shift, setShift] = useState(0);
+  const [up, setUp] = useState(false);
   const ref = useRef(null);
+  const menuRef = useRef(null);
+  useLayoutEffect(() => {
+    if (!open || !menuRef.current) {
+      setUp(false);
+      return setShift(0);
+    }
+    const r = menuRef.current.getBoundingClientRect();
+    if (!up) {
+      const bottomEdge = window.innerHeight - (document.querySelector('.ss-mnav') ? 110 : 8);
+      const btn = ref.current.getBoundingClientRect();
+      if (r.bottom > bottomEdge && btn.top - r.height - 6 > 8) setUp(true);
+    }
+    const left = r.left - shift;
+    const right = r.right - shift;
+    const vw = document.documentElement.clientWidth;
+    const next = left < 8 ? 8 - left : right > vw - 8 ? Math.max(8 - left, vw - 8 - right) : 0;
+    if (Math.abs(next - shift) > 0.5) setShift(next);
+  }, [open, shift, up]);
   useEffect(() => {
     if (!open) return undefined;
     const close = (e) => {
@@ -283,7 +347,12 @@ export function Menu({ items, icon = '⋯', small = false, width, title = 'Ді�
         {icon}
       </button>
       {open && (
-        <div className="ss-menu" style={width ? { minWidth: width } : undefined} onClick={(e) => e.stopPropagation()}>
+        <div
+          ref={menuRef}
+          className="ss-menu"
+          style={{ ...(width ? { minWidth: width } : null), ...(shift ? { transform: `translateX(${shift}px)` } : null), ...(up ? { top: 'auto', bottom: 'calc(100% + 6px)' } : null) }}
+          onClick={(e) => e.stopPropagation()}
+        >
           {(items || []).filter(Boolean).map((it, i) => {
             if (it.header) return <div key={i} className="mh">{it.header}</div>;
             if (it.node) return <div key={i}>{it.node}</div>;

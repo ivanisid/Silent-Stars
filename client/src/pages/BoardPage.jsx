@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { llTier } from '../pilot/logic';
-import { Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
+import { Msg, MobileHead, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
+import { useIsMobile } from '../useMobile';
 import { DIFFICULTY_GROUPS, difficultyByKey, difficultyLabel } from '../difficulty';
 import DateTimeField from '../components/DateTimeField.jsx';
 import PlayCalendar from '../components/PlayCalendar.jsx';
@@ -165,8 +166,13 @@ function Field({ label, children, style }) {
 
 // GM slot creation form, collapsed behind a button.
 // preset — { at: Date } з календаря гравців: форма відкривається з датою гри на цей день.
-function CreateSlotForm({ onCreated, preset }) {
-  const [open, setOpen] = useState(false);
+// open / onOpenChange — відкритість ззовні (телефон: кнопка «+ СЛОТ» над дошкою); тоді
+// згорнута форма нічого не показує.
+function CreateSlotForm({ onCreated, preset, open: openProp, onOpenChange }) {
+  const [openState, setOpenState] = useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : openState;
+  const setOpen = controlled ? onOpenChange : setOpenState;
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [gameAt, setGameAt] = useState(null);
@@ -225,6 +231,7 @@ function CreateSlotForm({ onCreated, preset }) {
   }
 
   if (!open) {
+    if (controlled) return null;
     return (
       <button className="btn-gm" type="button" onClick={() => setOpen(true)} style={{ alignSelf: 'flex-start' }}>
         + СТВОРИТИ СЛОТ ГРИ
@@ -953,6 +960,12 @@ export default function BoardPage() {
   // Створення гри з календаря: дата обраного дня йде у форму.
   const [createPreset, setCreatePreset] = useState(null);
   const createRef = useRef(null);
+  // Телефон: календар — підекран дошки (?view=calendar); фільтр дошки й форма слота.
+  const mobile = useIsMobile();
+  const [params, setParams] = useSearchParams();
+  const calendarView = mobile && params.get('view') === 'calendar';
+  const [filter, setFilter] = useState('open');
+  const [newOpen, setNewOpen] = useState(false);
 
   async function reload() {
     try {
@@ -1021,22 +1034,110 @@ export default function BoardPage() {
         ? 'Бонус додається до d20 при записі: +3 за кожен програний контест, +9 — гарантоване місце. Згорає, коли потрапите в склад.'
         : 'Поки місць вистачає, у склад ідуть усі. Коли охочих більше, ніж місць, склад визначає пріоритет — d20 + бонус, що накопичується за програні контести.';
 
+  const bonusBox = (
+    <div style={{ display: 'flex', alignItems: 'stretch', border: '1px solid var(--input-border)', background: 'var(--panel-sunken)' }}>
+      <div style={{ flex: 'none', width: 64, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, borderRight: '1px solid var(--input-border)', padding: '8px 0' }}>
+        <div className="title-font" style={{ fontSize: 24, lineHeight: 1, color: myBonus > 0 ? GOLD : 'var(--text-dimmer)' }}>
+          {myBonus >= 9 ? '◆' : `+${myBonus}`}
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>БОНУС</div>
+      </div>
+      <div style={{ flex: 1, minWidth: 0, padding: '10px 14px', fontSize: 11, lineHeight: 1.6, color: 'var(--text-grey)', textWrap: 'pretty' }}>
+        {myBonus >= 9 ? <span style={{ color: GOLD }}>+{myBonus} · </span> : null}
+        {bonusText}
+      </div>
+    </div>
+  );
+
+  if (mobile && calendarView) {
+    return (
+      <PageShell narrow>
+        <MobileHead back={() => setParams({})} title="КАЛЕНДАР" />
+        {loadError && <Msg kind="err">{loadError}</Msg>}
+        {loading && <div className="ss-note"><span className="pre">&gt; </span>Завантаження…</div>}
+        {!loading && (
+          <PlayCalendar
+            mobile
+            user={user}
+            isGm={isGm}
+            slots={slots}
+            onOpenBoard={() => setParams({})}
+            onCreateForDay={(d) => {
+              const at = new Date(d);
+              at.setHours(19, 0, 0, 0);
+              setCreatePreset({ at });
+              setNewOpen(true);
+              setParams({});
+            }}
+          />
+        )}
+      </PageShell>
+    );
+  }
+
+  if (mobile) {
+    const mineSlot = (s) => s.createdBy === user.id || s.signups.some((g) => g.userId === user.id);
+    const shown = sorted.filter((s) => (filter === 'mine' ? mineSlot(s) : s.status === 'open'));
+    return (
+      <PageShell narrow>
+        <MobileHead
+          section="FERUM VOX"
+          title="ЗАПИС НА ГРУ"
+          right={<button type="button" className="btn-ghost sm" onClick={() => setParams({ view: 'calendar' })}>КАЛЕНДАР</button>}
+        />
+        {bonusBox}
+        {user && <DiscordLinkButtons user={user} />}
+        {loadError && <Msg kind="err">{loadError}</Msg>}
+        {loading && <div className="ss-note"><span className="pre">&gt; </span>Завантаження…</div>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="ss-seg sm">
+            <button type="button" className={filter === 'open' ? 'on' : ''} onClick={() => setFilter('open')}>ВІДКРИТІ</button>
+            <button type="button" className={filter === 'mine' ? 'on' : ''} onClick={() => setFilter('mine')}>МОЇ</button>
+          </div>
+          {isGm && (
+            <button
+              type="button"
+              className="btn-ghost sm"
+              aria-expanded={newOpen}
+              style={{ marginLeft: 'auto', color: 'var(--gm-ink)', borderColor: 'var(--gm-ink)' }}
+              onClick={() => {
+                setCreatePreset(null);
+                setNewOpen((v) => !v);
+              }}
+            >
+              + СЛОТ
+            </button>
+          )}
+        </div>
+        {isGm && !loading && (
+          <CreateSlotForm
+            onCreated={reload}
+            preset={createPreset}
+            open={newOpen}
+            onOpenChange={(v) => {
+              setNewOpen(v);
+              if (!v) setCreatePreset(null);
+            }}
+          />
+        )}
+        {!loading && shown.length === 0 && (
+          <div className="ss-slot" style={{ padding: 18, justifyContent: 'flex-start', fontSize: 12, color: 'var(--text-dimmer)' }}><span className="pre">&gt; </span>Нічого не знайдено.</div>
+        )}
+        {shown.map((slot) => (
+          <SlotCard key={slot.id} slot={slot} user={user} isGm={isGm} myPilots={myPilots} onChanged={reload} />
+        ))}
+        <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>
+          FERUM VOX // MISSION BOARD
+        </div>
+      </PageShell>
+    );
+  }
+
   return (
     <PageShell narrow>
       <PageHeader section="MISSION BOARD" title="ЗАПИС НА ГРУ" tag={isGm ? <span className="ss-tag gm">ГМ</span> : null} />
 
-      <div style={{ display: 'flex', alignItems: 'stretch', border: '1px solid var(--input-border)', background: 'var(--panel-sunken)' }}>
-        <div style={{ flex: 'none', width: 64, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, borderRight: '1px solid var(--input-border)', padding: '8px 0' }}>
-          <div className="title-font" style={{ fontSize: 24, lineHeight: 1, color: myBonus > 0 ? GOLD : 'var(--text-dimmer)' }}>
-            {myBonus >= 9 ? '◆' : `+${myBonus}`}
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>БОНУС</div>
-        </div>
-        <div style={{ flex: 1, minWidth: 0, padding: '10px 14px', fontSize: 11, lineHeight: 1.6, color: 'var(--text-grey)', textWrap: 'pretty' }}>
-          {myBonus >= 9 ? <span style={{ color: GOLD }}>+{myBonus} · </span> : null}
-          {bonusText}
-        </div>
-      </div>
+      {bonusBox}
 
       {user && <DiscordLinkButtons user={user} />}
 

@@ -11,14 +11,14 @@ import AccountDialog from './AccountDialog.jsx';
 // користувача, по порожньому простору або по «темі»; закривається тим самим, кліком
 // по затемненню, Esc або переходом. Відкриття рейки закриває магазин і навпаки.
 
-const ITEMS = [
+export const NAV_ITEMS = [
   { label: 'ВИБІР ПІЛОТА', desc: 'Ваші персонажі', to: '/pilots', code: 'ROS', d: 'M8 8a4 4 0 1 0 8 0a4 4 0 1 0-8 0M4 21c0-4 4-6 8-6s8 2 8 6' },
   { label: 'ЗАПИС НА ГРУ', desc: 'Слоти ігор та запис на них', to: '/board', code: 'BRD', d: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4' },
   { label: 'РЕЗЕРВИ', desc: 'Довідник: звичайні та рідкісні', to: '/reserves', code: 'RSV', d: 'M4 7l8-4 8 4v10l-8 4-8-4zM4 7l8 4 8-4M12 11v10' },
   { label: 'ГМ-ПАНЕЛЬ', desc: 'Персонажі всіх гравців', to: '/gm', code: 'GMP', d: 'M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z', gm: true },
 ];
 
-function Icon({ d, size = 20, children }) {
+export function Icon({ d, size = 20, children }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="square" style={{ flex: 'none' }}>
       {d && <path d={d} />}
@@ -38,7 +38,7 @@ function missionLabel(slot) {
   return `${date}${slot.title || 'Гра без назви'}`;
 }
 
-function useLastMission(userId) {
+export function useLastMission(userId) {
   const [label, setLabel] = useState(() => missionCache.get(userId) ?? '—');
   useEffect(() => {
     if (!userId) return undefined;
@@ -94,7 +94,7 @@ export default function NavDrawer() {
     return () => document.removeEventListener('keydown', esc);
   }, [open]);
 
-  const items = ITEMS.filter((it) => !it.gm || isGm);
+  const items = NAV_ITEMS.filter((it) => !it.gm || isGm);
   // Курсорний фрагмент шкали замінює біжучий лише у відкритій рейці під курсором.
   const follow = open && railY != null;
 
