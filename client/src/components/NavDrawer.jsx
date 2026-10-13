@@ -123,7 +123,13 @@ export default function NavDrawer() {
           <Icon size={14} d={open ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'} />
         </div>
 
-        <div className="col">
+        <div
+          className="col"
+          onClick={(e) => {
+            // KARRAKIN INTERSTELLAR: банер і орнамент рейки теж перемикають її, як порожнє місце.
+            if (theme === 'karrakin-interstellar' && !e.target.closest('a, button, .themes, .spacer')) toggle();
+          }}
+        >
           {theme === 'karrakin-interstellar' && (
             <div className="kk-rail-top" aria-hidden="true">
               <div className="strip" />
