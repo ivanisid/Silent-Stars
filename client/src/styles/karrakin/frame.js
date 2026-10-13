@@ -1,4 +1,4 @@
-// KARRAKIN: генератори SVG-рамок панелей і хребта (spine) сторінки — порт clean() і spineAlt()
+// KARRAKIN INTERSTELLAR: генератори SVG-рамок панелей і хребта (spine) сторінки — порт clean() і spineAlt()
 // з прототипу handoff «KARRAKIN INTERSTELLAR». Лише геометрія: кольори задає CSS (skin-karrakin.css).
 
 // Стиль ліній рамки, хребта й навершя головної панелі — «за домом».

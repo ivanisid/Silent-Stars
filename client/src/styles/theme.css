@@ -804,11 +804,11 @@
   --ok-bg: #04201a; --ok-border: #1f6a55; --bad-bg: #24050f; --bad-border: #6a1a35;
 }
 
-/* KARRAKIN — ours (handoff «KARRAKIN INTERSTELLAR»). Dark starry base tinted by the house
+/* KARRAKIN INTERSTELLAR — ours. Dark starry base tinted by the house
    (data-house), gold frames. Each house is --kf field, --kt metal, --ka accent, --kp plate
    colour and --kpa plate opacity (the "Alt" palette); every other value is mixed from them.
    --sN surfaces, --tN text tiers, --kg* golds; then the app tokens are mapped onto those. */
-:root[data-theme='karrakin'] {
+:root[data-theme='karrakin-interstellar'] {
   --kp: var(--kf); --kpa: 27%; --kpn: var(--s3); --ks: 1;
   --kgl: color-mix(in oklch, var(--kt) 62%, #fff); --kgh: color-mix(in oklch, var(--kt) 48%, #fff);
   --kgw: color-mix(in oklch, var(--kt) 20%, #fff); --kgd: color-mix(in oklch, var(--kt) 80%, #000);
@@ -841,16 +841,16 @@
   --warn: var(--kwarn); --warn-bg: color-mix(in srgb, var(--kwarn) 10%, var(--s1)); --warn-border: color-mix(in srgb, var(--kwarn) 40%, transparent);
   --ok-bg: var(--success-bg); --ok-border: var(--success-border); --bad-bg: var(--danger-bg); --bad-border: var(--danger-border);
 }
-:root[data-theme='karrakin'][data-house='order']{--kf:#6a4c9c;--kt:#d8a454;--ka:#b8a0ea;--kp:#6a4c9c;--kpa:45%;}
-:root[data-theme='karrakin'][data-house='water']{--kf:#4f9a78;--kt:#e8ece4;--ka:var(--ok);--kp:#2a5a44;--kpa:60%;}
-:root[data-theme='karrakin'][data-house='remembrance']{--kf:#2f6e4c;--kt:#e8b04a;--ka:#f0c860;--kp:#2f6e4c;--kpa:62%;--ks:2;}
-:root[data-theme='karrakin'][data-house='sand']{--kf:#5c3a26;--kt:#ece6dc;--ka:#f06a2a;--kp:#e0602a;--kpa:50%;--ks:2;}
-:root[data-theme='karrakin'][data-house='dust']{--kf:#5a5c3c;--kt:#c0a060;--ka:#a8b47c;--kp:#6a6c44;--kpa:58%;}
-:root[data-theme='karrakin'][data-house='stone']{--kf:#a82c28;--kt:#f0b030;--ka:#f0c040;--kp:#a82c28;--kpa:62%;}
-:root[data-theme='karrakin'][data-house='promise']{--kf:#34422a;--kt:#e8b070;--ka:#e04a34;--kp:#b82a20;--kpa:55%;--ks:2.1;--kacc:color-mix(in oklch,var(--ka) 85%,#fff);}
-:root[data-theme='karrakin'][data-house='smoke']{--kf:#5e5e5e;--kt:#e0e0e0;--ka:#5fb4e8;--kp:#5e5e5e;--kpa:58%;}
-:root[data-theme='karrakin'][data-house='moments']{--kf:#1a8fb0;--kt:#d8c890;--ka:#5fd0ee;--kp:#1a6f90;--kpa:60%;}
-:root[data-theme='karrakin'][data-house='glass']{
+:root[data-theme='karrakin-interstellar'][data-house='order']{--kf:#6a4c9c;--kt:#d8a454;--ka:#b8a0ea;--kp:#6a4c9c;--kpa:45%;}
+:root[data-theme='karrakin-interstellar'][data-house='water']{--kf:#4f9a78;--kt:#e8ece4;--ka:var(--ok);--kp:#2a5a44;--kpa:60%;}
+:root[data-theme='karrakin-interstellar'][data-house='remembrance']{--kf:#2f6e4c;--kt:#e8b04a;--ka:#f0c860;--kp:#2f6e4c;--kpa:62%;--ks:2;}
+:root[data-theme='karrakin-interstellar'][data-house='sand']{--kf:#5c3a26;--kt:#ece6dc;--ka:#f06a2a;--kp:#e0602a;--kpa:50%;--ks:2;}
+:root[data-theme='karrakin-interstellar'][data-house='dust']{--kf:#5a5c3c;--kt:#c0a060;--ka:#a8b47c;--kp:#6a6c44;--kpa:58%;}
+:root[data-theme='karrakin-interstellar'][data-house='stone']{--kf:#a82c28;--kt:#f0b030;--ka:#f0c040;--kp:#a82c28;--kpa:62%;}
+:root[data-theme='karrakin-interstellar'][data-house='promise']{--kf:#34422a;--kt:#e8b070;--ka:#e04a34;--kp:#b82a20;--kpa:55%;--ks:2.1;--kacc:color-mix(in oklch,var(--ka) 85%,#fff);}
+:root[data-theme='karrakin-interstellar'][data-house='smoke']{--kf:#5e5e5e;--kt:#e0e0e0;--ka:#5fb4e8;--kp:#5e5e5e;--kpa:58%;}
+:root[data-theme='karrakin-interstellar'][data-house='moments']{--kf:#1a8fb0;--kt:#d8c890;--ka:#5fd0ee;--kp:#1a6f90;--kpa:60%;}
+:root[data-theme='karrakin-interstellar'][data-house='glass']{
   color-scheme: only light;
   --kf:#e8a224;--kt:#b87a10;--ka:#e81c0c;--kp:#ff1a0a;--kpa:26%;
   --s0:#eadbb4;--s1:#f3e7c8;--s2:#f0e2bf;--s3:#faf2dc;--s4:#e8d6aa;--s5:#e2cc96;
@@ -1769,7 +1769,7 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 .ss-login .lg-eye { flex: none; background: transparent; border: none; padding: 0 0 0 8px; font-size: 11px; color: var(--text-faint); letter-spacing: 1px; }
 .ss-login .lg-eye:hover { color: var(--accent); }
 
-/* Прапор дому в шапці (теми KARRAKIN і KARRAKIN ACADEMY) — замість лого; клік перемикає дім. */
+/* Прапор дому в шапці (теми KARRAKIN INTERSTELLAR і KARRAKIN ACADEMY) — замість лого; клік перемикає дім. */
 .ss-flag { flex: none; display: block; padding: 0; margin: -9px 0; background: transparent; border: none; }
 .ss-flag img { display: block; height: 46px; width: auto; filter: drop-shadow(0 2px 3px #0008); transition: transform .15s; }
 .ss-flag:hover img { transform: translateY(-2px); }

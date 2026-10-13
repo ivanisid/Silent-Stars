@@ -14,12 +14,12 @@ export function PageShell({ children, narrow = false }) {
   const { theme, house } = useThemeState();
   const wrap = useRef(null);
   const spineSvg = useRef(null);
-  useKkSpine(wrap, spineSvg, theme === 'karrakin', house);
+  useKkSpine(wrap, spineSvg, theme === 'karrakin-interstellar', house);
   return (
     <div className="ss-page">
       <div className="ss-grid" aria-hidden="true" />
       <div ref={wrap} className={`ss-wrap${narrow ? ' narrow' : ''}`}>
-        {theme === 'karrakin' && (
+        {theme === 'karrakin-interstellar' && (
           <svg ref={spineSvg} className="kk-spine" aria-hidden="true">
             <path className="s" />
             <path className="dsh" />
@@ -32,7 +32,7 @@ export function PageShell({ children, narrow = false }) {
   );
 }
 
-// KARRAKIN: рамка панелі — SVG під її розмір. Плашка заголовка й правий блок задають, де
+// KARRAKIN INTERSTELLAR: рамка панелі — SVG під її розмір. Плашка заголовка й правий блок задають, де
 // розриваються лінії; data-kk-link (ставить хребет сторінки) додає з'єднувач ліворуч.
 function drawKkFrame(el) {
   const svg = el.querySelector(':scope > .kk-frame');
@@ -74,7 +74,7 @@ function useKkFrame(ref, on, house) {
   }, [ref, on, house]);
 }
 
-// KARRAKIN: хребет ліворуч від стовпця панелей. На ньому — панелі, що стоять біля лівого
+// KARRAKIN INTERSTELLAR: хребет ліворуч від стовпця панелей. На ньому — панелі, що стоять біля лівого
 // краю стовпця; панель у тому ж ряду правіше отримує з'єднувач (data-kk-link).
 function useKkSpine(wrapRef, svgRef, on, house) {
   useEffect(() => {
@@ -146,7 +146,7 @@ function useKkSpine(wrapRef, svgRef, on, house) {
   }, [wrapRef, svgRef, on, house]);
 }
 
-// Лого FERUM VOX; у темах KARRAKIN і KARRAKIN ACADEMY замість нього прапор вибраного дому — клік перемикає
+// Лого FERUM VOX; у темах KARRAKIN INTERSTELLAR і KARRAKIN ACADEMY замість нього прапор вибраного дому — клік перемикає
 // на наступний дім. Потрійний клік по лого вмикає/вимикає ефекти каскаду поверх теми.
 function HeaderMark() {
   const { theme, house } = useThemeState();
@@ -196,7 +196,7 @@ export function PageHeader({ section, sectionTo, title, tag, right }) {
 export function Panel({ id, title, sub, right, tone, className = '', children, style }) {
   const { theme, house } = useThemeState();
   const ref = useRef(null);
-  const kk = theme === 'karrakin';
+  const kk = theme === 'karrakin-interstellar';
   useKkFrame(ref, kk, house);
   if (kk) {
     return (
@@ -347,7 +347,7 @@ export function ConfirmDialog({ title, question, lines = [], note, tone, yesLabe
   );
   return (
     <div className="modal-backdrop" onClick={onNo}>
-      {theme === 'karrakin' ? (
+      {theme === 'karrakin-interstellar' ? (
         <div className="kk-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
           <Panel title={title} tone={tone}>{body}</Panel>
         </div>

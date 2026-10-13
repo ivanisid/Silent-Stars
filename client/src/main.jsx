@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import './styles/theme.css';
 import './styles/skin-ferum.css';
 import './styles/skin-karrakin-academy.css';
-import './styles/skin-karrakin.css';
+import './styles/skin-karrakin-interstellar.css';
 import './styles/cascade.css';
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';

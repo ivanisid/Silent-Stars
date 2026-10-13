@@ -226,7 +226,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
 
           <PilotGames games={games} />
         </div>
-        {theme === 'karrakin' ? <KkArch house={house}>{portraitSlot}</KkArch> : portraitSlot}
+        {theme === 'karrakin-interstellar' ? <KkArch house={house}>{portraitSlot}</KkArch> : portraitSlot}
       </div>
     </Panel>
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: -8 }}>

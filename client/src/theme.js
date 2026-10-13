@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
-// Colour themes. Most are ported from COMP/CON; FERUM//VOX, CASCADING, KARRAKIN and KARRAKIN
-// ACADEMY are ours. Each one is a set of CSS variable overrides in styles/theme.css, selected by
+// Colour themes. Most are ported from COMP/CON; FERUM//VOX, CASCADING, KARRAKIN INTERSTELLAR and
+// KARRAKIN ACADEMY are ours. Each one is a set of CSS variable overrides in styles/theme.css, selected by
 // a data-theme attribute on <html>; the KARRAKIN themes additionally read data-house, which
 // picks the banner their colours are mixed from. The swatch hexes are literal on purpose — they preview a theme other than the
 // one currently applied, so they cannot come from variables.
@@ -21,13 +21,13 @@ export const THEMES = [
   { id: 'mono', label: 'Monochrome', dark: true, swatch: ['#131313', '#2a2a2a', '#d6d6d6'] },
   { id: 'ferum', label: 'FERUM//VOX', dark: true, swatch: ['#0c1117', '#2a3e54', '#6ea4d8'] },
   { id: 'cascading', label: 'CASCADING', dark: true, swatch: ['#04050a', '#141933', '#a6e4ff'] },
-  { id: 'karrakin', label: 'KARRAKIN', dark: true, swatch: ['#1a1814', '#5fa883', '#f0f0ea'] },
+  { id: 'karrakin-interstellar', label: 'KARRAKIN INTERSTELLAR', dark: true, swatch: ['#100d16', '#6a4c9c', '#d8a454'] },
   { id: 'karrakin-academy', label: 'KARRAKIN ACADEMY', dark: true, swatch: ['#1a1814', '#5fa883', '#f0f0ea'] },
 ];
 
 // Теми з прапором дому в шапці й data-house на <html>.
 export function hasHouses(theme) {
-  return theme === 'karrakin' || theme === 'karrakin-academy';
+  return theme === 'karrakin-interstellar' || theme === 'karrakin-academy';
 }
 
 // Доми Карракіна в порядку циклу кліком по прапору. light — світла основа (свій блок змінних).
@@ -44,7 +44,7 @@ export const HOUSES = [
   { id: 'order', label: 'Дім Порядку' },
 ];
 
-// v2: стара тема KARRAKIN стала KARRAKIN ACADEMY, тож вибір зі старого ключа переноситься.
+// v2: стара тема KARRAKIN (id karrakin) стала KARRAKIN ACADEMY, тож вибір зі старого ключа переноситься.
 const STORAGE_KEY = 'ferumvox.theme.v2';
 const LEGACY_KEY = 'ferumvox.theme';
 const LEGACY_IDS = { karrakin: 'karrakin-academy' };

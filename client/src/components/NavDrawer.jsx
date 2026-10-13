@@ -124,7 +124,7 @@ export default function NavDrawer() {
         </div>
 
         <div className="col">
-          {theme === 'karrakin' && (
+          {theme === 'karrakin-interstellar' && (
             <div className="kk-rail-top" aria-hidden="true">
               <div className="strip" />
               <div className="banner" style={{ backgroundImage: `url(/houses/${houseInfo(house).id}.png)` }} />
@@ -227,7 +227,7 @@ export default function NavDrawer() {
             <span className="ic"><Icon size={16} d="M14 4h6v16h-6M10 8l-4 4 4 4M6 12h10" /></span>
             <span className="lbl">logout</span>
           </button>
-          {theme === 'karrakin' && <div className="kk-rail-orn" aria-hidden="true" />}
+          {theme === 'karrakin-interstellar' && <div className="kk-rail-orn" aria-hidden="true" />}
         </div>
       </nav>
       {account && <AccountDialog onClose={() => setAccount(false)} />}
