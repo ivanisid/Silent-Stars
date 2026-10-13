@@ -215,7 +215,6 @@ export default function PilotSelectPage() {
       {dialog}
       {mobile ? (
         <MobileHead
-          logo
           section="FERUM VOX"
           title="ВИБІР ПІЛОТА"
           right={<span style={{ fontSize: 11, color: 'var(--text-info)', letterSpacing: 1 }}>{pilots.length}</span>}

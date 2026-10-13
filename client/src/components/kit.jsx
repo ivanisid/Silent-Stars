@@ -179,15 +179,14 @@ function HeaderMark() {
 
 // Шапка мобільної версії: [прапор дому | лого] РОЗДІЛ / НАЗВА … праворуч. З back —
 // кнопка «‹» і назва в рядок. children — рядок під шапкою (вкладки профілю).
-// Лого FERUM VOX — лише там, де його просить макет (logo); прапор у темах KARRAKIN — завжди.
-export function MobileHead({ section, title, back, right, logo = false, tone, children }) {
-  const { theme } = useThemeState();
+// Лого FERUM VOX (у темах KARRAKIN — прапор дому) — на кожній сторінці, як і на ПК:
+// потрійний тап по ньому вмикає/вимикає ефекти каскаду.
+export function MobileHead({ section, title, back, right, tone, children }) {
   const navigate = useNavigate();
-  const mark = hasHouses(theme) || logo;
   return (
     <div className={`ss-mhead${children ? ' stack' : ''}${tone === 'gm' ? ' gm' : ''}`}>
       <div className="row">
-        {mark && <HeaderMark />}
+        <HeaderMark />
         {back != null && (
           <button type="button" className="ss-icon" aria-label="Назад" onClick={() => (typeof back === 'function' ? back() : navigate(back))}>‹</button>
         )}
