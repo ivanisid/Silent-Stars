@@ -93,7 +93,7 @@
 
 /* ---------- Каркас: рейка 230px, контент з лівим відступом під хребет ---------- */
 @media (min-width: 641px) {
-  :root[data-theme='karrakin-interstellar'] .ss-page { padding: 0 64px 60px 230px; }
+  :root[data-theme='karrakin-interstellar'] .ss-page { padding: 0 64px 60px; }
   :root[data-theme='karrakin-interstellar'] .ss-wrap { position: relative; max-width: 1310px; padding: 30px 0 0 70px; gap: 26px; }
   :root[data-theme='karrakin-interstellar'] .ss-wrap.narrow { max-width: 1010px; }
 }
@@ -319,49 +319,37 @@
 :root[data-theme='karrakin-interstellar'] .kk-arch .ss-hatch { padding-top: 30px !important; }
 :root[data-theme='karrakin-interstellar'] .kk-arch .ss-hatch > div:first-child { font-family: var(--k-cinzel); font-size: 10px !important; letter-spacing: 2.5px !important; color: var(--t2) !important; background: var(--s5); padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--kt) 33%, transparent); }
 
-/* ---------- Рейка: 230px, банер дому, назва дому, пункти з ромбами ---------- */
+/* ---------- Рейка: закрита — 64px з іконками, відкрита — 230px поверх сторінки ---------- */
 :root[data-theme='karrakin-interstellar'] .ss-rail { font-family: var(--k-cinzel); background: var(--s3); }
-:root[data-theme='karrakin-interstellar'] .ss-rail .fx { display: none; }
+:root[data-theme='karrakin-interstellar'] .ss-rail .fx:not(.arrow) { display: none; }
+:root[data-theme='karrakin-interstellar'] .ss-rail .arrow { color: var(--kgl); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .nav .t { font-family: var(--k-cinzel); font-weight: 700; font-size: 12px; letter-spacing: 2.5px; color: var(--t3); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .nav .d { font-family: var(--k-corm); font-style: italic; font-weight: 600; font-size: 14px; color: var(--t4); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .nav .pre { display: none; }
-:root[data-theme='karrakin-interstellar'] .ss-rail .nav { color: var(--t3); }
+:root[data-theme='karrakin-interstellar'] .ss-rail .nav { color: var(--t3); border: none; }
+:root[data-theme='karrakin-interstellar'] .ss-rail .nav .code { font-family: var(--k-cinzel); font-size: 10px; letter-spacing: 1px; color: var(--t4); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on { color: var(--tw); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on .t { color: var(--tw); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on .d { color: var(--t2); }
-:root[data-theme='karrakin-interstellar'] .ss-rail .nav.gm, :root[data-theme='karrakin-interstellar'] .ss-rail .nav.gm .t { color: var(--gm); }
+:root[data-theme='karrakin-interstellar'] .ss-rail .nav.gm, :root[data-theme='karrakin-interstellar'] .ss-rail .nav.gm .t, :root[data-theme='karrakin-interstellar'] .ss-rail .nav.gm .code { color: var(--gm); }
+:root[data-theme='karrakin-interstellar'] .ss-rail .nav .mark, :root[data-theme='karrakin-interstellar'] .ss-rail .sep { display: none; }
+:root[data-theme='karrakin-interstellar'] .ss-rail .user { color: var(--t3); }
+:root[data-theme='karrakin-interstellar'] .ss-rail .user .k { font-family: var(--k-cinzel); font-size: 10px; letter-spacing: 1.5px; color: var(--t4); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .foot { font-family: var(--k-cinzel); font-size: 10px; letter-spacing: 1.5px; color: var(--t4); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .foot .lbl { color: var(--t3) !important; }
 :root[data-theme='karrakin-interstellar'] .ss-rail .themes { background: var(--s2); border-color: var(--kline); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .themes button { font-family: var(--k-cinzel); font-size: 10px; letter-spacing: 1.5px; color: var(--t3); border-top-color: var(--khair); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .themes button.on, :root[data-theme='karrakin-interstellar'] .ss-rail .themes button:hover { background: color-mix(in srgb, var(--kf) 30%, transparent); color: var(--tw); }
-:root[data-theme='karrakin-interstellar'] :is(.kk-rail-top, .kk-rail-orn) { display: none; }
+:root[data-theme='karrakin-interstellar'] :is(.kk-rail-top .banner, .kk-rail-top .house, .kk-rail-orn) { display: none; }
 @media (min-width: 641px) {
   :root[data-theme='karrakin-interstellar'] .ss-rail,
   :root[data-theme='karrakin-interstellar'] .ss-rail.open {
-    width: 230px;
     isolation: isolate;
     background: var(--s3);
     box-shadow: inset -1px 0 0 var(--kt), inset -5px 0 0 var(--s3), inset -6px 0 0 color-mix(in srgb, var(--kt) 33%, transparent);
   }
-  :root[data-theme='karrakin-interstellar'] .ss-rail-back { display: none; }
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open { width: 230px; }
   :root[data-theme='karrakin-interstellar'] .ss-rail .col { width: 230px; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .lbl { opacity: 1; white-space: normal; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail :is(.user, .sep, .code, .mark) { display: none; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .spacer { cursor: default; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav {
-    height: auto;
-    margin: 0 6px 2px 0;
-    padding: 11px 22px 11px 26px;
-    display: grid;
-    grid-template-columns: 18px minmax(0, 1fr);
-    column-gap: 12px;
-    align-items: start;
-    border: none;
-  }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav .ic { width: auto; padding-top: 0; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav .ic svg { width: 18px; height: 18px; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav .txt { gap: 3px; padding-top: 2px; }
   :root[data-theme='karrakin-interstellar'] .ss-rail .nav:hover:not(.on) { background: linear-gradient(90deg, color-mix(in srgb, var(--kf) 25%, transparent), transparent); }
   :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on,
   :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on:hover {
@@ -370,14 +358,27 @@
       linear-gradient(90deg, transparent, var(--kt)) bottom / 100% 1px no-repeat,
       linear-gradient(90deg, color-mix(in srgb, var(--kf) 53%, transparent), color-mix(in srgb, var(--kf) 7%, transparent) 90%);
   }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on::before,
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on::after { content: ''; position: absolute; top: 50%; width: 7px; height: 7px; margin-top: -4px; background: var(--kgl); transform: rotate(45deg); }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on::before { left: 8px; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on::after { right: 6px; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .foot { height: 38px; padding-left: 26px; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .foot .ic { width: auto; margin-right: 12px; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .foot .lbl { padding-right: 22px; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .themes { margin: 0 12px 6px 18px; }
+  :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on::before { content: ''; position: absolute; left: 8px; top: 50%; width: 7px; height: 7px; margin-top: -4px; background: var(--kgl); transform: rotate(45deg); }
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open .nav.on::after { content: ''; position: absolute; right: 6px; top: 50%; width: 7px; height: 7px; margin-top: -4px; background: var(--kgl); transform: rotate(45deg); }
+
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open :is(.user, .code) { display: none; }
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open .lbl { white-space: normal; }
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open .nav {
+    height: auto;
+    margin: 0 6px 2px 0;
+    padding: 11px 22px 11px 26px;
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: start;
+  }
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open .nav .ic { width: auto; }
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open .nav .ic svg { width: 18px; height: 18px; }
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open .nav .txt { gap: 3px; padding-top: 2px; }
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open .foot { height: 38px; padding-left: 26px; }
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open .foot .ic { width: auto; margin-right: 12px; }
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open .foot .lbl { padding-right: 22px; }
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open .themes { margin: 0 12px 6px 18px; }
 
   :root[data-theme='karrakin-interstellar'] .kk-rail-top { display: block; position: relative; flex: none; }
   :root[data-theme='karrakin-interstellar'] .kk-rail-top .strip {
@@ -389,7 +390,8 @@
       repeating-linear-gradient(-45deg, transparent 0 6px, color-mix(in srgb, var(--kt) 53%, transparent) 6px 7px);
     border-bottom: 1px solid var(--kt);
   }
-  :root[data-theme='karrakin-interstellar'] .kk-rail-top .banner {
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open .kk-rail-top .banner {
+    display: block;
     position: absolute;
     left: -40px;
     right: -34px;
@@ -405,11 +407,11 @@
     -webkit-mask-image: linear-gradient(#000 35%, transparent 92%);
     mask-image: linear-gradient(#000 35%, transparent 92%);
   }
-  :root[data-theme='karrakin-interstellar'] .kk-rail-top .house { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 148px 28px 16px 22px; }
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open .kk-rail-top .house { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 148px 28px 16px 22px; }
   :root[data-theme='karrakin-interstellar'] .kk-rail-top .house i { height: 1px; flex: 1; background: linear-gradient(90deg, transparent, var(--kt)); }
   :root[data-theme='karrakin-interstellar'] .kk-rail-top .house i:last-child { background: linear-gradient(90deg, var(--kt), transparent); }
   :root[data-theme='karrakin-interstellar'] .kk-rail-top .house b { font-family: var(--k-cinzel); font-weight: 700; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; color: var(--kgl); }
-  :root[data-theme='karrakin-interstellar'] .kk-rail-orn {
+  :root[data-theme='karrakin-interstellar'] .ss-rail.open .kk-rail-orn {
     display: block;
     flex: none;
     height: 48px;
