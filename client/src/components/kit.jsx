@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import NavDrawer from './NavDrawer.jsx';
-import { houseInfo, nextHouse, useThemeState } from '../theme';
+import { hasHouses, houseInfo, nextHouse, useThemeState } from '../theme';
 import { toggle as toggleCascade } from '../cascade/engine.js';
 
 // Спільний набір компонентів інтерфейсу 2a: сторінка з фоновою сіткою, шапка, панель,
@@ -18,12 +18,12 @@ export function PageShell({ children, narrow = false }) {
   );
 }
 
-// Лого FERUM VOX; у темі KARRAKIN замість нього прапор вибраного дому — клік перемикає
+// Лого FERUM VOX; у темах KARRAKIN і KARRAKIN ACADEMY замість нього прапор вибраного дому — клік перемикає
 // на наступний дім. Потрійний клік по лого вмикає/вимикає ефекти каскаду поверх теми.
 function HeaderMark() {
   const { theme, house } = useThemeState();
   const clicks = useRef({ n: 0, t: 0 });
-  if (theme !== 'karrakin') {
+  if (!hasHouses(theme)) {
     const onClick = () => {
       const now = Date.now(), c = clicks.current;
       c.n = now - c.t < 500 ? c.n + 1 : 1; c.t = now;
