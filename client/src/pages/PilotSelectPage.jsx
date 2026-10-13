@@ -13,7 +13,6 @@ export default function PilotSelectPage() {
   const [ask, dialog] = useConfirm();
   const [formOpen, setFormOpen] = useState(false);
   const [view, setView] = useState('active');
-  const [q, setQ] = useState('');
   const mobile = useIsMobile();
 
   const [pilots, setPilots] = useState([]);
@@ -195,20 +194,14 @@ export default function PilotSelectPage() {
   }
 
   const activeCount = pilots.filter((p) => p.status !== 'archive').length;
-  const shown = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return pilots
-      .filter((p) => view === 'all' || p.status !== 'archive')
-      .filter(
-        (p) =>
-          !needle ||
-          p.callsign.toLowerCase().includes(needle) ||
-          p.name.toLowerCase().includes(needle) ||
-          p.mechs.some((m) => m.name.toLowerCase().includes(needle)),
-      )
-      // Архівні — унизу.
-      .sort((a, b) => (a.status === 'archive') - (b.status === 'archive'));
-  }, [pilots, view, q]);
+  const shown = useMemo(
+    () =>
+      pilots
+        .filter((p) => view === 'all' || p.status !== 'archive')
+        // Архівні — унизу.
+        .sort((a, b) => (a.status === 'archive') - (b.status === 'archive')),
+    [pilots, view],
+  );
 
   return (
     <PageShell>
@@ -268,20 +261,14 @@ export default function PilotSelectPage() {
       )}
 
       {mobile ? (
-        <>
-          <div className="ss-seg sm" style={{ alignSelf: 'flex-start' }}>
-            <button type="button" className={view === 'active' ? 'on' : ''} onClick={() => setView('active')}>АКТИВНІ · {activeCount}</button>
-            <button type="button" className={view === 'all' ? 'on' : ''} onClick={() => setView('all')}>УСІ · {pilots.length}</button>
-          </div>
-          <input className="ss-input sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ пошук за позивним або мехом" style={{ width: '100%' }} />
-        </>
+        <div className="ss-seg sm" style={{ alignSelf: 'flex-start' }}>
+          <button type="button" className={view === 'active' ? 'on' : ''} onClick={() => setView('active')}>АКТИВНІ · {activeCount}</button>
+          <button type="button" className={view === 'all' ? 'on' : ''} onClick={() => setView('all')}>УСІ · {pilots.length}</button>
+        </div>
       ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <div className="ss-seg">
-            <button type="button" className={view === 'active' ? 'on' : ''} style={{ height: 24, fontSize: 10 }} onClick={() => setView('active')}>АКТИВНІ · {activeCount}</button>
-            <button type="button" className={view === 'all' ? 'on' : ''} style={{ height: 24, fontSize: 10 }} onClick={() => setView('all')}>УСІ · {pilots.length}</button>
-          </div>
-          <input className="ss-input sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ пошук за позивним або мехом" style={{ marginLeft: 'auto', width: 260, maxWidth: '100%' }} />
+        <div className="ss-seg" style={{ alignSelf: 'flex-start' }}>
+          <button type="button" className={view === 'active' ? 'on' : ''} style={{ height: 24, fontSize: 10 }} onClick={() => setView('active')}>АКТИВНІ · {activeCount}</button>
+          <button type="button" className={view === 'all' ? 'on' : ''} style={{ height: 24, fontSize: 10 }} onClick={() => setView('all')}>УСІ · {pilots.length}</button>
         </div>
       )}
 
