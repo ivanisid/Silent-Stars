@@ -292,7 +292,31 @@ export function Msg({ kind = 'ok', children, style }) {
 // Кнопка «⋯» з випадним меню. items: [{label, onClick, danger, disabled}] | {header} | {node}.
 export function Menu({ items, icon = '⋯', small = false, width, title = 'Дії', children }) {
   const [open, setOpen] = useState(false);
+  // Меню вирівняне по правому краю кнопки; якщо так воно виходить за край екрана
+  // (кнопка біля лівого краю телефона), зсуваємо його рівно настільки, щоб вмістилось.
+  // Знизу не вміщується (на телефоні — над таб-баром і стрічкою магазину), а згори є
+  // місце — розкриваємо вгору.
+  const [shift, setShift] = useState(0);
+  const [up, setUp] = useState(false);
   const ref = useRef(null);
+  const menuRef = useRef(null);
+  useLayoutEffect(() => {
+    if (!open || !menuRef.current) {
+      setUp(false);
+      return setShift(0);
+    }
+    const r = menuRef.current.getBoundingClientRect();
+    if (!up) {
+      const bottomEdge = window.innerHeight - (document.querySelector('.ss-mnav') ? 110 : 8);
+      const btn = ref.current.getBoundingClientRect();
+      if (r.bottom > bottomEdge && btn.top - r.height - 6 > 8) setUp(true);
+    }
+    const left = r.left - shift;
+    const right = r.right - shift;
+    const vw = document.documentElement.clientWidth;
+    const next = left < 8 ? 8 - left : right > vw - 8 ? Math.max(8 - left, vw - 8 - right) : 0;
+    if (Math.abs(next - shift) > 0.5) setShift(next);
+  }, [open, shift, up]);
   useEffect(() => {
     if (!open) return undefined;
     const close = (e) => {
@@ -324,7 +348,12 @@ export function Menu({ items, icon = '⋯', small = false, width, title = 'Ді�
         {icon}
       </button>
       {open && (
-        <div className="ss-menu" style={width ? { minWidth: width } : undefined} onClick={(e) => e.stopPropagation()}>
+        <div
+          ref={menuRef}
+          className="ss-menu"
+          style={{ ...(width ? { minWidth: width } : null), ...(shift ? { transform: `translateX(${shift}px)` } : null), ...(up ? { top: 'auto', bottom: 'calc(100% + 6px)' } : null) }}
+          onClick={(e) => e.stopPropagation()}
+        >
           {(items || []).filter(Boolean).map((it, i) => {
             if (it.header) return <div key={i} className="mh">{it.header}</div>;
             if (it.node) return <div key={i}>{it.node}</div>;
