@@ -93,7 +93,7 @@
 
 /* ---------- Каркас: рейка 230px, контент з лівим відступом під хребет ---------- */
 @media (min-width: 641px) {
-  :root[data-theme='karrakin-interstellar'] .ss-page { padding: 0 64px 60px 230px; }
+  :root[data-theme='karrakin-interstellar'] .ss-page { padding: 0 64px 60px; }
   :root[data-theme='karrakin-interstellar'] .ss-wrap { position: relative; max-width: 1310px; padding: 30px 0 0 70px; gap: 26px; }
   :root[data-theme='karrakin-interstellar'] .ss-wrap.narrow { max-width: 1010px; }
 }
@@ -319,20 +319,29 @@
 :root[data-theme='karrakin-interstellar'] .kk-arch .ss-hatch { padding-top: 30px !important; }
 :root[data-theme='karrakin-interstellar'] .kk-arch .ss-hatch > div:first-child { font-family: var(--k-cinzel); font-size: 10px !important; letter-spacing: 2.5px !important; color: var(--t2) !important; background: var(--s5); padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--kt) 33%, transparent); }
 
-/* ---------- Рейка: на телефоні згортається як у базовій темі; на комп'ютері завжди розгорнута, 230px ---------- */
-:root[data-theme='karrakin-interstellar'] .ss-rail { font-family: var(--k-cinzel); background: var(--s3); }
+/* ---------- Рейка: поведінка й розташування вкладок — як у базовій темі (закрита 64px, відкрита 300px
+   поверх сторінки); тут лише кольори, шрифти й рамка. ---------- */
+:root[data-theme='karrakin-interstellar'] .ss-rail,
+:root[data-theme='karrakin-interstellar'] .ss-rail.open {
+  font-family: var(--k-cinzel);
+  background: var(--s3);
+  box-shadow: inset -1px 0 0 var(--kt), inset -5px 0 0 var(--s3), inset -6px 0 0 color-mix(in srgb, var(--kt) 33%, transparent);
+}
 :root[data-theme='karrakin-interstellar'] .ss-rail .fx:not(.arrow) { display: none; }
 :root[data-theme='karrakin-interstellar'] .ss-rail .arrow { color: var(--kgl); }
+:root[data-theme='karrakin-interstellar'] .ss-rail .sep { border-top-color: var(--khair); }
+:root[data-theme='karrakin-interstellar'] .ss-rail .pre { display: none; }
+:root[data-theme='karrakin-interstellar'] .ss-rail .nav { color: var(--t3); border-bottom-color: var(--khair); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .nav .t { font-family: var(--k-cinzel); font-weight: 700; font-size: 12px; letter-spacing: 2.5px; color: var(--t3); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .nav .d { font-family: var(--k-corm); font-style: italic; font-weight: 600; font-size: 14px; color: var(--t4); }
-:root[data-theme='karrakin-interstellar'] .ss-rail .nav .pre { display: none; }
-:root[data-theme='karrakin-interstellar'] .ss-rail .nav { color: var(--t3); border: none; }
 :root[data-theme='karrakin-interstellar'] .ss-rail .nav .code { font-family: var(--k-cinzel); font-size: 10px; letter-spacing: 1px; color: var(--t4); }
-:root[data-theme='karrakin-interstellar'] .ss-rail .nav.on { color: var(--tw); }
+:root[data-theme='karrakin-interstellar'] .ss-rail .nav:hover:not(.on) { background: linear-gradient(90deg, color-mix(in srgb, var(--kf) 25%, transparent), transparent 85%); color: var(--t1); }
+:root[data-theme='karrakin-interstellar'] .ss-rail .nav.on,
+:root[data-theme='karrakin-interstellar'] .ss-rail .nav.on:hover { color: var(--tw); background: linear-gradient(90deg, color-mix(in srgb, var(--kf) 53%, transparent), color-mix(in srgb, var(--kf) 7%, transparent) 90%); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on .t { color: var(--tw); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on .d { color: var(--t2); }
+:root[data-theme='karrakin-interstellar'] .ss-rail .nav .mark { background: var(--kgl); box-shadow: 0 0 8px var(--kgl); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .nav.gm, :root[data-theme='karrakin-interstellar'] .ss-rail .nav.gm .t, :root[data-theme='karrakin-interstellar'] .ss-rail .nav.gm .code { color: var(--gm); }
-:root[data-theme='karrakin-interstellar'] .ss-rail .nav .mark, :root[data-theme='karrakin-interstellar'] .ss-rail .sep { display: none; }
 :root[data-theme='karrakin-interstellar'] .ss-rail .user { color: var(--t3); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .user .k { font-family: var(--k-cinzel); font-size: 10px; letter-spacing: 1.5px; color: var(--t4); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .foot { font-family: var(--k-cinzel); font-size: 10px; letter-spacing: 1.5px; color: var(--t4); }
@@ -340,102 +349,6 @@
 :root[data-theme='karrakin-interstellar'] .ss-rail .themes { background: var(--s2); border-color: var(--kline); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .themes button { font-family: var(--k-cinzel); font-size: 10px; letter-spacing: 1.5px; color: var(--t3); border-top-color: var(--khair); }
 :root[data-theme='karrakin-interstellar'] .ss-rail .themes button.on, :root[data-theme='karrakin-interstellar'] .ss-rail .themes button:hover { background: color-mix(in srgb, var(--kf) 30%, transparent); color: var(--tw); }
-:root[data-theme='karrakin-interstellar'] :is(.kk-rail-top .banner, .kk-rail-top .house, .kk-rail-orn) { display: none; }
-@media (min-width: 641px) {
-  :root[data-theme='karrakin-interstellar'] .ss-rail {
-    width: 230px;
-    isolation: isolate;
-    background: var(--s3);
-    box-shadow: inset -1px 0 0 var(--kt), inset -5px 0 0 var(--s3), inset -6px 0 0 color-mix(in srgb, var(--kt) 33%, transparent);
-  }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .col { width: 230px; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav:hover:not(.on) { background: linear-gradient(90deg, color-mix(in srgb, var(--kf) 25%, transparent), transparent); }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on,
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on:hover {
-    background:
-      linear-gradient(90deg, transparent, var(--kt)) top / 100% 1px no-repeat,
-      linear-gradient(90deg, transparent, var(--kt)) bottom / 100% 1px no-repeat,
-      linear-gradient(90deg, color-mix(in srgb, var(--kf) 53%, transparent), color-mix(in srgb, var(--kf) 7%, transparent) 90%);
-  }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on::before { content: ''; position: absolute; left: 8px; top: 50%; width: 7px; height: 7px; margin-top: -4px; background: var(--kgl); transform: rotate(45deg); }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav.on::after { content: ''; position: absolute; right: 6px; top: 50%; width: 7px; height: 7px; margin-top: -4px; background: var(--kgl); transform: rotate(45deg); }
-
-  :root[data-theme='karrakin-interstellar'] .ss-rail :is(.user, .code, .arrow) { display: none; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail-back { display: none; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .lbl { opacity: 1; white-space: normal; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .spacer { cursor: default; }
-  /* Меню завжди видно повністю й не прокручується: відступи підлаштовуються під висоту екрана. */
-  :root[data-theme='karrakin-interstellar'] .ss-rail .col { overflow: hidden; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .themes { flex: 0 1 auto; min-height: 90px; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav {
-    height: auto;
-    margin: 0 6px 2px 0;
-    padding: 11px 22px 11px 26px;
-    display: grid;
-    grid-template-columns: 18px minmax(0, 1fr);
-    column-gap: 12px;
-    align-items: start;
-  }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav .ic { width: auto; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav .ic svg { width: 18px; height: 18px; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .nav .txt { gap: 3px; padding-top: 2px; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .foot { height: 38px; padding-left: 26px; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .foot .ic { width: auto; margin-right: 12px; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .foot .lbl { padding-right: 22px; }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .themes { margin: 0 12px 6px 18px; }
-
-  :root[data-theme='karrakin-interstellar'] .kk-rail-top { display: block; position: relative; flex: none; }
-  :root[data-theme='karrakin-interstellar'] .kk-rail-top .strip {
-    height: 14px;
-    margin-right: 6px;
-    background-color: var(--kf);
-    background-image:
-      repeating-linear-gradient(45deg, transparent 0 6px, color-mix(in srgb, var(--kt) 53%, transparent) 6px 7px),
-      repeating-linear-gradient(-45deg, transparent 0 6px, color-mix(in srgb, var(--kt) 53%, transparent) 6px 7px);
-    border-bottom: 1px solid var(--kt);
-  }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .kk-rail-top .banner {
-    display: block;
-    position: absolute;
-    left: -40px;
-    right: -34px;
-    top: -10px;
-    height: 560px;
-    z-index: -1;
-    pointer-events: none;
-    background-position: center top;
-    background-size: contain;
-    background-repeat: no-repeat;
-    opacity: .3;
-    filter: blur(2.5px) saturate(1.1);
-    -webkit-mask-image: linear-gradient(#000 35%, transparent 92%);
-    mask-image: linear-gradient(#000 35%, transparent 92%);
-  }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .kk-rail-top .house { display: flex; align-items: center; justify-content: center; gap: 8px; padding: clamp(14px, 11vh, 148px) 28px clamp(8px, 2vh, 16px) 22px; }
-  :root[data-theme='karrakin-interstellar'] .kk-rail-top .house i { height: 1px; flex: 1; background: linear-gradient(90deg, transparent, var(--kt)); }
-  :root[data-theme='karrakin-interstellar'] .kk-rail-top .house i:last-child { background: linear-gradient(90deg, var(--kt), transparent); }
-  :root[data-theme='karrakin-interstellar'] .kk-rail-top .house b { font-family: var(--k-cinzel); font-weight: 700; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; color: var(--kgl); }
-  :root[data-theme='karrakin-interstellar'] .ss-rail .kk-rail-orn {
-    display: block;
-    flex: none;
-    height: 48px;
-    margin: 6px 24px clamp(8px, 2vh, 18px) 18px;
-    background-color: var(--s4);
-    background-image:
-      radial-gradient(circle at 0 0, transparent 11px, color-mix(in srgb, var(--kt) 27%, transparent) 11.5px 12.5px, transparent 13px),
-      radial-gradient(circle at 12px 12px, transparent 11px, color-mix(in srgb, var(--kt) 27%, transparent) 11.5px 12.5px, transparent 13px);
-    background-size: 24px 24px;
-    border: 1px solid color-mix(in srgb, var(--kt) 40%, transparent);
-    box-shadow: inset 0 0 0 3px var(--s4), inset 0 0 0 4px color-mix(in srgb, var(--kt) 20%, transparent);
-  }
-  @media (max-height: 760px) {
-    :root[data-theme='karrakin-interstellar'] .ss-rail .kk-rail-orn { display: none; }
-    :root[data-theme='karrakin-interstellar'] .ss-rail .nav { padding-top: 7px; padding-bottom: 7px; margin-bottom: 0; }
-  }
-  @media (max-height: 640px) {
-    :root[data-theme='karrakin-interstellar'] .ss-rail .nav .d { display: none; }
-  }
-}
 
 /* ---------- Телефон: рейка згортається як у базовій темі, хребта немає ---------- */
 @media (max-width: 640px) {
