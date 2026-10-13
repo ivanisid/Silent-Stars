@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { RESERVES, RESERVE_CATEGORIES } from '../pilot/reserves';
 import { RARE_RANKS, VAULT_CAP_BASE, useRareCatalog, loadRareCatalog } from '../pilot/rareReserves';
-import { Menu, Msg, PageHeader, PageShell, Panel } from '../components/kit.jsx';
+import { Menu, Msg, MobileHead, PageHeader, PageShell, Panel } from '../components/kit.jsx';
 import ReserveIcon, { ReserveGlyph, hasReserveIcon } from '../pilot/components/ReserveIcon.jsx';
 import { TagFilter, TagPills, matchTags, countByTag } from '../pilot/components/ReserveTags.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api';
+import { useIsMobile } from '../useMobile';
 import { RareReserveEditor, TagManager } from './RareReserveEditor.jsx';
 
 // Довідник резервів — тільки перегляд, нічого не купується. Дві категорії:
@@ -27,15 +28,36 @@ export default function ReservesPage() {
   const { reserves: rare } = useRareCatalog();
   const rareCount = rare.filter((r) => !r.archived).length;
 
+  const mobile = useIsMobile();
+
+  const pick = (k) => {
+    setKind(k);
+    setQ('');
+  };
+
+  if (mobile) {
+    return (
+      <PageShell>
+        <MobileHead section="FERUM VOX" title="РЕЗЕРВИ" />
+        <div className="ss-seg sm m-seg2">
+          <button type="button" className={kind === KIND_COMMON ? 'on' : ''} onClick={() => pick(KIND_COMMON)}>ЗВИЧАЙНІ</button>
+          <button type="button" className={kind === KIND_RARE ? 'on' : ''} onClick={() => pick(KIND_RARE)}>РІДКІСНІ</button>
+        </div>
+        <input className="ss-input sm" type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ пошук" style={{ width: '100%' }} />
+        {kind === KIND_COMMON ? <CommonList q={q} mobile /> : <RareList q={q} mobile />}
+      </PageShell>
+    );
+  }
+
   return (
     <PageShell>
       <PageHeader section="ДОВІДНИК" title="РЕЗЕРВИ" />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <div className="ss-seg">
-          <button type="button" className={kind === KIND_COMMON ? 'on' : ''} style={{ height: 28, padding: '0 16px' }} onClick={() => { setKind(KIND_COMMON); setQ(''); }}>
+          <button type="button" className={kind === KIND_COMMON ? 'on' : ''} style={{ height: 28, padding: '0 16px' }} onClick={() => pick(KIND_COMMON)}>
             ЗВИЧАЙНІ · {RESERVES.length}
           </button>
-          <button type="button" className={kind === KIND_RARE ? 'on' : ''} style={{ height: 28, padding: '0 16px' }} onClick={() => { setKind(KIND_RARE); setQ(''); }}>
+          <button type="button" className={kind === KIND_RARE ? 'on' : ''} style={{ height: 28, padding: '0 16px' }} onClick={() => pick(KIND_RARE)}>
             РІДКІСНІ · {rareCount}
           </button>
         </div>
@@ -64,6 +86,26 @@ function ListPanel({ shown, total, children }) {
   );
 }
 
+// Телефон: іконка 32px | назва й тип, опис | тег рангу; ціна й меню ГМа — під описом.
+function MobileRow({ i, icon, name, meta, rank, rare, desc, flavor, price, extra, dim }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '32px minmax(0,1fr) auto', gap: '6px 12px', alignItems: 'start', padding: '10px 12px', borderTop: i ? '1px solid var(--panel-border)' : 'none', opacity: dim ? 0.55 : 1 }}>
+      {icon}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+        <span style={{ fontSize: 13, color: 'var(--text-bright)', overflowWrap: 'anywhere' }}>{name}</span>
+        <span style={{ fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>{meta}</span>
+      </div>
+      <span className={`ss-tag ${rare ? 'warn' : 'accent'}`}>РАНГ {rank}</span>
+      <div style={{ gridColumn: '2 / -1', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.6, textWrap: 'pretty', overflowWrap: 'anywhere' }}>{desc}</div>
+        {flavor && <div style={{ fontSize: 11, color: 'var(--text-dimmer)', lineHeight: 1.6, fontStyle: 'italic' }}><span className="pre">&gt; </span>{flavor}</div>}
+        {extra}
+        {price && <div style={{ fontSize: 11, color: 'var(--text-info)', letterSpacing: 1, whiteSpace: 'nowrap', alignSelf: 'flex-end' }}>{price}</div>}
+      </div>
+    </div>
+  );
+}
+
 function Row({ i, icon, name, meta, desc, flavor, price, extra, dim }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '44px minmax(0,1fr) auto', gap: 14, alignItems: 'start', padding: '12px 14px', borderTop: i ? '1px solid var(--panel-border)' : 'none', opacity: dim ? 0.55 : 1 }}>
@@ -84,7 +126,7 @@ function Row({ i, icon, name, meta, desc, flavor, price, extra, dim }) {
 
 // ---------- Звичайні ----------
 
-function CommonList({ q }) {
+function CommonList({ q, mobile = false }) {
   const [rank, setRank] = useState(0); // 0 — усі ранги
   const [category, setCategory] = useState('all');
 
@@ -102,10 +144,10 @@ function CommonList({ q }) {
 
   return (
     <>
-      <Note>
+      {!mobile && <Note>
         Купуються в магазині й здобуваються за даунтайм-дію Get Creative. Тут лише
         довідник — витрата PR лишилась у магазині.
-      </Note>
+      </Note>}
 
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <Chip active={rank === 0} onClick={() => { setRank(0); setCategory('all'); }}>УСІ РАНГИ</Chip>
@@ -133,6 +175,19 @@ function CommonList({ q }) {
       <ListPanel shown={list.length} total={RESERVES.length}>
         {list.map((r, i) => {
           const cat = RESERVE_CATEGORIES.find((c) => c.key === r.category)?.label || r.category;
+          if (mobile) {
+            return (
+              <MobileRow
+                key={r.key}
+                i={i}
+                icon={<ReserveIcon kind={r.category} title={cat} size={32} />}
+                name={r.name}
+                meta={cat}
+                rank={r.rank}
+                desc={r.desc}
+              />
+            );
+          }
           return (
             <Row
               key={r.key}
@@ -151,7 +206,7 @@ function CommonList({ q }) {
 
 // ---------- Рідкісні ----------
 
-function RareList({ q }) {
+function RareList({ q, mobile = false }) {
   const { isGm } = useAuth();
   const { reserves, tags, loaded, error } = useRareCatalog();
   const [rank, setRank] = useState(0);
@@ -193,12 +248,12 @@ function RareList({ q }) {
 
   return (
     <>
-      <Note>
+      {!mobile && <Note>
         Не знаходяться за даунтайм. Ціну в PR задає ГМ для кожного резерву. Отриманий
         резерв записують на склад у чарнику: він вміщує {VAULT_CAP_BASE}{' '}
         і нічого не витрачає, доки резерв лежить. Згорає лише те, що взяли на місію.
         Теги фракцій допомагають перед грою відібрати резерви, доступні від замовника.
-      </Note>
+      </Note>}
 
       {isGm && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -229,35 +284,54 @@ function RareList({ q }) {
         <div style={{ fontSize: 12, color: 'var(--text-dimmer)' }}><span className="pre">&gt; </span>Завантаження каталогу…</div>
       ) : (
         <ListPanel shown={list.length} total={pool.length}>
-          {list.map((r, i) => (
-            <Row
-              key={r.key}
-              i={i}
-              dim={r.archived}
-              icon={<ReserveIcon kind="rare" title="Рідкісний резерв" />}
-              name={r.name}
-              meta={[`РАНГ ${r.rank}`, r.action, r.traits, r.archived && 'ПРИХОВАНО'].filter(Boolean).join(' · ')}
-              desc={r.desc}
-              flavor={r.flavor}
-              extra={<TagPills tagIds={r.tagIds} tags={tags} />}
-              price={
-                isGm ? (
-                  <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-                    {r.pricePr} PR
-                    <Menu
-                      small
-                      items={[
-                        { label: 'РЕДАГУВАТИ…', onClick: () => setEditing(r) },
-                        r.archived
-                          ? { label: 'ПОВЕРНУТИ В КАТАЛОГ', onClick: () => setArchived(r, false) }
-                          : { label: 'ПРИХОВАТИ', danger: true, onClick: () => setArchived(r, true) },
-                      ]}
-                    />
-                  </span>
-                ) : `${r.pricePr} PR`
-              }
-            />
-          ))}
+          {list.map((r, i) => {
+            const price = isGm ? (
+              <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                {r.pricePr} PR
+                <Menu
+                  small
+                  items={[
+                    { label: 'РЕДАГУВАТИ…', onClick: () => setEditing(r) },
+                    r.archived
+                      ? { label: 'ПОВЕРНУТИ В КАТАЛОГ', onClick: () => setArchived(r, false) }
+                      : { label: 'ПРИХОВАТИ', danger: true, onClick: () => setArchived(r, true) },
+                  ]}
+                />
+              </span>
+            ) : `${r.pricePr} PR`;
+            if (mobile) {
+              return (
+                <MobileRow
+                  key={r.key}
+                  i={i}
+                  rare
+                  dim={r.archived}
+                  icon={<ReserveIcon kind="rare" title="Рідкісний резерв" size={32} />}
+                  name={r.name}
+                  meta={[r.action, r.traits, r.archived && 'ПРИХОВАНО'].filter(Boolean).join(' · ')}
+                  rank={r.rank}
+                  desc={r.desc}
+                  flavor={r.flavor}
+                  extra={<TagPills tagIds={r.tagIds} tags={tags} />}
+                  price={price}
+                />
+              );
+            }
+            return (
+              <Row
+                key={r.key}
+                i={i}
+                dim={r.archived}
+                icon={<ReserveIcon kind="rare" title="Рідкісний резерв" />}
+                name={r.name}
+                meta={[`РАНГ ${r.rank}`, r.action, r.traits, r.archived && 'ПРИХОВАНО'].filter(Boolean).join(' · ')}
+                desc={r.desc}
+                flavor={r.flavor}
+                extra={<TagPills tagIds={r.tagIds} tags={tags} />}
+                price={price}
+              />
+            );
+          })}
         </ListPanel>
       )}
 

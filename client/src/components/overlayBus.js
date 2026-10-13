@@ -32,7 +32,9 @@ const UPGRADE_EVENT = 'ss:select-upgrade';
 export function showUpgrade(key) {
   window.dispatchEvent(new CustomEvent(UPGRADE_EVENT, { detail: key }));
   const el = document.getElementById('upgrades');
-  if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 20, behavior: 'smooth' });
+  // На телефоні шапка прилипає згори — прокручуємо так, щоб панель не сховалась під неї.
+  const head = document.querySelector('.ss-mhead')?.offsetHeight || 0;
+  if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 20 - head, behavior: 'smooth' });
 }
 export function onShowUpgrade(fn) {
   const h = (e) => fn(e.detail);

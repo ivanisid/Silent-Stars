@@ -4,7 +4,8 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { findImportTarget, mapCompconPilot } from '../pilot/compconImport';
 import { pushLog, llTier } from '../pilot/logic';
-import { Menu, Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
+import { Menu, Msg, MobileHead, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
+import { useIsMobile } from '../useMobile';
 
 export default function PilotSelectPage() {
   const { user } = useAuth();
@@ -13,6 +14,7 @@ export default function PilotSelectPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [view, setView] = useState('active');
   const [q, setQ] = useState('');
+  const mobile = useIsMobile();
 
   const [pilots, setPilots] = useState([]);
   // Портрети окремо від списку: якщо їх не вдалося підтягнути, список однаково працює.
@@ -211,22 +213,32 @@ export default function PilotSelectPage() {
   return (
     <PageShell>
       {dialog}
-      <PageHeader
-        section="FERUM VOX"
-        title="ВИБІР ПІЛОТА"
-        tag={<span style={{ fontSize: 11, color: 'var(--text-info)', letterSpacing: 1 }}>{pilots.length}</span>}
-      />
+      {mobile ? (
+        <MobileHead
+          logo
+          section="FERUM VOX"
+          title="ВИБІР ПІЛОТА"
+          right={<span style={{ fontSize: 11, color: 'var(--text-info)', letterSpacing: 1 }}>{pilots.length}</span>}
+        />
+      ) : (
+        <PageHeader
+          section="FERUM VOX"
+          title="ВИБІР ПІЛОТА"
+          tag={<span style={{ fontSize: 11, color: 'var(--text-info)', letterSpacing: 1 }}>{pilots.length}</span>}
+        />
+      )}
 
       {loadError && <Msg kind="err">{loadError}</Msg>}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <div className={mobile ? 'm-two' : undefined} style={mobile ? undefined : { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <button className="btn" type="button" onClick={() => setFormOpen((v) => !v)}>+ НОВИЙ ПІЛОТ</button>
         <button className="btn-ghost" type="button" disabled={importBusy} onClick={() => fileInputRef.current?.click()}>
           {importBusy ? 'ІМПОРТУЄТЬСЯ…' : 'ІМПОРТ З COMP/CON'}
         </button>
-        <div className="ss-note">JSON «Export Pilot». Пілот з тим самим позивним оновиться.</div>
+        {!mobile && <div className="ss-note">JSON «Export Pilot». Пілот з тим самим позивним оновиться.</div>}
         <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={handleImportFile} style={{ display: 'none' }} />
       </div>
+      {mobile && <div className="ss-note">JSON «Export Pilot». Пілот з тим самим позивним оновиться.</div>}
       {importError && <Msg kind="err">{importError}</Msg>}
 
       {formOpen && (
@@ -256,13 +268,23 @@ export default function PilotSelectPage() {
         </Panel>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div className="ss-seg">
-          <button type="button" className={view === 'active' ? 'on' : ''} style={{ height: 24, fontSize: 10 }} onClick={() => setView('active')}>АКТИВНІ · {activeCount}</button>
-          <button type="button" className={view === 'all' ? 'on' : ''} style={{ height: 24, fontSize: 10 }} onClick={() => setView('all')}>УСІ · {pilots.length}</button>
+      {mobile ? (
+        <>
+          <div className="ss-seg sm" style={{ alignSelf: 'flex-start' }}>
+            <button type="button" className={view === 'active' ? 'on' : ''} onClick={() => setView('active')}>АКТИВНІ · {activeCount}</button>
+            <button type="button" className={view === 'all' ? 'on' : ''} onClick={() => setView('all')}>УСІ · {pilots.length}</button>
+          </div>
+          <input className="ss-input sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ пошук за позивним або мехом" style={{ width: '100%' }} />
+        </>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div className="ss-seg">
+            <button type="button" className={view === 'active' ? 'on' : ''} style={{ height: 24, fontSize: 10 }} onClick={() => setView('active')}>АКТИВНІ · {activeCount}</button>
+            <button type="button" className={view === 'all' ? 'on' : ''} style={{ height: 24, fontSize: 10 }} onClick={() => setView('all')}>УСІ · {pilots.length}</button>
+          </div>
+          <input className="ss-input sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ пошук за позивним або мехом" style={{ marginLeft: 'auto', width: 260, maxWidth: '100%' }} />
         </div>
-        <input className="ss-input sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ пошук за позивним або мехом" style={{ marginLeft: 'auto', width: 260, maxWidth: '100%' }} />
-      </div>
+      )}
 
       <Panel style={{ display: 'flex', flexDirection: 'column' }}>
         {loading && <div className="ss-note" style={{ padding: 14 }}><span className="pre">&gt; </span>Завантаження…</div>}
@@ -286,6 +308,56 @@ export default function PilotSelectPage() {
                   <button className="btn" type="button" disabled={editBusy} onClick={() => saveEdit(p.id)}>ЗБЕРЕГТИ</button>
                   <button className="btn-ghost" type="button" onClick={cancelEdit}>СКАСУВАТИ</button>
                 </div>
+              </div>
+            );
+          }
+          const menu = (
+            <Menu
+              items={[
+                { label: 'РЕДАГУВАТИ', onClick: () => startEdit(p) },
+                { label: archived ? 'З АРХІВУ' : 'В АРХІВ', onClick: () => setArchived(p, !archived).catch((err) => setLoadError(err.message)) },
+                { label: 'ВИДАЛИТИ…', danger: true, onClick: () => remove(p) },
+              ]}
+            />
+          );
+          if (mobile) {
+            return (
+              <div
+                key={p.id}
+                className="ss-roster-row"
+                style={{
+                  position: 'relative',
+                  display: 'grid',
+                  gridTemplateColumns: '56px minmax(0,1fr) 30px',
+                  gap: 12,
+                  alignItems: 'center',
+                  padding: '10px 12px',
+                  borderTop: i ? '1px solid var(--panel-border)' : 'none',
+                  opacity: archived ? 0.6 : 1,
+                }}
+              >
+                <Link to={`/pilots/${p.id}`} aria-label={`Профіль ${p.callsign}`} style={{ position: 'absolute', inset: 0 }} />
+                <div className={portraits[p.id] ? '' : 'ss-hatch'} style={{ width: 56, height: 56, border: '1px solid var(--input-border)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text-faint)', textAlign: 'center', lineHeight: 1.3 }}>
+                  {portraits[p.id] ? (
+                    <img src={portraits[p.id]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }} />
+                  ) : (
+                    <span>NO IMAGE<br />DATA</span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                    <span className="title-font" style={{ fontSize: 20, letterSpacing: 1, color: 'var(--text-bright)', overflowWrap: 'anywhere' }}>{p.callsign}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-info)', letterSpacing: 1, whiteSpace: 'nowrap' }}>T{llTier(p.ll)} · LL{p.ll}</span>
+                    {archived && <span className="ss-tag bad">АРХІВ</span>}
+                  </div>
+                  <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{p.name}</span>
+                  {p.mechs.length > 0 && (
+                    <span style={{ fontSize: 11, color: 'var(--text-dimmer)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      ▮ {p.mechs.map((m) => m.name.toUpperCase()).join(' // ')}
+                    </span>
+                  )}
+                </div>
+                <div>{menu}</div>
               </div>
             );
           }
@@ -329,15 +401,7 @@ export default function PilotSelectPage() {
                 )}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-info)', letterSpacing: 1, whiteSpace: 'nowrap' }}>T{llTier(p.ll)} · LL{p.ll}</div>
-              <div>
-                <Menu
-                  items={[
-                    { label: 'РЕДАГУВАТИ', onClick: () => startEdit(p) },
-                    { label: archived ? 'З АРХІВУ' : 'В АРХІВ', onClick: () => setArchived(p, !archived).catch((err) => setLoadError(err.message)) },
-                    { label: 'ВИДАЛИТИ…', danger: true, onClick: () => remove(p) },
-                  ]}
-                />
-              </div>
+              <div>{menu}</div>
             </div>
           );
         })}

@@ -1403,7 +1403,6 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 
 /* Мобільний (≤640px) */
 @media (max-width: 640px) {
-  .ss-wrap { padding: 14px 12px 0; gap: 16px; }
   .m-stack { grid-template-columns: minmax(0, 1fr) !important; gap: 16px !important; }
   .m-pad { padding: 14px !important; }
   .m-one { grid-template-columns: minmax(0, 1fr) !important; }
@@ -1605,11 +1604,7 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
 @media (prefers-reduced-motion: reduce) {
   .ss-rail .aurora i, .ss-rail .runwrap .ticks { animation: none; }
 }
-/* На телефоні справа відступу немає: 128px з 360 — забагато; язичок магазину лежить
-   поверх вмісту. */
-@media (max-width: 640px) {
-  .ss-page { padding: 0 0 80px 64px; }
-}
+/* На телефоні рейки немає — навігація в нижньому таб-барі (styles/mobile.css). */
 
 /* ================= Магазин: скошений язичок і напівпрозора панель (інтерфейс 2c) =================
    Фон панелі — від --panel-sunken, а не темним hex: на світлих темах інакше чорний

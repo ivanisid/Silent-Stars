@@ -8,6 +8,14 @@ import { Msg, Panel } from './kit.jsx';
 
 export const CALENDAR_DAYS = 14;
 const WEEKDAYS = ['НД', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ'];
+const MONTHS = ['СІЧЕНЬ', 'ЛЮТИЙ', 'БЕРЕЗЕНЬ', 'КВІТЕНЬ', 'ТРАВЕНЬ', 'ЧЕРВЕНЬ', 'ЛИПЕНЬ', 'СЕРПЕНЬ', 'ВЕРЕСЕНЬ', 'ЖОВТЕНЬ', 'ЛИСТОПАД', 'ГРУДЕНЬ'];
+
+// «ЖОВТЕНЬ 2026», а якщо два тижні заходять у наступний місяць — «ЖОВТЕНЬ — ЛИСТОПАД 2026».
+function monthsTitle(a, b) {
+  if (a.getMonth() === b.getMonth()) return `${MONTHS[a.getMonth()]} ${a.getFullYear()}`;
+  if (a.getFullYear() === b.getFullYear()) return `${MONTHS[a.getMonth()]} — ${MONTHS[b.getMonth()]} ${b.getFullYear()}`;
+  return `${MONTHS[a.getMonth()]} ${a.getFullYear()} — ${MONTHS[b.getMonth()]} ${b.getFullYear()}`;
+}
 
 const pad = (n) => String(n).padStart(2, '0');
 // Локальна дата як YYYY-MM-DD (toISOString дав би UTC і зсунув би день уночі).
@@ -27,7 +35,9 @@ function nextDays(n) {
   });
 }
 
-export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
+// mobile — варіант для телефона: сітка тижня з клітинками 44px і панель обраного дня
+// (за замовчуванням — сьогодні); onOpenBoard — тап по грі дня веде на дошку.
+export default function PlayCalendar({ user, isGm, slots, onCreateForDay, mobile = false, onOpenBoard }) {
   const days = useMemo(() => nextDays(CALENDAR_DAYS), []);
   const from = dayKey(days[0]);
   const to = dayKey(days[days.length - 1]);
@@ -98,6 +108,67 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay }) {
   const pickedDate = picked ? days.find((d) => dayKey(d) === picked) : null;
 
   if (disabled) return null;
+
+  if (mobile) {
+    const sel = picked || from;
+    const selDate = days.find((d) => dayKey(d) === sel);
+    const selPlayers = byDay[sel] || [];
+    const selGames = gamesByDay[sel] || [];
+    const selMe = mine(sel);
+    return (
+      <>
+        <Panel title={monthsTitle(days[0], days[days.length - 1])} sub="ХОЧУ ГРАТИ · 2 ТИЖНІ">
+          <div className="ss-mcal">
+            {WEEKDAYS.map((w) => <div key={w} className="wd">{w}</div>)}
+            {Array.from({ length: days[0].getDay() }, (_, i) => <div key={`b${i}`} />)}
+            {days.map((d) => {
+              const k = dayKey(d);
+              const n = (byDay[k] || []).length;
+              return (
+                <button key={k} type="button" className={`day${k === sel ? ' on' : ''}`} aria-pressed={k === sel} onClick={() => setPicked(k)}>
+                  <span>{d.getDate()}</span>
+                  <span className="dots">
+                    {(gamesByDay[k] || []).length > 0 && <i className="game" />}
+                    {mine(k) && <i className="me" />}
+                  </span>
+                  <span className="cnt">{n || ''}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Panel>
+        {selDate && (
+          <Panel title={`${pad(selDate.getDate())}.${pad(selDate.getMonth() + 1)}.${selDate.getFullYear()}`}>
+            <div className="ss-body">
+              {selGames.map((s) => (
+                <button key={s.id} type="button" className="ss-mlink" onClick={onOpenBoard}>
+                  <span className="pre">&gt; </span>{s.title || 'Гра без назви'} ({s.signups.length}/{s.seats})
+                </button>
+              ))}
+              <div className="ss-sect">
+                <div className="ss-label">ВІЛЬНІ ГРАВЦІ</div>
+                <div className="ss-count">{selPlayers.length}</div>
+              </div>
+              {selPlayers.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {selPlayers.map((p) => <span key={p.userId} className="ss-chip sm m-chip">{p.nick}</span>)}
+                </div>
+              )}
+              <button type="button" className={selMe ? 'btn-ghost' : 'btn'} disabled={busy} style={{ width: '100%' }} onClick={() => toggle(sel)}>
+                {selMe ? 'Я НЕ МОЖУ' : 'Я МОЖУ ГРАТИ'}
+              </button>
+              {isGm && (
+                <button className="btn-gm" type="button" style={{ width: '100%' }} onClick={() => onCreateForDay(selDate)}>
+                  + СТВОРИТИ ГРУ НА ЦЕЙ ДЕНЬ
+                </button>
+              )}
+              {error && <Msg kind="err">{error}</Msg>}
+            </div>
+          </Panel>
+        )}
+      </>
+    );
+  }
 
   return (
     <Panel title="Календар" sub="ХОЧУ ГРАТИ · 2 ТИЖНІ">

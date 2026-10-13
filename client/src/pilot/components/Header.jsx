@@ -21,7 +21,7 @@ const lastImport = new Map();
 // Профіль пілота: ім'я, позивний і мехи, бекграунд, ТІР/статус, меню «⋯» (імпорт і
 // правки), рядок ЛЛ з покупкою рівня, ігри пілота і портрет праворуч. Під панеллю —
 // кнопки імпорту зі статусом останнього завантаження.
-export default function Header({ pilot, state, dispatch, onSaveMeta, games, portrait, canEditArt, onUploadPortrait, onRemoveArt, compconFiles, importCompcon, importNote }) {
+export default function Header({ pilot, state, dispatch, onSaveMeta, games, portrait, canEditArt, onUploadPortrait, onRemoveArt, compconFiles, importCompcon, importNote, showPortrait = true }) {
   const view = derivePilotView(state);
   const { theme, house } = useThemeState();
   const [editingMeta, setEditingMeta] = useState(false);
@@ -108,7 +108,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
   return (
     <>
     <Panel title="ПРОФІЛЬ ПІЛОТА" sub="FERUM VOX PILOT">
-      <div className="m-stack m-pad" style={{ padding: 20, display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 120px', gap: 28, alignItems: 'start' }}>
+      <div className="m-stack m-pad" style={{ padding: 20, display: 'grid', gridTemplateColumns: showPortrait ? 'minmax(0,1fr) 120px' : 'minmax(0,1fr)', gap: 28, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 240, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -226,7 +226,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
 
           <PilotGames games={games} />
         </div>
-        {theme === 'karrakin-interstellar' ? <KkArch house={house}>{portraitSlot}</KkArch> : portraitSlot}
+        {showPortrait && (theme === 'karrakin-interstellar' ? <KkArch house={house}>{portraitSlot}</KkArch> : portraitSlot)}
       </div>
     </Panel>
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: -8 }}>

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import NavDrawer from './NavDrawer.jsx';
+import MobileTabBar from './MobileTabBar.jsx';
+import { useIsMobile } from '../useMobile';
 import { hasHouses, houseInfo, nextHouse, useThemeState } from '../theme';
 import { toggle as toggleCascade } from '../cascade/engine.js';
 import { frame as kkFrame, houseStyle, spine as kkSpine } from '../styles/karrakin/frame.js';
@@ -10,15 +12,18 @@ import { frame as kkFrame, houseStyle, spine as kkSpine } from '../styles/karrak
 // меню «⋯», вікно підтвердження (замість window.confirm), лічильник-трек, повідомлення.
 // Уся візуальна частина — класи ss-* у styles/theme.css, кольори лише зі змінних теми.
 
-export function PageShell({ children, narrow = false }) {
+// На телефоні (≤640px) під сторінкою — нижній таб-бар замість рейки; шапка сторінки
+// (PageHeader / MobileHead) прилипає згори.
+export function PageShell({ children, narrow = false, className = '' }) {
   const { theme, house } = useThemeState();
+  const mobile = useIsMobile();
   const wrap = useRef(null);
   const spineSvg = useRef(null);
   useKkSpine(wrap, spineSvg, theme === 'karrakin-interstellar', house);
   return (
-    <div className="ss-page">
+    <div className="ss-page" data-mobile={mobile ? '' : undefined}>
       <div className="ss-grid" aria-hidden="true" />
-      <div ref={wrap} className={`ss-wrap${narrow ? ' narrow' : ''}`}>
+      <div ref={wrap} className={`ss-wrap${narrow ? ' narrow' : ''}${className ? ` ${className}` : ''}`}>
         {theme === 'karrakin-interstellar' && (
           <svg ref={spineSvg} className="kk-spine" aria-hidden="true">
             <path className="s" />
@@ -28,6 +33,7 @@ export function PageShell({ children, narrow = false }) {
         )}
         {children}
       </div>
+      {mobile && <MobileTabBar />}
     </div>
   );
 }
@@ -171,9 +177,44 @@ function HeaderMark() {
   );
 }
 
+// Шапка мобільної версії: [прапор дому | лого] РОЗДІЛ / НАЗВА … праворуч. З back —
+// кнопка «‹» і назва в рядок. children — рядок під шапкою (вкладки профілю).
+// Лого FERUM VOX — лише там, де його просить макет (logo); прапор у темах KARRAKIN — завжди.
+export function MobileHead({ section, title, back, right, logo = false, tone, children }) {
+  const { theme } = useThemeState();
+  const navigate = useNavigate();
+  const mark = hasHouses(theme) || logo;
+  return (
+    <div className={`ss-mhead${children ? ' stack' : ''}${tone === 'gm' ? ' gm' : ''}`}>
+      <div className="row">
+        {mark && <HeaderMark />}
+        {back != null && (
+          <button type="button" className="ss-icon" aria-label="Назад" onClick={() => (typeof back === 'function' ? back() : navigate(back))}>‹</button>
+        )}
+        {back != null ? (
+          <span className="title-font h1 inline">{title}</span>
+        ) : (
+          <div className="tt">
+            {section && <span className="sec">{section}</span>}
+            <span className="title-font h1">{title}</span>
+          </div>
+        )}
+        {right && <div className="right">{right}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 // «[лого] > РОЗДІЛ / НАЗВА … нік». Навігація — ліва рейка, яка завжди на екрані.
+// На телефоні — мобільна шапка, а навігація в таб-барі (PageShell).
 export function PageHeader({ section, sectionTo, title, tag, right }) {
   const { user } = useAuth();
+  const mobile = useIsMobile();
+  if (mobile) {
+    const side = tag || right ? <>{tag}{right}</> : null;
+    return <MobileHead section={section} title={title} back={sectionTo} right={side} />;
+  }
   return (
     <div className="ss-head">
       <HeaderMark />
