@@ -264,7 +264,7 @@ export default function PilotSelectPage() {
         <input className="ss-input sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ пошук за позивним або мехом" style={{ marginLeft: 'auto', width: 260, maxWidth: '100%' }} />
       </div>
 
-      <div className="ss-panel" style={{ display: 'flex', flexDirection: 'column' }}>
+      <Panel style={{ display: 'flex', flexDirection: 'column' }}>
         {loading && <div className="ss-note" style={{ padding: 14 }}><span className="pre">&gt; </span>Завантаження…</div>}
         {!loading && shown.length === 0 && (
           <div className="ss-slot" style={{ margin: 10, padding: 18, justifyContent: 'flex-start', gap: 10, flexWrap: 'wrap', fontSize: 12, color: 'var(--text-dimmer)' }}>
@@ -341,7 +341,7 @@ export default function PilotSelectPage() {
             </div>
           );
         })}
-      </div>
+      </Panel>
 
       <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>FERUM VOX // PILOT ROSTER</div>
     </PageShell>

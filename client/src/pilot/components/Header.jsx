@@ -3,6 +3,8 @@ import { derivePilotView } from '../derive';
 import { compconStatus } from '../compconFile';
 import { parseAdventureLeagueCsv, summarizeAdventureLeagueLog } from '../csvImport';
 import { Menu, Panel } from '../../components/kit.jsx';
+import KkArch from '../../components/KkArch.jsx';
+import { useThemeState } from '../../theme';
 import ArtSlot from './ArtSlot.jsx';
 import PilotGames from './PilotGames.jsx';
 
@@ -21,6 +23,7 @@ const lastImport = new Map();
 // кнопки імпорту зі статусом останнього завантаження.
 export default function Header({ pilot, state, dispatch, onSaveMeta, games, portrait, canEditArt, onUploadPortrait, onRemoveArt, compconFiles, importCompcon, importNote }) {
   const view = derivePilotView(state);
+  const { theme, house } = useThemeState();
   const [editingMeta, setEditingMeta] = useState(false);
   const [name, setName] = useState(pilot.name);
   const [callsign, setCallsign] = useState(pilot.callsign);
@@ -88,6 +91,20 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
   const statusActive = state.status === 'active';
   const balance = state.mana.balance;
 
+  const portraitSlot = (
+    <ArtSlot
+      className="m-portrait ss-portrait"
+      art={portrait}
+      label="ПОРТРЕТ"
+      compact
+      canEdit={canEditArt}
+      onUpload={onUploadPortrait}
+      onRemove={onRemoveArt}
+      width={120}
+      height={144}
+      fit="cover"
+    />
+  );
   return (
     <>
     <Panel title="ПРОФІЛЬ ПІЛОТА" sub="FERUM VOX PILOT">
@@ -209,18 +226,7 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
 
           <PilotGames games={games} />
         </div>
-        <ArtSlot
-          className="m-portrait ss-portrait"
-          art={portrait}
-          label="ПОРТРЕТ"
-          compact
-          canEdit={canEditArt}
-          onUpload={onUploadPortrait}
-          onRemove={onRemoveArt}
-          width={120}
-          height={144}
-          fit="cover"
-        />
+        {theme === 'karrakin-interstellar' ? <KkArch house={house}>{portraitSlot}</KkArch> : portraitSlot}
       </div>
     </Panel>
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: -8 }}>

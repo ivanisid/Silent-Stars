@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { RESERVES, RESERVE_CATEGORIES } from '../pilot/reserves';
 import { RARE_RANKS, VAULT_CAP_BASE, useRareCatalog, loadRareCatalog } from '../pilot/rareReserves';
-import { Menu, Msg, PageHeader, PageShell } from '../components/kit.jsx';
+import { Menu, Msg, PageHeader, PageShell, Panel } from '../components/kit.jsx';
 import ReserveIcon, { ReserveGlyph, hasReserveIcon } from '../pilot/components/ReserveIcon.jsx';
 import { TagFilter, TagPills, matchTags, countByTag } from '../pilot/components/ReserveTags.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -54,13 +54,13 @@ function Note({ children }) {
 // Панель-список: лічильник позицій угорі, рядки «іконка | назва, мета, опис | ціна».
 function ListPanel({ shown, total, children }) {
   return (
-    <div className="ss-panel">
+    <Panel>
       <div style={{ padding: '7px 14px', borderBottom: '1px solid var(--panel-border)', fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 1 }}>
         {shown === total ? `${total} ПОЗИЦІЙ` : `${shown} З ${total}`}
       </div>
       {shown === 0 && <div style={{ padding: '18px 14px', fontSize: 12, color: 'var(--text-dimmer)' }}><span className="pre">&gt; </span>Нічого не знайдено.</div>}
       {children}
-    </div>
+    </Panel>
   );
 }
 
