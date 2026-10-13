@@ -804,53 +804,63 @@
   --ok-bg: #04201a; --ok-border: #1f6a55; --bad-bg: #24050f; --bad-border: #6a1a35;
 }
 
-/* KARRAKIN — ours. One theme whose colours come from the selected house banner (data-house):
-   --kf banner field, --kt trim, --ka accent, --kht ink on the field, --kl light base (glass and
-   promise only). Every theme variable is mixed from those four, so a house is one line. */
-:root[data-theme='karrakin'][data-house='water']{--kf:#5fa883;--kt:#f0f0ea;--ka:#8fd8b2;--kht:#0f2018;}
-:root[data-theme='karrakin'][data-house='remembrance']{--kf:#2f6e4c;--kt:#e8b04a;--ka:#e8b04a;--kht:#fff4dc;}
-:root[data-theme='karrakin'][data-house='sand']{--kf:#e06a2c;--kt:#f0a838;--ka:#f0a838;--kht:#140a04;}
-:root[data-theme='karrakin'][data-house='dust']{--kf:#55583a;--kt:#b89a5a;--ka:#c8ac6c;--kht:#f2ead2;}
-:root[data-theme='karrakin'][data-house='stone']{--kf:#a82c28;--kt:#f0b030;--ka:#f0b030;--kht:#fff2dc;}
-:root[data-theme='karrakin'][data-house='promise']{--kf:#2a3422;--kt:#e8b070;--ka:#a8231c;--kht:#f4e2c0;--kl:#f0b878;}
-:root[data-theme='karrakin'][data-house='smoke']{--kf:#5e5e5e;--kt:#f0f0f0;--ka:#5fb4e8;--kht:#ffffff;}
-:root[data-theme='karrakin'][data-house='moments']{--kf:#1a8fb0;--kt:#101010;--ka:#5fd0ee;--kht:#04141a;}
-:root[data-theme='karrakin'][data-house='glass']{--kf:#e8a224;--kt:#e8521a;--ka:#c8441a;--kht:#3a1c08;--kl:#f0b030;}
-:root[data-theme='karrakin'][data-house='order']{--kf:#6a4c9c;--kt:#f0f0f0;--ka:#b8a0ea;--kht:#ffffff;}
+/* KARRAKIN — ours (handoff «KARRAKIN INTERSTELLAR»). Dark starry base tinted by the house
+   (data-house), gold frames. Each house is --kf field, --kt metal, --ka accent, --kp plate
+   colour and --kpa plate opacity (the "Alt" palette); every other value is mixed from them.
+   --sN surfaces, --tN text tiers, --kg* golds; then the app tokens are mapped onto those. */
 :root[data-theme='karrakin'] {
-  --bg: color-mix(in oklch, var(--kf) 12%, #050404); --bg-alt: color-mix(in oklch, var(--kf) 8%, #030302); --page-grad: color-mix(in oklch, var(--kf) 35%, #050404); --dot: color-mix(in oklch, var(--kf) 18%, #0a0908);
-  --panel: color-mix(in oklch, var(--kf) 16%, #0c0b09); --panel-border: color-mix(in oklch, var(--kt) 35%, #1a1814); --panel-inset: color-mix(in oklch, var(--kf) 22%, #15130f); --panel-sunken: color-mix(in oklch, var(--kf) 10%, #070605);
-  --header: var(--kf); --header-strong: color-mix(in oklch, var(--kf) 80%, #000); --header-text: var(--kht); --btn-text: var(--kht); --header-border: var(--kt);
-  --rule: color-mix(in oklch, var(--kt) 25%, transparent); --overlay: #000000cc; --shadow: #000; --scrollbar: color-mix(in oklch, var(--kf) 40%, #1a1814);
-  --accent: var(--ka); --accent-hover: color-mix(in oklch, var(--ka) 60%, #fff); --accent-dim: color-mix(in oklch, var(--ka) 45%, #000);
-  --text: #ece6da; --text-bright: #fff; --text-soft: #d6d0c4; --text-soft-dim: #b0aa9e; --text-info: color-mix(in oklch, var(--ka) 70%, #fff);
-  --text-dim: #a29c90; --text-dimmer: #9b9589; --text-muted: #9b9488; --text-grey: #9a958b; --text-faint: #9a9489;
-  --input-bg: color-mix(in oklch, var(--kf) 8%, #040403); --input-border: color-mix(in oklch, var(--kf) 25%, #2a2620);
-  --btn-bg: var(--kf); --btn-border: var(--kt); --btn-hover: color-mix(in oklch, var(--kf) 80%, #fff);
+  --kp: var(--kf); --kpa: 27%; --kpn: var(--s3); --ks: 1;
+  --kgl: color-mix(in oklch, var(--kt) 62%, #fff); --kgh: color-mix(in oklch, var(--kt) 48%, #fff);
+  --kgw: color-mix(in oklch, var(--kt) 20%, #fff); --kgd: color-mix(in oklch, var(--kt) 80%, #000);
+  --kal: color-mix(in oklch, var(--ka) 50%, #fff);
+  --s0: color-mix(in oklch, var(--kf) calc(7% * var(--ks)), #050407);
+  --s1: color-mix(in oklch, var(--kf) calc(11% * var(--ks)), #060508);
+  --s2: color-mix(in oklch, var(--kf) calc(14% * var(--ks)), #07060a);
+  --s3: color-mix(in oklch, var(--kf) calc(18% * var(--ks)), #08070b);
+  --s4: color-mix(in oklch, var(--kf) calc(24% * var(--ks)), #09080c);
+  --s5: color-mix(in oklch, var(--kf) calc(31% * var(--ks)), #0a090d);
+  --t1: color-mix(in oklch, var(--kf) 12%, #f4f2f6); --t2: color-mix(in oklch, var(--kf) 22%, #e6e4e8);
+  --t3: color-mix(in oklch, var(--kf) 30%, #d6d4da); --t4: color-mix(in oklch, var(--kf) 34%, #b8b6bc);
+  --tw: #fff; --ok: #8fd8b2; --bad: #f08a7a; --kwarn: #f0c870;
+  --kbar: var(--kgl); --kbarg: var(--ka);
+  --klbl: var(--kt); --kacc: var(--ka);
+  --kline: color-mix(in srgb, var(--kt) 28%, transparent);
+  --khair: color-mix(in srgb, var(--kt) 15%, transparent);
+
+  --bg: var(--s0); --bg-alt: var(--s1); --page-grad: var(--s2); --dot: var(--s4);
+  --panel: var(--kpn); --panel-border: var(--khair); --panel-inset: var(--s2); --panel-sunken: var(--s1);
+  --header: var(--kp); --header-strong: var(--kp); --header-text: var(--kgl); --header-border: var(--kt);
+  --btn-text: var(--s2); --btn-bg: var(--kt); --btn-border: var(--kt); --btn-hover: var(--kgl);
+  --rule: var(--khair); --overlay: #000c; --shadow: #000c; --scrollbar: var(--s5);
+  --accent: var(--kacc); --accent-hover: var(--kal); --accent-dim: color-mix(in srgb, var(--ka) 45%, transparent);
+  --text: var(--t1); --text-bright: var(--tw); --text-soft: var(--t2); --text-soft-dim: var(--t3); --text-info: var(--kgl);
+  --text-dim: var(--t3); --text-dimmer: var(--t4); --text-muted: var(--t4); --text-grey: var(--t3); --text-faint: var(--t4);
+  --input-bg: var(--s1); --input-border: var(--kline);
+  --danger: var(--bad); --danger-bg: color-mix(in srgb, var(--bad) 10%, var(--s1)); --danger-border: color-mix(in srgb, var(--bad) 45%, transparent);
+  --success: var(--ok); --success-bg: color-mix(in srgb, var(--ok) 10%, var(--s1)); --success-border: color-mix(in srgb, var(--ok) 40%, transparent);
+  --warn: var(--kwarn); --warn-bg: color-mix(in srgb, var(--kwarn) 10%, var(--s1)); --warn-border: color-mix(in srgb, var(--kwarn) 40%, transparent);
+  --ok-bg: var(--success-bg); --ok-border: var(--success-border); --bad-bg: var(--danger-bg); --bad-border: var(--danger-border);
 }
-:root[data-theme='karrakin']:is([data-house='glass'],[data-house='promise']) {
+:root[data-theme='karrakin'][data-house='order']{--kf:#6a4c9c;--kt:#d8a454;--ka:#b8a0ea;--kp:#6a4c9c;--kpa:45%;}
+:root[data-theme='karrakin'][data-house='water']{--kf:#4f9a78;--kt:#e8ece4;--ka:var(--ok);--kp:#2a5a44;--kpa:60%;}
+:root[data-theme='karrakin'][data-house='remembrance']{--kf:#2f6e4c;--kt:#e8b04a;--ka:#f0c860;--kp:#2f6e4c;--kpa:62%;--ks:2;}
+:root[data-theme='karrakin'][data-house='sand']{--kf:#5c3a26;--kt:#ece6dc;--ka:#f06a2a;--kp:#e0602a;--kpa:50%;--ks:2;}
+:root[data-theme='karrakin'][data-house='dust']{--kf:#5a5c3c;--kt:#c0a060;--ka:#a8b47c;--kp:#6a6c44;--kpa:58%;}
+:root[data-theme='karrakin'][data-house='stone']{--kf:#a82c28;--kt:#f0b030;--ka:#f0c040;--kp:#a82c28;--kpa:62%;}
+:root[data-theme='karrakin'][data-house='promise']{--kf:#34422a;--kt:#e8b070;--ka:#e04a34;--kp:#b82a20;--kpa:55%;--ks:2.1;--kacc:color-mix(in oklch,var(--ka) 85%,#fff);}
+:root[data-theme='karrakin'][data-house='smoke']{--kf:#5e5e5e;--kt:#e0e0e0;--ka:#5fb4e8;--kp:#5e5e5e;--kpa:58%;}
+:root[data-theme='karrakin'][data-house='moments']{--kf:#1a8fb0;--kt:#d8c890;--ka:#5fd0ee;--kp:#1a6f90;--kpa:60%;}
+:root[data-theme='karrakin'][data-house='glass']{
   color-scheme: only light;
-  --bg: color-mix(in oklch, var(--kl) 22%, #f4eee2); --bg-alt: color-mix(in oklch, var(--kl) 30%, #f4eee2); --page-grad: color-mix(in oklch, var(--kl) 45%, #f4eee2); --dot: color-mix(in oklch, var(--kl) 35%, #e6dccb);
-  --panel: color-mix(in oklch, var(--kl) 10%, #fbf8f1); --panel-border: color-mix(in oklch, var(--kf) 55%, #c8bba4); --panel-inset: color-mix(in oklch, var(--kl) 18%, #f1ebde); --panel-sunken: color-mix(in oklch, var(--kl) 25%, #ebe3d3);
-  --rule: color-mix(in oklch, var(--kf) 25%, transparent); --overlay: #2a211799; --shadow: #2a211733; --scrollbar: color-mix(in oklch, var(--kl) 40%, #bfb29a);
-  --accent-hover: color-mix(in oklch, var(--ka) 70%, #000); --accent-dim: color-mix(in oklch, var(--ka) 45%, #fff);
-  --text: #2a2117; --text-bright: #120d08; --text-soft: #3e3428; --text-soft-dim: #5a4e40; --text-info: color-mix(in oklch, var(--ka) 80%, #000);
-  --text-dim: #695d4d; --text-dimmer: #695d4e; --text-muted: #695d4e; --text-grey: #675d4e; --text-faint: #685d4e;
-  --input-bg: #fffdf8; --input-border: color-mix(in oklch, var(--kf) 30%, #d8ccb6); --btn-hover: color-mix(in oklch, var(--kf) 80%, #000);
-  --gm: #8a5a00; --gm-ink: #8a5a00; --gm-dim: #b8955a;
-  --danger: #F44336;
-  --danger-bg: #f4d9d8;
-  --danger-border: #f4a49f;
-  --success: #68991E;
-  --success-bg: #dfe6d4;
-  --success-border: #b5cb94;
-  --warn: #C28200;
-  --warn-bg: #eaddc3;
-  --warn-border: #dbbb7a;
-  --ok-bg: #dbe4cd;
-  --ok-border: #aec789;
-  --bad-bg: #f4d4d2;
-  --bad-border: #f49c95;
+  --kf:#e8a224;--kt:#b87a10;--ka:#e81c0c;--kp:#ff1a0a;--kpa:26%;
+  --s0:#eadbb4;--s1:#f3e7c8;--s2:#f0e2bf;--s3:#faf2dc;--s4:#e8d6aa;--s5:#e2cc96;
+  --t1:#3a2410;--t2:#4a2f18;--t3:#6a4826;--t4:#765434;--tw:#2a1406;
+  --klbl:var(--kgw);--kacc:color-mix(in oklch,var(--ka) 85%,#000);
+  --kgl:#9a5a08;--kgw:#7a3c06;--kgh:#c8901c;--kgd:#8a5a10;--kal:#c8160a;
+  --kbar:color-mix(in srgb,#e8140a 82%,transparent);--kbarg:#ff3a1a;
+  --ok:#1f7a4a;--bad:#b8301c;--kwarn:#9a6a00;
+  --overlay:#2a140699;--shadow:#2a140644;
+  --gm:#8a5a00;--gm-ink:#8a5a00;--gm-dim:#b8955a;
 }
 /* KARRAKIN ACADEMY — ours. One theme whose colours come from the selected house banner (data-house):
    --kf banner field, --kt trim, --ka accent, --kht ink on the field, --kl light base (glass and
