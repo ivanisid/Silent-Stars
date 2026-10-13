@@ -29,7 +29,7 @@
 .ss-mhead .row { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 30px; }
 .ss-mhead .tt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ss-mhead .sec { font-size: 10px; letter-spacing: 2px; color: var(--text-dimmer); }
-.ss-mhead .h1 { font-size: 20px; letter-spacing: 3px; color: var(--text-bright); line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ss-mhead .h1 { margin: 0; font-size: 20px; letter-spacing: 3px; color: var(--text-bright); line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ss-mhead .h1.inline { letter-spacing: 2px; min-width: 0; }
 .ss-mhead .right { margin-left: auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ss-mhead .row > .ss-icon { flex: none; width: 34px; height: 34px; font-size: 18px; }

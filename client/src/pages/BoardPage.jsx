@@ -1099,7 +1099,7 @@ export default function BoardPage() {
               type="button"
               className="btn-ghost sm"
               aria-expanded={newOpen}
-              style={{ marginLeft: 'auto', color: 'var(--gm)', borderColor: 'var(--gm)' }}
+              style={{ marginLeft: 'auto', color: 'var(--gm-ink)', borderColor: 'var(--gm-ink)' }}
               onClick={() => {
                 setCreatePreset(null);
                 setNewOpen((v) => !v);

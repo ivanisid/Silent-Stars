@@ -179,7 +179,7 @@ export default function LoginPage() {
     );
 
   return (
-    <div
+    <main
       className="ss-login"
       style={{ position: 'relative', isolation: 'isolate', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '0 24px 0 max(24px, 12vw)', overflow: 'hidden' }}
     >
@@ -192,7 +192,7 @@ export default function LoginPage() {
       <div style={{ flex: 'none', width: 520, maxWidth: '100%', position: 'relative', padding: '16px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, fontSize: 10, color: 'var(--text-dimmer)', letterSpacing: 2 }}>
           <span style={{ color: 'var(--accent)' }}>■</span>
-          <span>FERUM-VOX // AUTH</span>
+          <h1 style={{ margin: 0, font: 'inherit', letterSpacing: 'inherit' }}>FERUM-VOX // AUTH</h1>
           <span style={{ marginLeft: 'auto' }}>NODE 07 · {pad(now.getHours())}:{pad(now.getMinutes())}:{pad(now.getSeconds())}</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', fontSize: 12, lineHeight: 1.5 }}>
@@ -217,6 +217,6 @@ export default function LoginPage() {
           <div key={l.id}><span>{l.t}</span> {l.text}</div>
         ))}
       </div>
-    </div>
+    </main>
   );
 }

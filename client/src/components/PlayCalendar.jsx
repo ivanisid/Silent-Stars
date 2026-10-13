@@ -183,11 +183,6 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay, mobile
             return (
               <div
                 key={k}
-                role="button"
-                tabIndex={0}
-                onClick={() => setPicked(k)}
-                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setPicked(k))}
-                title={`${n ? (byDay[k] || []).map((p) => p.nick).join(', ') : 'Ще ніхто не відмітив'}${me ? ' · ви відмітили' : ''}`}
                 style={{
                   position: 'relative',
                   display: 'flex',
@@ -197,7 +192,6 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay, mobile
                   minWidth: 0,
                   padding: '6px 6px 5px',
                   textAlign: 'left',
-                  cursor: 'pointer',
                   // День з грою — золота рамка й смуга згори: видно з першого погляду.
                   border: `1px solid ${picked === k ? 'var(--accent)' : games.length ? 'var(--gm-ink)' : 'var(--input-border)'}`,
                   borderLeft: `3px solid ${me ? 'var(--accent)' : games.length ? 'var(--gm-ink)' : 'transparent'}`,
@@ -209,6 +203,16 @@ export default function PlayCalendar({ user, isGm, slots, onCreateForDay, mobile
                   color: 'var(--text)',
                 }}
               >
+                {/* Вибір дня — окрема кнопка на всю клітинку, а не клітинка-кнопка: інакше кнопка
+                    своєї відмітки опинялась би всередині іншої кнопки. */}
+                <button
+                  type="button"
+                  aria-pressed={picked === k}
+                  aria-label={`${WEEKDAYS[d.getDay()]} ${pad(d.getDate())}.${pad(d.getMonth() + 1)}`}
+                  title={`${n ? (byDay[k] || []).map((p) => p.nick).join(', ') : 'Ще ніхто не відмітив'}${me ? ' · ви відмітили' : ''}`}
+                  onClick={() => setPicked(k)}
+                  style={{ position: 'absolute', inset: 0, padding: 0, background: 'transparent', border: 'none', cursor: 'pointer' }}
+                />
                 <span style={{ fontSize: 10, letterSpacing: 1, color: weekend ? 'var(--warn)' : 'var(--text-dimmer)' }}>
                   {WEEKDAYS[d.getDay()]} {pad(d.getDate())}.{pad(d.getMonth() + 1)}
                 </span>

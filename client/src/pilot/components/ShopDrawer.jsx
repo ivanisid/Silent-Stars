@@ -552,7 +552,8 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
           </div>
         </div>
 
-        <div className="wrap" aria-hidden={!open}>
+        {/* inert — щоб у закритому магазині кнопки не ловили фокус з клавіатури. */}
+        <div className="wrap" aria-hidden={!open} {...(open ? null : { inert: '' })}>
           <div style={{ paddingLeft: 10 }}>
             <div className="body" onMouseMove={glowMove} onMouseLeave={glowLeave}>
               <div className="glass" />

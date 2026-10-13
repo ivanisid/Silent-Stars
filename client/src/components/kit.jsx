@@ -23,7 +23,7 @@ export function PageShell({ children, narrow = false, className = '' }) {
   return (
     <div className="ss-page" data-mobile={mobile ? '' : undefined}>
       <div className="ss-grid" aria-hidden="true" />
-      <div ref={wrap} className={`ss-wrap${narrow ? ' narrow' : ''}${className ? ` ${className}` : ''}`}>
+      <main ref={wrap} className={`ss-wrap${narrow ? ' narrow' : ''}${className ? ` ${className}` : ''}`}>
         {theme === 'karrakin-interstellar' && (
           <svg ref={spineSvg} className="kk-spine" aria-hidden="true">
             <path className="s" />
@@ -32,7 +32,7 @@ export function PageShell({ children, narrow = false, className = '' }) {
           </svg>
         )}
         {children}
-      </div>
+      </main>
       {mobile && <MobileTabBar />}
     </div>
   );
@@ -191,11 +191,11 @@ export function MobileHead({ section, title, back, right, tone, children }) {
           <button type="button" className="ss-icon" aria-label="Назад" onClick={() => (typeof back === 'function' ? back() : navigate(back))}>‹</button>
         )}
         {back != null ? (
-          <span className="title-font h1 inline">{title}</span>
+          <h1 className="title-font h1 inline">{title}</h1>
         ) : (
           <div className="tt">
             {section && <span className="sec">{section}</span>}
-            <span className="title-font h1">{title}</span>
+            <h1 className="title-font h1">{title}</h1>
           </div>
         )}
         {right && <div className="right">{right}</div>}
@@ -222,7 +222,7 @@ export function PageHeader({ section, sectionTo, title, tag, right }) {
       ) : (
         <span className="crumb"><span className="pre">&gt; </span>{section}<span className="sep"> /</span></span>
       )}
-      <div className="h1">{title}</div>
+      <h1 className="h1">{title}</h1>
       {tag}
       <div className="right">
         {right}

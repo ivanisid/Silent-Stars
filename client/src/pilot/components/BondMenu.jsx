@@ -131,6 +131,7 @@ function BondXp({ state, dispatch }) {
             value={b.pick || 0}
             onChange={(e) => dispatch({ type: 'SET_BOND_PICK', value: e.target.value })}
             disabled={minors.length === 0}
+            aria-label="Мінорний ідеал"
             style={{ flex: 1, height: 28, textOverflow: 'ellipsis' }}
           >
             {minors.length === 0 && <option value={0}>Мінорний ідеал — з бонду COMP/CON</option>}
@@ -170,6 +171,7 @@ function StressBox({ state, dispatch }) {
             className="ss-input sm"
             type="number"
             min={1}
+            aria-label="Ліміт стресу"
             value={state.stressMax}
             onChange={(e) => dispatch({ type: 'SET_STRESS_MAX', value: e.target.value })}
             style={{ width: 44, height: 24, padding: '0 6px' }}
