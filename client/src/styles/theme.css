@@ -1409,6 +1409,10 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
   .m-side { order: -1; width: 100% !important; }
   .m-portrait { width: 100% !important; height: 140px !important; order: -1; }
   .m-portrait > div:first-child { height: 140px !important; }
+  /* Портрет пілота — вертикальний, по центру, у пропорціях арки KARRAKIN (168×220): на всю
+     ширину екрана вертикальний арт обрізався до смуги. Арт меха лишається широким. */
+  .m-portrait.ss-portrait { width: 168px !important; height: auto !important; justify-self: center; }
+  .m-portrait.ss-portrait > .ss-art { height: 220px !important; }
   .m-full { width: 100% !important; margin-left: 0 !important; }
   .m-hide { display: none !important; }
   .ss-field { grid-template-columns: minmax(0, 1fr); gap: 4px; }
