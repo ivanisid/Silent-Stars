@@ -63,7 +63,7 @@ function kyivOffsetMs(utcMs: number) {
 function parseKyivDate(input: string | undefined): string | null {
   if (!input) return null;
   const m = input.trim().match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?\s+(\d{1,2}):(\d{2})$/);
-  if (!m) throw new Error(`Не розібрав дату «${input}». Формат: ДД.ММ.РРРР ГГ:ХХ, напр. 12.10.2026 19:00`);
+  if (!m) throw new Error(`Не розібрав дату «${input}». Формат: ДД.ММ.РРРР ГГ:ХХ за київським часом, напр. 12.10.2026 19:00`);
   const [, d, mo, y, h, mi] = m;
   const now = new Date();
   let year = y ? (y.length === 2 ? 2000 + +y : +y) : now.getUTCFullYear();
@@ -511,7 +511,10 @@ async function onCommand(i: any, discordId: string, username: string) {
         p_signup_deadline: deadline,
         p_seats: opt(i, 'seats') ?? 4,
       });
-      return reply('✅ Гру створено — оголошення з\'явиться в каналі, і вона вже є на дошці в апці. Нагороду й складність можна задати в апці.');
+      // Дата введена за Києвом; мітка Discord покаже ГМу, як це виглядає в його поясі.
+      const at = (iso: string | null) => (iso ? `<t:${Math.floor(new Date(iso).getTime() / 1000)}:F>` : '');
+      const when = [`Гра: ${at(gameAt)}`, ...(deadline ? [`Набір до: ${at(deadline)}`] : [])].join('\n');
+      return reply('✅ Гру створено — оголошення з\'явиться в каналі, і вона вже є на дошці в апці. Нагороду й складність можна задати в апці.\n' + when);
     }
 
     case 'pilot':

@@ -25,10 +25,10 @@ const commands = [
     description: 'Створити гру (лише ГМ)',
     options: [
       { type: STRING, name: 'title', description: 'Назва місії', required: true, max_length: 200 },
-      { type: STRING, name: 'date', description: 'Коли: ДД.ММ.РРРР ГГ:ХХ (Київ), напр. 12.10.2026 19:00', required: true },
+      { type: STRING, name: 'date', description: 'Коли, за київським часом: ДД.ММ.РРРР ГГ:ХХ, напр. 12.10.2026 19:00', required: true },
       { type: INTEGER, name: 'seats', description: 'Місць (за замовчуванням 4)', min_value: 1, max_value: 20 },
       { type: STRING, name: 'description', description: 'Опис / брифінг', max_length: 2000 },
-      { type: STRING, name: 'deadline', description: 'Кінець набору: ДД.ММ.РРРР ГГ:ХХ' },
+      { type: STRING, name: 'deadline', description: 'Кінець набору, за київським часом: ДД.ММ.РРРР ГГ:ХХ' },
     ],
   },
   {
