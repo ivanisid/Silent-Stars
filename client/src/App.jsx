@@ -8,6 +8,7 @@ import PilotProfilePage from './pages/PilotProfilePage.jsx';
 import GmPanelPage from './pages/GmPanelPage.jsx';
 import BoardPage from './pages/BoardPage.jsx';
 import ReservesPage from './pages/ReservesPage.jsx';
+import RulesPage from './pages/RulesPage.jsx';
 
 function RequireAuth({ children }) {
   const { isAuthed, ready } = useAuth();
@@ -58,6 +59,14 @@ export default function App() {
         element={
           <RequireAuth>
             <ReservesPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/rules"
+        element={
+          <RequireAuth>
+            <RulesPage />
           </RequireAuth>
         }
       />

@@ -566,6 +566,31 @@ export const api = {
     return { ok: true };
   },
 
+  // Сторінка правил. Читати можуть усі, писати — лише ГМ через gm_*.
+  listRuleSections: async () => {
+    const { data, error } = await supabase.from('rule_sections').select('id, title, sort, blocks').order('sort');
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  saveRuleSection: async (id, title, blocks) => {
+    const { data, error } = await supabase.rpc('gm_save_rule_section', { p_id: id || null, p_title: title, p_blocks: blocks });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  deleteRuleSection: async (id) => {
+    const { error } = await supabase.rpc('gm_delete_rule_section', { p_id: id });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
+  reorderRuleSections: async (ids) => {
+    const { error } = await supabase.rpc('gm_reorder_rule_sections', { p_ids: ids });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
   // Locking the line-up and paying for a played game are separate steps: a slot sits in
   // 'approved' in between, where signup is shut but nothing has been awarded yet.
   gmApproveRoster: async (slotId, approvedSignupIds) => {

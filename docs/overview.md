@@ -17,7 +17,14 @@
 
 Сторінки (`client/src/App.jsx`): `/login`, `/pilots` (вибір пілота, імпорт COMP/CON),
 `/pilots/:id` (профіль), `/board` (дошка ігор, запис), `/reserves` (резерви, рідкісні
-резерви), `/gm` (панель ГМа).
+резерви), `/rules` (правила кампанії), `/gm` (панель ГМа).
+
+Правила (`client/src/pages/RulesPage.jsx`, специфікація `docs/rules-page-spec.md`): розділи в
+таблиці `rule_sections` (міграція `20261016b_rules.sql`, наповнення з `docs/rules-source.md` —
+`20261016c_rules_seed.sql`), розділ = панель з блоками «абзац / таблиця / картки / цитата»; у
+тексті розмітка `**…**` і `[текст](https://…)`. ГМ у режимі «РЕДАГУВАННЯ» змінює порядок,
+додає, видаляє й редагує розділи блоками (`gm_save_rule_section`, `gm_delete_rule_section`,
+`gm_reorder_rule_sections`).
 
 Профіль пілота (`client/src/pages/PilotProfilePage.jsx`) — весь стан пілота в одному
 `pilots.state` (jsonb), редюсер `client/src/pilot/reducer.js` (~1360 рядків), автозбереження.

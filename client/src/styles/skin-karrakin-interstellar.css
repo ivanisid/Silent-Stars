@@ -369,3 +369,15 @@
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme='karrakin-interstellar'] .ss-flag img { transition: none; }
 }
+
+/* ---------- Сторінка правил: зміст і вміст розділів ---------- */
+:root[data-theme='karrakin-interstellar'] .ss-toc a { font-family: var(--k-cinzel); font-weight: 400; font-size: 11px; letter-spacing: 2px; color: var(--t3); font-size-adjust: none; }
+:root[data-theme='karrakin-interstellar'] .ss-toc a:hover { color: var(--t1); }
+:root[data-theme='karrakin-interstellar'] .ss-toc a.on { color: var(--tw); border-right-color: var(--kgl); }
+:root[data-theme='karrakin-interstellar'] .ss-prose { font-size: 15px; line-height: 1.55; }
+:root[data-theme='karrakin-interstellar'] .ss-prose td { border-top-color: var(--kline); }
+:root[data-theme='karrakin-interstellar'] .ss-prose .rcard { border-color: var(--kline); }
+:root[data-theme='karrakin-interstellar'] .ss-prose .rcard .ct { font-family: var(--k-cinzel); font-weight: 600; font-size: 11px; letter-spacing: 2px; color: var(--klbl); font-size-adjust: none; }
+:root[data-theme='karrakin-interstellar'] .ss-prose blockquote { border-left-color: var(--kline); color: var(--t2); }
+:root[data-theme='karrakin-interstellar'] :is(.ss-rule-ed .lbl, .ss-rule-ed .ty, .ss-rule-ed .tr.hd) { font-family: var(--k-cinzel); font-weight: 600; font-size: 10px; font-size-adjust: none; }
+:root[data-theme='karrakin-interstellar'] .btn-gm[aria-pressed='true'] { color: var(--s0); box-shadow: inset 0 0 0 2px var(--s0); }

@@ -15,6 +15,7 @@ export const NAV_ITEMS = [
   { label: 'ВИБІР ПІЛОТА', desc: 'Ваші персонажі', to: '/pilots', code: 'ROS', d: 'M8 8a4 4 0 1 0 8 0a4 4 0 1 0-8 0M4 21c0-4 4-6 8-6s8 2 8 6' },
   { label: 'ЗАПИС НА ГРУ', desc: 'Слоти ігор та запис на них', to: '/board', code: 'BRD', d: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4' },
   { label: 'РЕЗЕРВИ', desc: 'Довідник: звичайні та рідкісні', to: '/reserves', code: 'RSV', d: 'M4 7l8-4 8 4v10l-8 4-8-4zM4 7l8 4 8-4M12 11v10' },
+  { label: 'ПРАВИЛА', desc: 'Правила кампанії', to: '/rules', code: 'RLS', d: 'M5 3h11l3 3v15H5zM9 9h7M9 13h7M9 17h4' },
   { label: 'ГМ-ПАНЕЛЬ', desc: 'Персонажі всіх гравців', to: '/gm', code: 'GMP', d: 'M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z', gm: true },
 ];
 
