@@ -94,7 +94,7 @@ export function renderPersonal(cal: CalendarData, mine: Set<string>) {
     components: [{
       type: 3,
       custom_id: 'cal',
-      placeholder: 'Мої дні, коли хочу грати',
+      placeholder: 'Дні, коли хочу грати',
       min_values: 0,
       max_values: cal.days.length,
       options: cal.days.map((d) => ({
@@ -111,7 +111,7 @@ export function renderPersonal(cal: CalendarData, mine: Set<string>) {
 // Спільне закріплене повідомлення в каналі — без особистих галочок; кнопка відкриває особисте.
 export function renderPublic(cal: CalendarData) {
   const appUrl = Deno.env.get('APP_URL');
-  const buttons: any[] = [{ type: 2, style: 1, label: 'Відмітити мої дні', emoji: { name: '📅' }, custom_id: 'calo' }];
+  const buttons: any[] = [{ type: 2, style: 1, label: 'Відмітити дні', emoji: { name: '📅' }, custom_id: 'calo' }];
   if (appUrl) buttons.push({ type: 2, style: 5, label: 'Календар в апці', url: `${appUrl.replace(/\/$/, '')}/board` });
   return {
     content: '',
@@ -119,7 +119,6 @@ export function renderPublic(cal: CalendarData) {
       title: '📅 Календар гравців — 2 тижні',
       description: clip(cal.days.map((d) => dayLine(cal, d)).join('\n'), 4000),
       color: 0x5865f2,
-      footer: { text: 'Число — скільки хочуть грати · 🎮 / ▮ — день, на який уже є гра · оновлюється само' },
     }],
     components: [{ type: 1, components: buttons }],
     allowed_mentions: { parse: [] },

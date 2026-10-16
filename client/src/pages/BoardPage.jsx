@@ -56,7 +56,7 @@ function statusBadge(slot) {
   // Two distinct things: the line-up is fixed (nobody else joins), and the game has been
   // played and paid for. A slot passes through the first on its way to the second.
   if (slot.status === 'closed') return { text: 'ГРА ЗАВЕРШЕНА', strong: true };
-  if (slot.status === 'approved') return { text: 'СКЛАД ЗАТВЕРДЖЕНО · ЗАПИС ЗАКРИТО', strong: true };
+  if (slot.status === 'approved') return { text: 'СКЛАД ЗАТВЕРДЖЕНО', strong: true };
   // Дедлайн настав, а планувальник (раз на 5 хв, private.auto_approve_rosters) ще не дійшов.
   if (deadlineIsPast(autoAt(slot))) {
     return { text: slot.signups.length ? 'ДЕДЛАЙН МИНУВ · СКЛАД ЗАТВЕРДЖУЄТЬСЯ' : 'ДЕДЛАЙН МИНУВ · ЗАПИСІВ НЕМАЄ', strong: true };
@@ -318,6 +318,88 @@ function gmRewardText(slot, key = slot.gmReward, pilot = null) {
   return '—';
 }
 
+// ГМ гри додає будь-якого пілота: у відкриту гру — як звичайний запис, у затверджену —
+// одразу в склад (gm_add_signup).
+function AddPlayer({ slot, gmId, busy, run, ask, onClose }) {
+  const [pilots, setPilots] = useState(null);
+  const [nicks, setNicks] = useState({});
+  const [loadError, setLoadError] = useState('');
+  const [pilotId, setPilotId] = useState('');
+  const [mechId, setMechId] = useState('');
+
+  useEffect(() => {
+    Promise.all([api.gmListAllPilots(), api.gmListProfiles()])
+      .then(([ps, profs]) => {
+        setNicks(Object.fromEntries(profs.map((p) => [p.id, p.nick])));
+        setPilots(ps);
+      })
+      .catch((err) => setLoadError(err.message));
+  }, []);
+
+  const taken = new Set(slot.signups.map((g) => g.userId).filter(Boolean));
+  const options = (pilots || [])
+    .filter((p) => p.status !== 'archive' && p.userId !== gmId && !taken.has(p.userId))
+    .sort((a, b) => (nicks[a.userId] || '').localeCompare(nicks[b.userId] || '') || (a.callsign || '').localeCompare(b.callsign || ''));
+  const chosen = options.find((p) => p.id === pilotId);
+  const mechs = chosen?.mechs || [];
+  const needsMechChoice = mechs.length > 1;
+
+  async function add() {
+    const mech = needsMechChoice ? mechs.find((m) => m.id === mechId) : mechs[0];
+    if (slot.status === 'approved') {
+      const inRoster = slot.signups.filter((g) => g.approved === true).length;
+      const ok = await ask({
+        title: 'ДОДАТИ В СКЛАД?',
+        tone: 'gm',
+        lines: [
+          `${chosen.callsign} — ${nicks[chosen.userId] || '—'}`,
+          `у складі: ${inRoster + 1} (місць ${slot.seats})`,
+          'бонус пріоритету витрачається',
+        ],
+        yesLabel: 'ДОДАТИ',
+      });
+      if (!ok) return;
+    }
+    run(async () => {
+      await api.gmAddSignup(slot.id, pilotId, mech?.id || null);
+      onClose();
+    });
+  }
+
+  if (loadError) return <Msg kind="err">{loadError}</Msg>;
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <select
+        className="ss-select"
+        value={pilotId}
+        disabled={!pilots}
+        onChange={(e) => {
+          setPilotId(e.target.value);
+          setMechId('');
+        }}
+        style={{ flex: '0 1 280px', height: 30, fontSize: 12 }}
+      >
+        <option value="">— оберіть персонажа —</option>
+        {options.map((p) => (
+          <option key={p.id} value={p.id}>{p.callsign} ({p.name}) · {nicks[p.userId] || '—'}</option>
+        ))}
+      </select>
+      {needsMechChoice && (
+        <select className="ss-select" value={mechId} onChange={(e) => setMechId(e.target.value)} style={{ flex: '0 1 200px', height: 30, fontSize: 12 }}>
+          <option value="">— оберіть меха —</option>
+          {mechs.map((m) => (
+            <option key={m.id} value={m.id}>{m.name}</option>
+          ))}
+        </select>
+      )}
+      <button className="btn-gm" type="button" disabled={busy || !chosen || (needsMechChoice && !mechId)} onClick={add}>
+        ДОДАТИ
+      </button>
+      <button className="btn-ghost" type="button" disabled={busy} onClick={onClose}>СКАСУВАТИ</button>
+    </div>
+  );
+}
+
 function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   const navigate = useNavigate();
   const [pilotId, setPilotId] = useState('');
@@ -329,6 +411,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   const [pickedRaw, setPicked] = useState(null);
   // Зміна вже затвердженого складу (до завершення гри).
   const [editingRoster, setEditingRoster] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [editReward, setEditReward] = useState(false);
   const [rMana, setRMana] = useState(0);
   const [rPr, setRPr] = useState(0);
@@ -354,7 +437,8 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
   // Нагороду отримують лише записи з пілотом; запис без прив'язки до апки пілота не має.
   const rewarded = slot.signups.filter((g) => g.approved === true && g.pilotId).length;
   const mySignup = slot.signups.find((g) => g.userId === user.id);
-  const contest = slot.signups.length > slot.seats;
+  // Після затвердження контест зафіксовано сервером: пізні записи його не створюють.
+  const contest = isOpen ? slot.signups.length > slot.seats : (slot.contested ?? slot.signups.length > slot.seats);
   // Пріоритет (d20 + бонус) кидається під час запису, але має значення лише в контесті —
   // поки місць вистачає, його не показуємо, а список іде в порядку запису.
   // Гарантоване місце (бонус +9) — над усіма: воно входить у склад, хоч би що відмітив ГМ.
@@ -477,8 +561,8 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
             <span className="title-font" style={{ fontSize: 14, letterSpacing: 2, color: 'var(--text-bright)' }}>СКЛАД ЗАТВЕРДЖЕНО</span>
             <span style={{ fontSize: 11, color: 'var(--text-soft)', lineHeight: 1.6 }}>
               {awarded > 0
-                ? `Грає ${awarded} ${pluralPilots(awarded)} · запис закрито · нагороду буде нараховано, коли ГМ завершить гру`
-                : 'Нікого не затверджено · запис закрито'}
+                ? `Грає ${awarded} ${pluralPilots(awarded)} · нагороду буде нараховано, коли ГМ завершить гру`
+                : 'Нікого не затверджено'}
             </span>
           </div>
         )}
@@ -597,7 +681,8 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                     )}
                     {g.approved === true && <span style={{ color: 'var(--success)', letterSpacing: 1 }}>✓ УЧАСТЬ</span>}
                     {g.approved === false && g.releasedAt && <span style={{ color: 'var(--text-dim)', letterSpacing: 1 }}>↩ ЗВІЛЬНИВ МІСЦЕ</span>}
-                    {g.approved === false && !g.releasedAt && <span style={{ color: 'var(--danger)', letterSpacing: 1 }}>✗ НЕ ЦЬОГО РАЗУ</span>}
+                    {g.approved === false && !g.releasedAt && g.late && <span style={{ color: 'var(--text-dim)', letterSpacing: 1 }}>РЕЗЕРВ</span>}
+                    {g.approved === false && !g.releasedAt && !g.late && <span style={{ color: 'var(--danger)', letterSpacing: 1 }}>✗ НЕ ЦЬОГО РАЗУ</span>}
                   </span>
                 </div>
               );
@@ -612,7 +697,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
         {ownsSlot && isOpen && (
           <div style={{ fontSize: 11, color: 'var(--text-grey)', letterSpacing: 1 }}><span className="pre">&gt; </span>Ви ведете цю гру — запис власним персонажем недоступний.</div>
         )}
-        {isOpen && !mySignup && !ownsSlot && (
+        {(isOpen || isApproved) && !mySignup && !ownsSlot && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <select
               className="ss-select"
@@ -647,7 +732,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                 run(() => api.boardSignup(slot.id, pilotId, mech));
               }}
             >
-              ЗАПИСАТИСЬ
+              {isApproved ? 'ЗАПИСАТИСЬ У РЕЗЕРВ' : 'ЗАПИСАТИСЬ'}
             </button>
           </div>
         )}
@@ -674,7 +759,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
             ↩ ЗВІЛЬНИТИ МІСЦЕ
           </button>
         )}
-        {isOpen && mySignup && (
+        {mySignup && (isOpen || (isApproved && mySignup.approved !== true)) && (
           <button className="btn-ghost" type="button" disabled={busy} style={{ alignSelf: 'flex-start' }} onClick={() => run(() => api.boardWithdraw(mySignup.id))}>
             ВИЙТИ ЗІ СЛОТА
           </button>
@@ -708,6 +793,9 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                 </button>
                 <button className="btn-ghost" type="button" onClick={() => setEditReward(false)}>СКАСУВАТИ</button>
               </div>
+            )}
+            {adding && !closing && !editingRoster && (
+              <AddPlayer slot={slot} gmId={user.id} busy={busy} run={run} ask={ask} onClose={() => setAdding(false)} />
             )}
             {isApproved && closing && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '10px 12px', border: '1px solid var(--gm-dim)', background: 'var(--panel-sunken)' }}>
@@ -822,10 +910,16 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                   title="Додати чи прибрати гравців зі складу — до завершення гри"
                   onClick={() => {
                     setPicked(new Set(slot.signups.filter((g) => g.approved === true).map((g) => g.id)));
+                    setAdding(false);
                     setEditingRoster(true);
                   }}
                 >
                   ЗМІНИТИ СКЛАД
+                </button>
+              )}
+              {!closing && !editingRoster && !adding && (
+                <button className="btn-ghost" type="button" disabled={busy} onClick={() => setAdding(true)}>
+                  + ДОДАТИ ГРАВЦЯ
                 </button>
               )}
               {isApproved && editingRoster && (
@@ -838,8 +932,11 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                       const was = new Set(slot.signups.filter((g) => g.approved === true).map((g) => g.id));
                       const who = (g) => g.callsign || g.nick || '—';
                       const added = slot.signups.filter((g) => picked.has(g.id) && !was.has(g.id)).map(who);
-                      const removed = slot.signups.filter((g) => !picked.has(g.id) && was.has(g.id)).map(who);
-                      if (!added.length && !removed.length) return setEditingRoster(false);
+                      const out = slot.signups.filter((g) => !picked.has(g.id) && was.has(g.id));
+                      // Пізній запис у контесті не брав участі — +3 за контест йому не належить.
+                      const removed = out.filter((g) => !g.late).map(who);
+                      const removedLate = out.filter((g) => g.late).map(who);
+                      if (!added.length && !out.length) return setEditingRoster(false);
                       const ok = await ask({
                         title: 'ЗМІНИТИ СКЛАД?',
                         tone: 'gm',
@@ -847,6 +944,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                           `у складі: ${picked.size} (місць ${slot.seats})`,
                           ...(added.length ? [`додано: ${added.join(', ')} — бонус пріоритету витрачається`] : []),
                           ...(removed.length ? [`прибрано: ${removed.join(', ')} — бонус повертається${contest ? ' і +3 за контест' : ''}`] : []),
+                          ...(removedLate.length ? [`прибрано: ${removedLate.join(', ')} — бонус повертається`] : []),
                         ],
                         yesLabel: 'ЗБЕРЕГТИ',
                       });
@@ -874,6 +972,7 @@ function SlotCard({ slot, user, isGm, myPilots, onChanged }) {
                   onClick={() => {
                     setGmReward('');
                     setGmPilotId(myPilots[0]?.id || '');
+                    setAdding(false);
                     setClosing(true);
                   }}
                 >
@@ -1077,7 +1176,7 @@ export default function BoardPage() {
 
   if (mobile) {
     const mineSlot = (s) => s.createdBy === user.id || s.signups.some((g) => g.userId === user.id);
-    const shown = sorted.filter((s) => (filter === 'mine' ? mineSlot(s) : s.status === 'open'));
+    const shown = sorted.filter((s) => (filter === 'mine' ? mineSlot(s) : s.status === 'open' || s.status === 'approved'));
     return (
       <PageShell narrow>
         <MobileHead

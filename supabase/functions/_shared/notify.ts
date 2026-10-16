@@ -1,6 +1,7 @@
-// Сповіщення в Discord окремими повідомленнями (з пінгом), на відміну від оголошення,
-// яке лише тихо перемальовується. Відповідаємо на оголошення гри, щоб усе про одну
-// гру трималося поруч.
+// Сповіщення в Discord окремими повідомленнями, на відміну від оголошення, яке лише тихо
+// перемальовується. Скасування, старт і день з календаря — відповіддю на оголошення гри
+// з пінгом лише тих, кого стосується. Звільнене місце й відписка — ГМу в особисті; якщо особисті
+// закриті чи Discord ГМа невідомий — як раніше, відповіддю на оголошення.
 
 import { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { clip, discordFetch, loadSlotView, SlotView } from './discord.ts';
@@ -26,6 +27,28 @@ async function post(db: SupabaseClient, slotId: string, content: string, mention
   if (!res.ok) throw new Error(`Discord POST ${res.status}: ${await res.text()}`);
 }
 
+async function dm(userId: string, content: string) {
+  const ch = await discordFetch('/users/@me/channels', { method: 'POST', body: JSON.stringify({ recipient_id: userId }) });
+  if (!ch.ok) return false;
+  const { id } = await ch.json();
+  const res = await discordFetch(`/channels/${id}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ content: clip(content, 2000), allowed_mentions: { parse: [] } }),
+  });
+  return res.ok;
+}
+
+async function deliver(db: SupabaseClient, slotId: string, content: string, recipients: Array<string | undefined>) {
+  const ids = [...new Set(recipients.filter(Boolean))] as string[];
+  // Нікому писати особисто — лишається тільки канал.
+  if (!ids.length) return post(db, slotId, content, []);
+  const failed: string[] = [];
+  for (const id of ids) {
+    if (!(await dm(id, content).catch(() => false))) failed.push(id);
+  }
+  if (failed.length) await post(db, slotId, content, failed);
+}
+
 // Події гри, про які варто пінгувати: місце звільнено, гру скасовано. Затвердження складу
 // й завершення гри окремого повідомлення не мають — це видно в самому оголошенні (✅ / ❌,
 // статус), а пінг усім лише засмічував канал.
@@ -45,7 +68,21 @@ export async function notifyStatus(db: SupabaseClient, slotId: string, event: st
       ? `На його місце в склад заходить ${withPilot(inn)} — якщо не зможеш, теж тисни «Звільнити місце». ${gm}, склад змінився.`
       : `${gm}, у резерві нікого немає — місце вільне.`);
     // Склад змінився — ГМ має знати завжди, навіть коли заміна з резерву зайшла сама.
-    await post(db, slotId, lines.join('\n'), [inn?.discordId, slot.gmDiscordId]);
+    await deliver(db, slotId, lines.join('\n'), [slot.gmDiscordId]);
+    return 'notified';
+  }
+
+  // Гравець відписався (з апки чи Discord) — ГМу. Запису вже немає, тож хто це — з даних події.
+  if (event === 'withdrawn') {
+    const [{ data: prof }, { data: link }, { data: pilot }] = await Promise.all([
+      extra.withdrawn_user ? db.from('profiles').select('nick').eq('id', extra.withdrawn_user).maybeSingle() : { data: null },
+      extra.withdrawn_user ? db.from('discord_links').select('discord_user_id').eq('user_id', extra.withdrawn_user).maybeSingle() : { data: null },
+      extra.withdrawn_pilot ? db.from('pilots').select('callsign').eq('id', extra.withdrawn_pilot).maybeSingle() : { data: null },
+    ]);
+    const discordId = link?.discord_user_id ?? extra.withdrawn_discord;
+    const name = discordId ? `<@${discordId}>` : `**${prof?.nick || extra.withdrawn_name || 'Гравець'}**`;
+    const gone = pilot?.callsign ? `${name} (${pilot.callsign})` : name;
+    await deliver(db, slotId, `➖ ${gone} відписався від ${titleOf(slot)}. Записалось: ${signups.length}/${slot.seats}.`, [slot.gmDiscordId]);
     return 'notified';
   }
 

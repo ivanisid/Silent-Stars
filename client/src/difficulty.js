@@ -10,17 +10,17 @@
 // перевірка, тож перекриття лишене як є.
 
 export const DIFFICULTIES = [
-  { key: 'easy', label: 'Легка', ll: 'LL2–3', mana: 300, pr: 10 },
-  { key: 'easy+', label: 'Легка+', ll: 'LL4–5', mana: 375, pr: 13 },
-  { key: 'easy++', label: 'Легка++', ll: 'LL6–7', mana: 450, pr: 15 },
+  { key: 'easy', label: 'Легка', ll: 'LL2–3', mana: 400, pr: 10 },
+  { key: 'easy+', label: 'Легка+', ll: 'LL4–5', mana: 475, pr: 13 },
+  { key: 'easy++', label: 'Легка++', ll: 'LL6–7', mana: 550, pr: 15 },
 
-  { key: 'mid', label: 'Середня', ll: 'LL7–8', mana: 500, pr: 20 },
-  { key: 'mid+', label: 'Середня+', ll: 'LL8–9', mana: 600, pr: 25 },
-  { key: 'mid++', label: 'Середня++', ll: 'LL9–10', mana: 700, pr: 30 },
+  { key: 'mid', label: 'Середня', ll: 'LL7–8', mana: 600, pr: 20 },
+  { key: 'mid+', label: 'Середня+', ll: 'LL8–9', mana: 700, pr: 25 },
+  { key: 'mid++', label: 'Середня++', ll: 'LL9–10', mana: 800, pr: 30 },
 
-  { key: 'hard', label: 'Важка', ll: 'LL10–11', mana: 800, pr: 35 },
-  { key: 'hard+', label: 'Важка+', ll: 'LL11', mana: 1000, pr: 45 },
-  { key: 'hard++', label: 'Важка++', ll: 'LL12', mana: 1200, pr: 50 },
+  { key: 'hard', label: 'Важка', ll: 'LL10–11', mana: 900, pr: 35 },
+  { key: 'hard+', label: 'Важка+', ll: 'LL11', mana: 1100, pr: 45 },
+  { key: 'hard++', label: 'Важка++', ll: 'LL12', mana: 1300, pr: 50 },
 ];
 
 // Групи для розкладки кнопок: три рядки по три.

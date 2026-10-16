@@ -68,6 +68,10 @@ export type SlotView = {
   signups: Array<Record<string, any>>;
 };
 
+// Після затвердження контест зафіксовано (game_slots.contested): пізні записи його не створюють.
+const isContest = (slot: Record<string, any>, count: number) =>
+  slot.status === 'open' ? count > slot.seats : (slot.contested ?? count > slot.seats);
+
 // Стан слота для оголошення — те саме, що board_list віддає апці.
 export async function loadSlotView(db: SupabaseClient, slotId: string): Promise<SlotView | null> {
   const { data: slot, error } = await db.from('game_slots').select('*').eq('id', slotId).maybeSingle();
@@ -115,7 +119,7 @@ export async function loadSlotView(db: SupabaseClient, slotId: string): Promise<
   // порядку запису. Поки місць вистачає, пріоритет не важить і список лишається в порядку запису.
   // Не Infinity: Infinity − Infinity = NaN, а NaN у компараторі ламає порядок.
   const rank = (g: any) => (g.guaranteed ? 1000 : g.priority ?? -1);
-  if (signups.length > slot.seats) signups.sort((a, b) => rank(b) - rank(a));
+  if (isContest(slot, signups.length)) signups.sort((a, b) => rank(b) - rank(a));
 
   return { slot: { ...slot, gmNick: nick.get(slot.created_by) || '', gmDiscordId: discord.get(slot.created_by) }, signups };
 }
@@ -124,7 +128,9 @@ export function renderSlotMessage({ slot, signups }: SlotView) {
   const st = STATUS[slot.status] || STATUS.open;
   const isOpen = slot.status === 'open';
   const settled = slot.status === 'approved' || slot.status === 'closed';
-  const contest = signups.length > slot.seats;
+  const contest = isContest(slot, signups.length);
+  // Після затвердження запис іде в резерв, відписатись може той, хто не в складі.
+  const canSignup = isOpen || slot.status === 'approved';
 
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
   const when = ts(slot.game_at);
@@ -169,8 +175,8 @@ export function renderSlotMessage({ slot, signups }: SlotView) {
 
   const appUrl = Deno.env.get('APP_URL');
   const buttons: any[] = [
-    { type: 2, style: 3, label: 'Записатись', custom_id: `su:${slot.id}`, disabled: !isOpen },
-    { type: 2, style: 2, label: 'Відписатись', custom_id: `wd:${slot.id}`, disabled: !isOpen },
+    { type: 2, style: 3, label: 'Записатись', custom_id: `su:${slot.id}`, disabled: !canSignup },
+    { type: 2, style: 2, label: 'Відписатись', custom_id: `wd:${slot.id}`, disabled: !canSignup },
   ];
   // Поки набір відкритий — ГМ може затвердити склад прямо звідси (перевіряє discord-interactions).
   if (isOpen && signups.length) {

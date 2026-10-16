@@ -4,13 +4,15 @@
 //   * планувальником pg_cron кожні 10 хвилин з mode = 'remind' — нагадування перед грою;
 //   * тригерами на discord_links / pilots з mode = 'roles' — ролі LANCER і LLn;
 //   * тригером на play_availability з mode = 'calendar' — закріплений календар гравців
-//     (його ж оновлюють зміни ігор і, раз на добу, планувальник — вікно 2 тижнів зсувається).
+//     (його ж оновлюють зміни ігор і, раз на добу, планувальник — вікно 2 тижнів зсувається);
+//   * вручну з mode = 'register_commands' — зареєструвати слеш-команди бота (_shared/commands.ts).
 // Розгортається з verify_jwt = false; натомість перевіряє x-sync-secret із vault.
 
 import { adminClient, syncSlot } from '../_shared/discord.ts';
 import { notifyCalendarMatch, notifyStatus, remind } from '../_shared/notify.ts';
 import { syncRoles } from '../_shared/roles.ts';
 import { syncCalendar } from '../_shared/calendar.ts';
+import { registerCommands } from '../_shared/commands.ts';
 
 const db = adminClient();
 let secret: string | null = null;
@@ -45,6 +47,15 @@ Deno.serve(async (req) => {
       return Response.json({ roles: await syncRoles(db, ids) });
     } catch (err) {
       console.error('discord-sync roles', err);
+      return Response.json({ error: String(err) }, { status: 500 });
+    }
+  }
+
+  if (mode === 'register_commands') {
+    try {
+      return Response.json({ registered: await registerCommands() });
+    } catch (err) {
+      console.error('discord-sync register_commands', err);
       return Response.json({ error: String(err) }, { status: 500 });
     }
   }
