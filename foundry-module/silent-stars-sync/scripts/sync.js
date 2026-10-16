@@ -374,7 +374,20 @@ export function pilotIdentityUpdate(p, actor) {
   if (int(get(actor, 'system.level')) !== int(p.ll)) u['system.level'] = int(p.ll);
   if (p.player && get(actor, 'system.player_name') !== p.player) u['system.player_name'] = p.player;
   Object.assign(u, artUpdate(p.portrait, actor, p.portraitId));
+  Object.assign(u, economyUpdate(p, actor));
   return u;
+}
+
+// Мана й PR пілота — лише з апки в прапорець актора (у Lancer таких полів немає); чаркуш
+// пілота показує їх усім, хто бачить актора. Стара функція foundry-sync їх не віддає — тоді
+// прапорець не чіпаємо.
+export function economyUpdate(p, actor) {
+  if (p.mana == null || p.pr == null) return {};
+  const next = { mana: int(p.mana), pr: int(p.pr), prCap: int(p.prCap) };
+  const cur = get(actor, `flags.${MODULE}.economy`) || {};
+  return cur.mana === next.mana && cur.pr === next.pr && cur.prCap === next.prCap
+    ? {}
+    : { [`flags.${MODULE}.economy`]: next };
 }
 
 // Арт, замінений в апці, бот кладе під тим самим шляхом (старий файл прибирається перед
