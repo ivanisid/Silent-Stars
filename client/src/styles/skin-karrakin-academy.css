@@ -586,3 +586,11 @@
 :root[data-theme='karrakin-academy'] .modal-box .btn-danger:hover:not(:disabled) { background: var(--danger); color: #fff4e8; }
 /* Аудит сторінок: підпис язичка магазину (скін вище задає 8px). */
 :root[data-theme='karrakin-academy'] .ss-shop .tab .k { font-size: 10px; }
+
+/* ---------- Сторінка правил: зміст і вміст розділів ---------- */
+:root[data-theme='karrakin-academy'] .ss-toc a { font-family: var(--k-cinzel); font-weight: 600; font-size: 11px; letter-spacing: 2px; color: var(--text-soft); font-size-adjust: none; }
+:root[data-theme='karrakin-academy'] .ss-toc a.on { color: var(--text-bright); }
+:root[data-theme='karrakin-academy'] .ss-prose { font-family: var(--k-forum); font-size: 15px; line-height: 1.6; }
+:root[data-theme='karrakin-academy'] .ss-prose .rcard .ct { font-family: var(--k-cinzel); font-weight: 600; font-size: 11px; letter-spacing: 2px; font-size-adjust: none; }
+:root[data-theme='karrakin-academy'] .ss-prose blockquote { font-family: var(--k-corm); font-weight: 600; font-size: 17px; letter-spacing: .2px; font-size-adjust: none; }
+:root[data-theme='karrakin-academy'] :is(.ss-rule-ed .lbl, .ss-rule-ed .ty, .ss-rule-ed .tr.hd) { font-family: var(--k-cinzel); font-weight: 600; font-size: 10.5px; letter-spacing: 2px; font-size-adjust: none; }
