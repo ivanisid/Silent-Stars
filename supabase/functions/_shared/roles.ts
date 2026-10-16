@@ -13,7 +13,7 @@ const LL_ROLE = /^LL\d+$/;
 let guildId: string | null = null;
 
 // Сервер беремо з каналу оголошень — окремий секрет під це не потрібен.
-async function getGuildId() {
+export async function getGuildId() {
   if (guildId) return guildId;
   const res = await discordFetch(`/channels/${Deno.env.get('DISCORD_CHANNEL_ID')}`);
   if (!res.ok) throw new Error(`Discord channel ${res.status}: ${await res.text()}`);

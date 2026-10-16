@@ -141,7 +141,7 @@ async function onComponent(i: any, discordId: string, username: string) {
   const [kind, slotId, pilotId] = (i.data.custom_id as string).split(':');
 
   if (kind === 'cal') return onCalendarPick(i, discordId, username);
-  // Кнопка під закріпленим календарем — особисте меню відміток.
+  // Кнопка «Відмітити дні» під закріпленим календарем — особисте меню відміток.
   if (kind === 'calo') return onCalendar(discordId);
 
   if (kind === 'wd') {
