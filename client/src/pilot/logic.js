@@ -89,10 +89,6 @@ export function burdenLabel(size) {
   return `${size} СЕГМЕНТІВ`;
 }
 
-export function shopPrice(item) {
-  return item ? item.price : 0;
-}
-
 export function rollTier(total) {
   if (total >= 20) return '20+';
   if (total >= 10) return '10–19';

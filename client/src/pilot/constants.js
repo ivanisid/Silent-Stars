@@ -1,4 +1,7 @@
 // Hardcoded game content, ported verbatim from docs/pilot-mechanics-spec.md section 4.
+//
+// Ціни, тексти й параметри магазину та особистих покращень нижче — лише усталені значення:
+// ГМ змінює їх у каталозі (shopCatalog.js), а звідси вони беруться, поки каталог не прийшов.
 
 export const OC_STEPS = ['+1', '+1D3', '+1D6', '+1D6+4'];
 
@@ -152,13 +155,6 @@ export function mechSlots(owned) {
   return 1 + ((owned?.parking || 0) >= 1 ? 1 : 0);
 }
 
-// Ціна поповнення лімітних зарядів однієї системи, за її базовим запасом.
-// Правила задають 1/2/3 заряди; 4+ трактуємо як 3 (найдешевший щабель).
-export function limitedRefillPr(baseMax) {
-  const n = Math.max(1, Math.min(3, Number(baseMax) || 1));
-  return LIMITED_REFILL_PR[n];
-}
-
 // Скільки PR дає пачка, куплена за ману. Ціна пачки збігається з курсом, за яким
 // стара мана переводилась у PR (200 мани = 10 PR).
 export const PR_PACK_SIZE = 10;
@@ -189,11 +185,6 @@ export const INSURANCE_PACKS = [
     upgraded: { title: 'To hell and back', desc: 'Ваш клон не втрачає особистості та пам’яті. Ви це ви, мабуть...' },
   },
 ];
-
-// Пакет з урахуванням покращення фонду.
-export function insurancePack(p, owned) {
-  return owned?.insure2 && p.upgraded ? { ...p, ...p.upgraded } : p;
-}
 
 // Щотижневі дії — 1 заряд на тиждень, відновлюється щопонеділка.
 // minTier — з якого тіру дія доступна: чотири дії відкриваються лише на Тірі 2 і

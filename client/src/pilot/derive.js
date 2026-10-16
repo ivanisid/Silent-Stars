@@ -1,6 +1,6 @@
-import { PR_CAP_BASE, PR_CAP_BUFFER } from './constants';
 import { llTier, manaLevelCost, skillCapMax, skillCapUsed } from './logic';
 import { vaultCap } from './rareReserves';
+import { prCapFor } from './shopCatalog';
 
 // Cross-cutting computed values used by multiple panels — the parts of the original
 // renderVals() that aren't purely local to one component.
@@ -22,7 +22,7 @@ export function derivePilotView(state) {
 
   // PR — єдиний пул пілота, видимий завжди: 30 PR є вже на старті, до покупки чого-небудь.
   // «Ресурсний буфер» більше не відкриває склад, а лише піднімає кап.
-  const prCap = (state.hangar.owned.buffer || 0) >= 1 ? PR_CAP_BUFFER : PR_CAP_BASE;
+  const prCap = prCapFor(state.hangar.owned);
 
   // Склад рідкісних резервів — завжди базовий (див. vaultCap у rareReserves.js).
   const vCap = vaultCap(state.hangar.owned);

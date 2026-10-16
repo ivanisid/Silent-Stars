@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Panel, useConfirm } from '../../components/kit.jsx';
 import { onShowUpgrade } from '../../components/overlayBus';
-import { INSURANCE_PACKS, UPGRADES, UPGRADE_GROUPS, insurancePack } from '../constants';
+import { insurancePacks, upgradeByKey, upgradeGroups, upgradesFor, useShopCatalog } from '../shopCatalog';
 
 // «Особисті покращення» (інтерфейс 2c, замість «Особистого ангару»). Ліворуч — список за
 // групами зі станом, праворуч — деталі обраного: ефект, уточнення, внесок частинами й
@@ -44,7 +44,7 @@ const DOT = {
   locked: { bg: 'transparent', bd: 'var(--input-border)' },
 };
 
-const titleOf = (key) => UPGRADES.find((u) => u.key === key)?.title || key;
+const titleOf = (key) => upgradeByKey(key)?.title || key;
 
 function subText(up, st) {
   if (st.k === 'own') return 'придбано';
@@ -103,14 +103,17 @@ function DepositRow({ icon, name, have, need, wallet, steps, canDep, onPut }) {
 }
 
 export default function UpgradesPanel({ state, dispatch }) {
+  useShopCatalog();
+  const UPGRADES = upgradesFor(state.hangar);
+  const UPGRADE_GROUPS = upgradeGroups(UPGRADES);
   const [ask, dialog] = useConfirm();
-  const [sel, setSel] = useState(() => (UPGRADES.find((u) => !state.hangar.owned[u.key]) || UPGRADES[0]).key);
+  const [sel, setSel] = useState(() => (UPGRADES.find((u) => !state.hangar.owned[u.key]) || UPGRADES[0])?.key);
   const [msg, setMsg] = useState('');
 
   useEffect(
     () =>
       onShowUpgrade((key) => {
-        if (UPGRADES.some((u) => u.key === key)) {
+        if (upgradeByKey(key)) {
           setSel(key);
           setMsg('');
         }
@@ -122,8 +125,17 @@ export default function UpgradesPanel({ state, dispatch }) {
   const { pr } = state;
   const ownedCount = UPGRADES.filter((u) => state.hangar.owned[u.key]).length;
   const up = UPGRADES.find((u) => u.key === sel) || UPGRADES[0];
+  // ГМ сховав усі покращення, а в пілота немає жодного.
+  if (!up) {
+    return (
+      <Panel id="upgrades" title="ОСОБИСТІ ПОКРАЩЕННЯ" sub="0 / 0">
+        <div style={{ padding: '10px 14px', fontSize: 11, lineHeight: 1.6, color: 'var(--text-dimmer)', textWrap: 'pretty' }}>{INTRO}</div>
+      </Panel>
+    );
+  }
   const st = upgradeStatus(state, up);
-  const canDep = st.k === 'buy' || st.k === 'poor';
+  // Приховане покращення не продається: внесок можна лише повернути.
+  const canDep = !up.archived && (st.k === 'buy' || st.k === 'poor');
   const badge = BADGE[st.k] || { label: st.part ? 'ЗБІР КОШТІВ' : 'НЕ ВИСТАЧАЄ КОШТІВ', ink: 'var(--text-dim)', bd: 'var(--input-border)', bg: 'transparent' };
 
   const why = {
@@ -250,7 +262,7 @@ export default function UpgradesPanel({ state, dispatch }) {
               <>
                 <span style={{ fontSize: 10, letterSpacing: 2, color: 'var(--text-dimmer)', marginTop: 6 }}>ВІДКРИВАЄ В МАГАЗИНІ</span>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 6 }}>
-                  {INSURANCE_PACKS.map((b) => insurancePack(b, state.hangar.owned)).map((p) => (
+                  {insurancePacks(state.hangar.owned, state.hangar.policies).map((p) => (
                     <div key={p.key} style={{ padding: 10, border: '1px dashed var(--input-border)', background: 'var(--panel-sunken)', display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-bright)' }}>
                         <span style={{ color: 'var(--text-dimmer)', display: 'flex' }}>
@@ -306,7 +318,7 @@ export default function UpgradesPanel({ state, dispatch }) {
                 type="button"
                 className={btn.cls}
                 style={{ height: 36, padding: '0 18px', letterSpacing: 2, ...(btn.style || {}) }}
-                disabled={st.k === 'own' || st.k === 'poor' || st.k === 'locked'}
+                disabled={up.archived || st.k === 'own' || st.k === 'poor' || st.k === 'locked'}
                 title={st.k === 'poor' ? `Не вистачає ${both(st.lack.mana, st.lack.pr)}` : undefined}
                 onClick={buy}
               >
