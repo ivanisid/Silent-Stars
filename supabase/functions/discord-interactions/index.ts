@@ -111,7 +111,9 @@ async function signup(discordId: string, username: string, slotId: string, pilot
   ]);
   const contest = slot != null && (count ?? 0) > slot.seats;
   let tail: string;
-  if (!contest) tail = 'Місць поки вистачає всім — склад затвердиться автоматично в дедлайн набору.';
+  // Запис після затвердження складу — у резерв (game_signups.late).
+  if (s.late) tail = 'Склад уже затверджено — ви в резерві.';
+  else if (!contest) tail = 'Місць поки вистачає всім — склад затвердиться автоматично в дедлайн набору.';
   else if (s.guaranteed) tail = `🛡 **Гарантоване місце** — бонус +${s.roll_bonus}, кидати не треба.`;
   else {
     const bonus = s.roll_bonus ? ` + бонус ${s.roll_bonus}` : '';

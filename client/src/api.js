@@ -575,6 +575,12 @@ export const api = {
   },
 
   // Зміна вже затвердженого складу (до завершення гри): увесь новий склад.
+  // ГМ гри додає пілота: у відкриту гру — записом, у затверджену — одразу в склад.
+  gmAddSignup: async (slotId, pilotId, mechId) => {
+    const { error } = await supabase.rpc('gm_add_signup', { p_slot_id: slotId, p_pilot_id: pilotId, p_mech_id: mechId });
+    if (error) throw new Error(error.message);
+  },
+
   gmEditRoster: async (slotId, approvedSignupIds) => {
     const { error } = await supabase.rpc('gm_edit_roster', { p_slot_id: slotId, p_approved: approvedSignupIds });
     if (error) throw new Error(error.message);
