@@ -7,7 +7,7 @@
 //
 //   POST { action: 'pull' }
 //     → { pilots: [...], fingerprint } — усі пілоти з полями, які синхронізуються (див.
-//       toSyncPilot; mana, pr, prCap — лише для показу), і відбиток усіх даних, які віддає pull.
+//       toSyncPilot), і відбиток усіх даних, які віддає pull.
 //
 //   POST { action: 'ping' }
 //     → { fingerprint } — той самий відбиток без читання state пілотів. Збігся з відбитком
@@ -119,11 +119,6 @@ function toSyncPilot(p: any, nicks: Map<string, string>, art: Art, profiles: Set
     hpMax: num(s.hp?.max),
     stress: num(s.stress),
     stressMax: num(s.stressMax ?? 8),
-    // Лише для показу в чаркуші пілота у Foundry, назад не синхронізуються. Кап PR — як
-    // derivePilotView в апці: «Трастовий фонд» (hangar.owned.buffer) піднімає 100 → 200.
-    mana: num(s.mana?.balance),
-    pr: num(s.pr),
-    prCap: num(s.hangar?.owned?.buffer) >= 1 ? 200 : 100,
     bondXp: num(s.bond?.xp),
     bondChecks: Array.from({ length: 5 }, (_, i) => !!s.bond?.checks?.[i]),
     bondPick: num(s.bond?.pick),

@@ -5,7 +5,7 @@ import {
   decide, mergeFields, mergeGroup, mergeLimited, mechMaxPatch, profileActorName, pilotIdentityUpdate,
   matchGroup, suggestActors, resolveLinks, pendingMechs, mergeDestroyed, combineItemUpdates, MECH_FIELDS, PILOT_FIELDS, MODULE,
   idleDecision, MAX_IDLE_SKIPS, isFreshCreating, CREATING_TTL, syncOption, artSrc, artUpdate,
-  linksKey, linksDecision, LINKS_REFRESH_MS, economyUpdate,
+  linksKey, linksDecision, LINKS_REFRESH_MS,
 } from './sync.js';
 
 let n = 0;
@@ -349,15 +349,6 @@ test('pilotIdentityUpdate: портрет іде з версією id', () => {
   const actor = { ...artActor('', ''), system: { callsign: 'AMON', level: 2, player_name: 'x' }, flags: {} };
   const u = pilotIdentityUpdate({ name: 'Amon', callsign: 'AMON', ll: 2, player: 'x', portrait: 'pilots/n/AMON/AMON.png', portraitId: ID1 }, actor);
   assert.equal(u.img, 'pilots/n/AMON/AMON.png?v=3f2a9c10');
-});
-
-test('economyUpdate: мана й PR лягають у прапорець, без змін — нічого', () => {
-  const p = { mana: 450, pr: 45, prCap: 100 };
-  assert.deepEqual(economyUpdate(p, { flags: {} }), { [`flags.${MODULE}.economy`]: { mana: 450, pr: 45, prCap: 100 } });
-  assert.deepEqual(economyUpdate(p, { flags: { [MODULE]: { economy: { mana: 450, pr: 45, prCap: 100 } } } }), {});
-  assert.deepEqual(economyUpdate({ ...p, pr: 50 }, { flags: { [MODULE]: { economy: { mana: 450, pr: 45, prCap: 100 } } } }),
-    { [`flags.${MODULE}.economy`]: { mana: 450, pr: 50, prCap: 100 } });
-  assert.deepEqual(economyUpdate({ name: 'Amon' }, { flags: {} }), {});
 });
 
 test('linksDecision: список змінився — звітуємо одразу', () => {
