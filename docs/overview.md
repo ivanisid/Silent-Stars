@@ -26,6 +26,13 @@
 додає, видаляє й редагує розділи блоками (`gm_save_rule_section`, `gm_delete_rule_section`,
 `gm_reorder_rule_sections`).
 
+Магазин і особисті покращення (специфікація `docs/gm-shop-editor-spec.md`): ціни, тексти й
+параметри — у таблицях `shop_items` і `shop_settings` (міграції `20261017_shop_catalog.sql`,
+`20261017b_shop_catalog_seed.sql`), клієнт читає їх через `client/src/pilot/shopCatalog.js` (поки
+каталог не прийшов — значення з `constants.js`). ГМ редагує в ГМ-панелі, розділ «МАГАЗИН»:
+ціни, тексти, нові позиції й покращення, порядок, приховування, кап PR і стартові PR. Кап PR у
+нагородах за гру сервер бере з каталогу (`private.pr_cap`).
+
 Профіль пілота (`client/src/pages/PilotProfilePage.jsx`) — весь стан пілота в одному
 `pilots.state` (jsonb), редюсер `client/src/pilot/reducer.js` (~1360 рядків), автозбереження.
 Панелі: профіль і імпорт, мана, PR, бонд, склад (vault), мехи, особисті покращення, нотатки, журнал

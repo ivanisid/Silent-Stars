@@ -1,6 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { SHOP_DATA, PR_SERVICES, LIMITED_REFILL_PR, PR_PACK_SIZE, INSURANCE_PACKS, insurancePack } from '../constants';
-import { KIT_PR, KITS_FULL_PR, isLimited, itemRefillPr } from '../repair';
+import { isLimited, itemRefillPr } from '../repair';
+import {
+  BUILTIN_KEYS,
+  builtinItem,
+  catalogItems,
+  insurancePacks,
+  itemTitle,
+  kitPr,
+  kitsFullPr,
+  onSale,
+  prPackSize,
+  refillTiers,
+  useShopCatalog,
+} from '../shopCatalog';
 import { derivePilotView } from '../derive';
 import { useConfirm } from '../../components/kit.jsx';
 import { announceOpen, modalIsOpen, onOpenShop, onOtherOpen, showUpgrade } from '../../components/overlayBus';
@@ -35,6 +47,7 @@ const IconLock = ({ size }) => <Svg size={size}><rect x="5" y="11" width="14" he
 const frameOf = (m) => [m.frameSource, m.frame].filter(Boolean).join(' ').toUpperCase();
 
 export default function ShopDrawer({ state, dispatch, mobile = false }) {
+  useShopCatalog();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState('repair');
   const [expanded, setExpanded] = useState(null);
@@ -69,7 +82,7 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
   const mechs = state.mechs;
   const fund = !!state.hangar.owned.insure;
   const policies = state.hangar.policies || {};
-  const packs = INSURANCE_PACKS.map((b) => insurancePack(b, state.hangar.owned));
+  const packs = insurancePacks(state.hangar.owned, policies);
   const heldCount = packs.filter((p) => policies[p.key]).length;
   const one = mechs.length === 1;
 
@@ -114,6 +127,10 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
   const noMech = mechs.length === 0 ? 'Немає жодного меха' : '';
   const lackPr = (cost) => (pr < cost ? 'Недостатньо PR' : '');
   const lackMana = (cost) => (mana < cost ? 'Недостатньо мани' : '');
+
+  const KIT_PR = kitPr();
+  const KITS_FULL_PR = kitsFullPr();
+  const PR_PACK_SIZE = prPackSize();
 
   const kitTargets = (full) =>
     mechs
@@ -170,14 +187,14 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
       }),
   );
   const refillMin = Math.min(...refillTargets.map((t) => parseInt(t.price, 10)));
-  const refillRange = Object.values(LIMITED_REFILL_PR);
+  const refillRange = Object.values(refillTiers()).map(Number);
 
-  const prRepair = PR_SERVICES.find((s) => s.key === 'fullrepair');
-  const lux = Object.fromEntries(SHOP_DATA.map((it) => [it.key, it]));
+  const prRepair = builtinItem('prfull');
+  const lux = { fullrepair: builtinItem('mfull'), core: builtinItem('core'), prpack: builtinItem('prpack') };
 
   const fullRepairTargets = (byMana) =>
     mechs.map((m) => {
-      const price = byMana ? lux.fullrepair.price : prRepair.cost;
+      const price = byMana ? lux.fullrepair.mana : prRepair.pr;
       return {
         key: m.id,
         title: m.name,
@@ -190,7 +207,7 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
             question: `Повний ремонт / передрук «${m.name}»?`,
             price,
             lines: [],
-            action: byMana ? { type: 'SHOP_BUY', key: 'fullrepair', mechId: m.id } : { type: 'PR_FULL_REPAIR', id: m.id },
+            action: byMana ? { type: 'SHOP_BUY', key: 'mfull', mechId: m.id } : { type: 'PR_FULL_REPAIR', id: m.id },
             done: `«${m.name}» передруковано.`,
           }),
       };
@@ -202,13 +219,13 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
       key: m.id,
       title: m.name,
       note: frameOf(m) || 'Core Power витрачено',
-      price: `${lux.core.price} М`,
-      block: lackMana(lux.core.price),
+      price: `${lux.core.mana} М`,
+      block: lackMana(lux.core.mana),
       run: () =>
         confirmMana({
           title: 'LUXURY',
           question: `Зарядити Core Power «${m.name}»?`,
-          price: lux.core.price,
+          price: lux.core.mana,
           lines: [],
           action: { type: 'SHOP_BUY', key: 'core', mechId: m.id },
           done: `«${m.name}»: Core Power заряджено.`,
@@ -217,11 +234,33 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
 
   const packGain = Math.max(0, Math.min(PR_PACK_SIZE, prCap - pr));
 
-  const rows = {
+  // Позиція, додана ГМом: без механіки — лише списання й запис у журнал.
+  const customRow = (it) => {
+    const byMana = it.kind === 'shop';
+    const price = byMana ? it.mana : it.pr;
+    return {
+      key: it.key,
+      title: it.title,
+      price: `${price} ${byMana ? 'М' : 'PR'}`,
+      note: '',
+      block: byMana ? lackMana(price) : lackPr(price),
+      run: () =>
+        (byMana ? confirmMana : confirmPr)({
+          title: byMana ? 'LUXURY' : 'PRINTER',
+          question: `Придбати «${it.title}»?`,
+          price,
+          lines: [],
+          action: byMana ? { type: 'SHOP_BUY', key: it.key } : { type: 'PRINTER_BUY', key: it.key },
+          done: `«${it.title}» придбано.`,
+        }),
+    };
+  };
+
+  const builtin = {
     repair: [
       {
         key: 'kit',
-        title: '1 ремонтний комплект',
+        title: builtinItem('kit').title,
         price: `${KIT_PR} PR`,
         note: noMech ? '' : kitsNote(false),
         block: noMech || (kitTargets(false).length ? lackPr(KIT_PR) : 'Ремкомплекти вже повні'),
@@ -229,7 +268,7 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
       },
       {
         key: 'kitsfull',
-        title: 'Поповнення всіх ремонтних комплектів',
+        title: builtinItem('kitsfull').title,
         price: `${KITS_FULL_PR} PR`,
         note: noMech ? '' : kitsNote(true),
         block: noMech || (kitTargets(true).length ? lackPr(KITS_FULL_PR) : 'Ремкомплекти вже повні'),
@@ -237,7 +276,7 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
       },
       {
         key: 'refill',
-        title: 'Відновлення лімітних зарядів однієї системи',
+        title: builtinItem('refill').title,
         price: `${Math.min(...refillRange)}–${Math.max(...refillRange)} PR`,
         note: refillTargets.length ? `неповних: ${refillTargets.length}` : '',
         block: noMech || (refillTargets.length ? lackPr(refillMin) : 'Усі лімітні заряди повні'),
@@ -246,41 +285,41 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
       },
       {
         key: 'prfull',
-        title: 'Повний ремонт / передрук меха',
-        price: `${prRepair.cost} PR`,
-        note: `${one ? `${frameOf(mechs[0]) || mechs[0].name} · ` : ''}або ${lux.fullrepair.price} М у LUXURY`,
-        block: noMech || lackPr(prRepair.cost),
+        title: prRepair.title,
+        price: `${prRepair.pr} PR`,
+        note: [one ? frameOf(mechs[0]) || mechs[0].name : '', onSale('mfull') ? `або ${lux.fullrepair.mana} М у LUXURY` : ''].filter(Boolean).join(' · '),
+        block: noMech || lackPr(prRepair.pr),
         targets: fullRepairTargets(false),
       },
     ],
     mana: [
       {
         key: 'mfull',
-        title: 'Повний ремонт / передрук меха',
-        price: `${lux.fullrepair.price} М`,
+        title: lux.fullrepair.title,
+        price: `${lux.fullrepair.mana} М`,
         note: one ? frameOf(mechs[0]) || mechs[0].name : '',
-        block: noMech || lackMana(lux.fullrepair.price),
+        block: noMech || lackMana(lux.fullrepair.mana),
         targets: fullRepairTargets(true),
       },
       {
         key: 'core',
-        title: 'Заряд Core Power',
-        price: `${lux.core.price} М`,
+        title: lux.core.title,
+        price: `${lux.core.mana} М`,
         note: one ? frameOf(mechs[0]) || mechs[0].name : '',
-        block: noMech || (coreTargets.length ? lackMana(lux.core.price) : 'Core Power уже заряджено'),
+        block: noMech || (coreTargets.length ? lackMana(lux.core.mana) : 'Core Power уже заряджено'),
         targets: coreTargets,
       },
       {
         key: 'prpack',
-        title: lux.prpack.title,
-        price: `${lux.prpack.price} М`,
+        title: itemTitle(lux.prpack),
+        price: `${lux.prpack.mana} М`,
         note: packGain < PR_PACK_SIZE && packGain > 0 ? `пілоту · влізе лише +${packGain} PR (кап ${prCap})` : 'пілоту',
-        block: pr >= prCap ? `PR уже на капі (${prCap})` : lackMana(lux.prpack.price),
+        block: pr >= prCap ? `PR уже на капі (${prCap})` : lackMana(lux.prpack.mana),
         run: () =>
           confirmMana({
             title: 'LUXURY',
             question: `Купити ${PR_PACK_SIZE} PR?`,
-            price: lux.prpack.price,
+            price: lux.prpack.mana,
             lines: [
               `PR: ${pr} → ${pr + packGain}`,
               packGain < PR_PACK_SIZE && { t: `Кап ${prCap}: решта ${PR_PACK_SIZE - packGain} PR не нарахується.`, ink: 'var(--warn)' },
@@ -290,6 +329,18 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
           }),
       },
     ],
+  };
+
+  // Рядки вкладки — у порядку каталогу, без прихованих. Вкладка магазину repair ↔ printer.
+  const rowsOf = (kind, list) =>
+    catalogItems(kind)
+      .filter((it) => !it.archived)
+      .map((it) => (BUILTIN_KEYS.includes(it.key) ? list.find((r) => r.key === it.key) : customRow(it)))
+      .filter(Boolean);
+
+  const rows = {
+    repair: rowsOf('printer', builtin.repair),
+    mana: rowsOf('shop', builtin.mana),
     ins: packs.map((p) => {
       const cost = [p.pr ? `${p.pr} PR` : '', p.mana ? `${p.mana} М` : ''].filter(Boolean).join(' + ');
       if (!policies[p.key]) {

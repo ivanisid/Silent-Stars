@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { pilotReducer } from '../pilot/reducer';
 import { normalizePilotState } from '../pilot/pilotDefaults';
 import { mechSlots } from '../pilot/constants';
+import { useShopCatalog } from '../pilot/shopCatalog';
 import { useCompconImport } from '../pilot/components/CompconImport.jsx';
 // import { WEEKLY_DOWNTIME_DATA } from '../pilot/constants'; — разом із панелі простою
 
@@ -54,6 +55,8 @@ const MOBILE_TABS = [
 export default function PilotProfilePage() {
   const { id } = useParams();
   const { user, isGm } = useAuth();
+  // Ціни й кап PR з каталогу магазину: профіль перемальовується, коли каталог прийшов.
+  useShopCatalog();
   const [pilot, setPilot] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [state, dispatch] = useReducer(pilotReducer, null);

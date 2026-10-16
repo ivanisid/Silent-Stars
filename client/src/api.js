@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { createDefaultPilotState } from './pilot/pilotDefaults';
+import { loadShopCatalog } from './pilot/shopCatalog';
 
 // Supabase Auth requires a real-shaped email, and its local part must be plain ASCII — a
 // Cyrillic (or any non-Latin) nickname fails format validation if used directly. So the
@@ -548,6 +549,65 @@ export const api = {
     return data;
   },
 
+  // Каталог магазину й особистих покращень (shop_items, shop_settings). Читати можуть усі,
+  // писати — лише ГМ через gm_*. Параметри позицій (опис, тексти, щаблі, розмір пачки,
+  // кап) лежать у params.
+  listShopCatalog: async () => {
+    const [res, set] = await Promise.all([
+      supabase.from('shop_items').select('key, kind, grp, title, price_pr, price_mana, params, archived, sort').order('sort').order('key'),
+      supabase.from('shop_settings').select('pr_start, pr_cap_base').maybeSingle(),
+    ]);
+    if (res.error) throw new Error(res.error.message);
+    if (set.error) throw new Error(set.error.message);
+    return {
+      items: (res.data || []).map((r) => ({
+        ...(r.params || {}),
+        key: r.key,
+        kind: r.kind,
+        group: r.grp,
+        title: r.title,
+        pr: r.price_pr,
+        mana: r.price_mana,
+        archived: r.archived,
+        sort: r.sort,
+      })),
+      settings: set.data ? { prStart: set.data.pr_start, prCapBase: set.data.pr_cap_base } : {},
+    };
+  },
+
+  // key null — нова позиція; params — лише поля, що лежать у params (див. shopCatalog.js).
+  gmSaveShopItem: async ({ key, kind, group, title, pr, mana, params }) => {
+    const { data, error } = await supabase.rpc('gm_save_shop_item', {
+      p_key: key || null,
+      p_kind: kind,
+      p_grp: group || '',
+      p_title: title,
+      p_price_pr: pr,
+      p_price_mana: mana,
+      p_params: params || {},
+    });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  gmSetShopItemArchived: async (key, archived) => {
+    const { error } = await supabase.rpc('gm_set_shop_item_archived', { p_key: key, p_archived: archived });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
+  gmReorderShopItems: async (kind, keys) => {
+    const { error } = await supabase.rpc('gm_reorder_shop_items', { p_kind: kind, p_keys: keys });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
+  gmSaveShopSettings: async ({ prStart, prCapBase }) => {
+    const { error } = await supabase.rpc('gm_save_shop_settings', { p_pr_start: prStart, p_pr_cap_base: prCapBase });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  },
+
   gmSetRareReserveArchived: async (key, archived) => {
     const { error } = await supabase.rpc('gm_set_rare_reserve_archived', { p_key: key, p_archived: archived });
     if (error) throw new Error(error.message);
@@ -657,6 +717,8 @@ export const api = {
   },
 
   createPilot: async ({ name, callsign, background }) => {
+    // Стартові PR задає ГМ у каталозі магазину.
+    await loadShopCatalog();
     const { data, error } = await supabase
       .from('pilots')
       .insert({

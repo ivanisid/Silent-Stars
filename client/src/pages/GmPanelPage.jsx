@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { llTier } from '../pilot/logic';
 import { ConfirmDialog, Menu, Msg, MobileHead, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
 import { useIsMobile } from '../useMobile';
+import GmShopSection from './GmShopEditor.jsx';
 
 function formatDate(iso) {
   if (!iso) return '—';
@@ -66,6 +67,7 @@ export default function GmPanelPage() {
   const [roleNote, setRoleNote] = useState('');
   const [deleting, setDeleting] = useState(null); // група, яку збираються видалити
   const mobile = useIsMobile();
+  const [section, setSection] = useState('players');
 
   async function deleteUser(group) {
     setDeleting(null);
@@ -201,6 +203,13 @@ export default function GmPanelPage() {
       />
     );
 
+  const sectionSeg = (
+    <div className="ss-seg sm" style={{ alignSelf: 'flex-start' }}>
+      <button type="button" className={section === 'players' ? 'on' : ''} onClick={() => setSection('players')}>ГРАВЦІ</button>
+      <button type="button" className={section === 'shop' ? 'on' : ''} onClick={() => setSection('shop')}>МАГАЗИН</button>
+    </div>
+  );
+
   // Телефон: замість 10-колонкової таблиці — картка пілота з сіткою 4×2.
   if (mobile) {
     return (
@@ -211,6 +220,8 @@ export default function GmPanelPage() {
           title={<span style={{ color: 'var(--gm-ink)' }}>ГМ-ПАНЕЛЬ</span>}
           right={<span className="ss-tag gm">ГМ</span>}
         />
+        {sectionSeg}
+        {section === 'shop' ? <GmShopSection /> : <>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>
           <span>ГРАВЦІВ <span style={{ color: 'var(--text-bright)' }}>{groups.length}</span></span>
           <span>ПЕРСОНАЖІВ <span style={{ color: 'var(--text-bright)' }}>{pilots.length}</span></span>
@@ -285,6 +296,7 @@ export default function GmPanelPage() {
             </Panel>
           ))}
         {!loading && shown.length === 0 && <div className="ss-note"><span className="pre">&gt; </span>Нічого не знайдено.</div>}
+        </>}
 
         <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>FERUM VOX // GM OVERSIGHT</div>
       </PageShell>
@@ -299,6 +311,8 @@ export default function GmPanelPage() {
         tag={<span className="ss-tag gm">ГМ</span>}
       />
 
+      {sectionSeg}
+      {section === 'shop' ? <GmShopSection /> : <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>ГРАВЦІВ <span style={{ color: 'var(--text-bright)' }}>{groups.length}</span></div>
         <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>ПЕРСОНАЖІВ <span style={{ color: 'var(--text-bright)' }}>{pilots.length}</span></div>
@@ -367,6 +381,7 @@ export default function GmPanelPage() {
             {group.pilots.length === 0 && <div className="ss-note" style={{ padding: '10px 14px', fontSize: 12 }}><span className="pre">&gt; </span>Персонажів немає.</div>}
           </Panel>
         ))}
+      </>}
 
       <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: 1, textAlign: 'center' }}>FERUM VOX // GM OVERSIGHT</div>
     </PageShell>

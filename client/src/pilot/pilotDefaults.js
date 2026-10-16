@@ -1,4 +1,5 @@
-import { PR_START, PR_CAP_BASE } from './constants';
+import { PR_CAP_BASE } from './constants';
+import { prStart } from './shopCatalog';
 import { manaLevelCost } from './logic';
 
 // Factory for a brand-new pilot's mechanics state.
@@ -32,7 +33,7 @@ export function createDefaultPilotState() {
     // використані страхові поліси ({key: 1}).
     hangar: { owned: {}, deposits: {}, policies: {} },
     // Тір 1 стартує з готовим запасом PR (правила: «На старті кожен гравець вже має 30PR»).
-    pr: PR_START,
+    pr: prStart(),
     // Відкритість і вкладка магазину — стан інтерфейсу (ShopDrawer), у пілоті не зберігаються.
     shop: { error: '' },
     mana: {

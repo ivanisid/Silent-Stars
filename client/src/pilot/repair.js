@@ -1,9 +1,9 @@
-import { limitedRefillPr } from './constants';
+import { kitPr, limitedRefillPr } from './shopCatalog';
 
 // Правила ремонту меха (інтерфейс 2a, «Interactions & Behavior»).
 //
-// Ремкомплект коштує 10 PR. Ремонт спершу списує ремкомплекти самого меха; яких бракує —
-// докуповуються по 10 PR. Не вистачає PR і на це — ремонт неможливий.
+// Ремкомплект коштує kitPr() PR (усталено 10; ціну задає ГМ у каталозі). Ремонт спершу
+// списує ремкомплекти самого меха; яких бракує — докуповуються за тією ж ціною. Не вистачає PR і на це — ремонт неможливий.
 //
 //   HP «ВІДНОВИТИ МАКС»     1 ремкомплект (BALOR — безкоштовно, без вікна)
 //   Структура +1            2 ремкомплекти (Chomolungma / Everest / Sagarmatha — 1)
@@ -12,8 +12,6 @@ import { limitedRefillPr } from './constants';
 //   Знищена система/зброя   1 ремкомплект
 //   «−» (пошкодження)       безкоштовно
 
-export const KIT_PR = 10;
-export const KITS_FULL_PR = 50;
 export const MECH_STRUCTURE = 4;
 export const MECH_REACTOR = 4;
 
@@ -114,7 +112,7 @@ export function repairPlan(mech, what, idx) {
 export function repairCost(mech, pr, kits) {
   const use = Math.min(mech.repairCurrent, kits);
   const buy = kits - use;
-  const prCost = buy * KIT_PR;
+  const prCost = buy * kitPr();
   return { use, buy, prCost, ok: pr >= prCost };
 }
 

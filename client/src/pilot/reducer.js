@@ -1,13 +1,5 @@
 import {
-  SHOP_DATA,
-  PR_PACK_SIZE,
-  UPGRADES,
-  INSURANCE_PACKS,
-  insurancePack,
   WEEKLY_DOWNTIME_DATA,
-  PR_SERVICES,
-  PR_CAP_BASE,
-  PR_CAP_BUFFER,
   MAX_LL,
   REDISTRIBUTE_TALENTS_COST,
   REDISTRIBUTE_LICENSES_COST,
@@ -23,7 +15,6 @@ import {
   newId,
   nextBurdenSize,
   toggleFilled,
-  shopPrice,
   rollTier,
   relationshipLabel,
   nextRelationship,
@@ -33,7 +24,20 @@ import {
 } from './logic';
 import { isMechNameTaken } from './compconImport';
 import { pruneRetainedState } from './mechMerge';
-import { repairPlan, repairCost, spentText, isLimited, itemRefillPr, KIT_PR, KITS_FULL_PR, MECH_STRUCTURE, MECH_REACTOR } from './repair';
+import { repairPlan, repairCost, spentText, isLimited, itemRefillPr, MECH_STRUCTURE, MECH_REACTOR } from './repair';
+import {
+  BUILTIN_KEYS,
+  insurancePack,
+  itemTitle,
+  kitPr,
+  kitsFullPr,
+  onSale,
+  prCapFor,
+  prFullRepairPr,
+  prPackSize,
+  shopItem,
+  upgradeByKey,
+} from './shopCatalog';
 import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft } from './reserves';
 import { rareReserveByKey, anyReserveByKey, vaultCap } from './rareReserves';
 
@@ -81,7 +85,7 @@ function findMech(state, id) {
 }
 
 function prCap(state) {
-  return (state.hangar.owned.buffer || 0) >= 1 ? PR_CAP_BUFFER : PR_CAP_BASE;
+  return prCapFor(state.hangar.owned);
 }
 
 // Кап складу рідкісних резервів — завжди базовий (див. vaultCap у rareReserves.js).
@@ -688,8 +692,8 @@ function reduce(state, action) {
     // Внесок списується з гаманця одразу й лежить на покращенні; не більше залишку ціни
     // і наявних коштів. amount — число або 'all' («Все можливе»).
     case 'UPGRADE_DEPOSIT': {
-      const up = UPGRADES.find((u) => u.key === action.key);
-      if (!up || state.hangar.owned[up.key] || (up.requires && !state.hangar.owned[up.requires])) return state;
+      const up = upgradeByKey(action.key);
+      if (!up || up.archived || state.hangar.owned[up.key] || (up.requires && !state.hangar.owned[up.requires])) return state;
       const cur = action.currency === 'pr' ? 'pr' : 'mana';
       const price = up[cur];
       const dep = upgradeDeposit(state, up.key);
@@ -709,7 +713,7 @@ function reduce(state, action) {
     // Повертає внесене на гаманець. PR повертаються лише в межах капу — що не влазить,
     // лишається внеском (не згорає), і про це сказано в журналі.
     case 'UPGRADE_REFUND': {
-      const up = UPGRADES.find((u) => u.key === action.key);
+      const up = upgradeByKey(action.key);
       if (!up || state.hangar.owned[up.key]) return state;
       const dep = upgradeDeposit(state, up.key);
       const cap = prCap(state);
@@ -730,8 +734,8 @@ function reduce(state, action) {
     }
     // Покупка: доплачується решта ціни, внесок зараховується.
     case 'UPGRADE_BUY': {
-      const up = UPGRADES.find((u) => u.key === action.key);
-      if (!up || state.hangar.owned[up.key] || (up.requires && !state.hangar.owned[up.requires])) return state;
+      const up = upgradeByKey(action.key);
+      if (!up || up.archived || state.hangar.owned[up.key] || (up.requires && !state.hangar.owned[up.requires])) return state;
       const dep = upgradeDeposit(state, up.key);
       const restM = Math.max(0, up.mana - dep.mana);
       const restP = Math.max(0, up.pr - dep.pr);
@@ -755,9 +759,9 @@ function reduce(state, action) {
     // ---------- Страхові поліси (вкладка INSURANCE) ----------
     // Купівля: PR і мана списуються разом; кожного типу — один невикористаний поліс.
     case 'INSURANCE_BUY': {
-      const base = INSURANCE_PACKS.find((x) => x.key === action.key);
+      const base = shopItem(action.key);
       const policies = state.hangar.policies || {};
-      if (!base || !state.hangar.owned.insure || policies[base.key]) return state;
+      if (!base || base.kind !== 'insurance' || base.archived || !state.hangar.owned.insure || policies[base.key]) return state;
       const p = insurancePack(base, state.hangar.owned);
       if (p.pr > state.pr || p.mana > state.mana.balance) return state;
       let next = { ...state, pr: state.pr - p.pr, hangar: { ...state.hangar, policies: { ...policies, [p.key]: 1 } } };
@@ -767,7 +771,7 @@ function reduce(state, action) {
     }
     // Використання: поліс зникає; пакети меха відновлюють обраного меха.
     case 'INSURANCE_USE': {
-      const base = INSURANCE_PACKS.find((x) => x.key === action.key);
+      const base = shopItem(action.key);
       const policies = { ...(state.hangar.policies || {}) };
       if (!base || !policies[base.key]) return state;
       const p = insurancePack(base, state.hangar.owned);
@@ -815,15 +819,27 @@ function reduce(state, action) {
     }
 
     // ---------- Повний ремонт / передрук за PR (магазин, вкладка PRINTER) ----------
-    // Та сама послуга є в LUXURY за ману (SHOP_BUY 'fullrepair') — це альтернативні ціни.
+    // Та сама послуга є в LUXURY за ману (SHOP_BUY 'mfull') — це альтернативні ціни.
     case 'PR_FULL_REPAIR': {
       const m = findMech(state, action.id);
-      const svc = PR_SERVICES.find((x) => x.key === 'fullrepair');
-      if (!m || !svc || svc.cost > state.pr) return state;
+      const svc = shopItem('prfull');
+      const cost = prFullRepairPr();
+      if (!m || !svc || svc.archived || cost > state.pr) return state;
       const before = state.pr;
       return log(
-        { ...updateMech(state, m.id, fullyRepaired), pr: before - svc.cost },
-        `${m.name}: «${svc.title}» за ${svc.cost} PR (PR ${before} → ${before - svc.cost})`,
+        { ...updateMech(state, m.id, fullyRepaired), pr: before - cost },
+        `${m.name}: «${svc.title}» за ${cost} PR (PR ${before} → ${before - cost})`,
+      );
+    }
+
+    // Позиція PRINTER, додана ГМом: механіки немає — списується ціна, пишеться журнал.
+    case 'PRINTER_BUY': {
+      const it = shopItem(action.key);
+      if (!it || it.kind !== 'printer' || it.archived || BUILTIN_KEYS.includes(it.key) || it.pr > state.pr) return state;
+      return log(
+        { ...state, pr: state.pr - it.pr },
+        `Магазин: придбано «${it.title}» за ${it.pr} PR (PR ${state.pr} → ${state.pr - it.pr})`,
+        true,
       );
     }
 
@@ -1001,26 +1017,31 @@ function reduce(state, action) {
     // Ціль приходить разом з дією: магазин сам показує список мехів, тож проміжного
     // вікна з вибором меха більше немає. Недоступне сюди не доходить (кнопка неактивна),
     // перевірки нижче — запобіжник.
+    // Позиції, додані ГМом (не вбудовані ключі), — без механіки: списання й запис у журнал.
     case 'SHOP_BUY': {
-      const item = SHOP_DATA.find((it) => it.key === action.key);
-      if (!item) return state;
-      const price = shopPrice(item);
+      const item = shopItem(action.key);
+      if (!item || item.kind !== 'shop' || item.archived) return state;
+      const price = item.mana;
       if (price > state.mana.balance) return state;
+      const title = itemTitle(item);
 
       const spend = (st, note) => {
-        const mana = pushManaHistory({ ...st.mana, balance: st.mana.balance - price }, `−${price} · ${item.title}`);
-        return log({ ...st, mana }, `Магазин: придбано «${item.title}» за ${price} мани${note ? ` (${note})` : ''}`);
+        const mana = pushManaHistory({ ...st.mana, balance: st.mana.balance - price }, `−${price} · ${title}`);
+        return log({ ...st, mana }, `Магазин: придбано «${title}» за ${price} мани${note ? ` (${note})` : ''}`);
       };
+
+      if (!BUILTIN_KEYS.includes(item.key)) return spend(state, '');
 
       // Пачка PR іде пілоту, не меху. Надлишок понад кап не нараховується.
       if (item.key === 'prpack') {
         const cap = prCap(state);
+        const size = prPackSize();
         if (state.pr >= cap) return state;
-        const next = Math.min(state.pr + PR_PACK_SIZE, cap);
+        const next = Math.min(state.pr + size, cap);
         const gained = next - state.pr;
         return spend(
           { ...state, pr: next },
-          gained < PR_PACK_SIZE ? `+${gained} PR — решта не влізла в кап ${cap}` : `PR ${state.pr} → ${next}`,
+          gained < size ? `+${gained} PR — решта не влізла в кап ${cap}` : `PR ${state.pr} → ${next}`,
         );
       }
 
@@ -1030,7 +1051,7 @@ function reduce(state, action) {
         if (mech.corePower) return state;
         return spend(updateMech(state, mech.id, (m) => ({ ...m, corePower: true })), mech.name);
       }
-      if (item.key === 'fullrepair') return spend(updateMech(state, mech.id, fullyRepaired), mech.name);
+      if (item.key === 'mfull') return spend(updateMech(state, mech.id, fullyRepaired), mech.name);
       return state;
     }
 
@@ -1160,13 +1181,13 @@ function reduce(state, action) {
         true,
       );
     }
-    // Купівля ремкомплектів: один за 10 PR або до максимуму за 50 PR.
+    // Купівля ремкомплектів: один (kit) або до максимуму (kitsfull) — ціни з каталогу.
     case 'BUY_KITS': {
       const m = findMech(state, action.id);
       if (!m || m.repairCurrent >= m.repairMax) return state;
       const full = action.mode === 'full';
-      const cost = full ? KITS_FULL_PR : KIT_PR;
-      if (cost > state.pr) return state;
+      const cost = full ? kitsFullPr() : kitPr();
+      if (!onSale(full ? 'kitsfull' : 'kit') || cost > state.pr) return state;
       const kits = full ? m.repairMax : m.repairCurrent + 1;
       return log(
         { ...updateMech(state, m.id, (mm) => ({ ...mm, repairCurrent: kits })), pr: state.pr - cost },
@@ -1174,11 +1195,11 @@ function reduce(state, action) {
         true,
       );
     }
-    // Поповнення зарядів однієї системи — ціна за базовим запасом (1 → 30, 2 → 20, 3+ → 10 PR).
+    // Поповнення зарядів однієї системи — ціна за базовим запасом (щаблі refill у каталозі).
     case 'REFILL_ITEM': {
       const m = findMech(state, action.id);
       const it = m?.items?.[action.idx];
-      if (!isLimited(it) || it.current >= it.max) return state;
+      if (!isLimited(it) || it.current >= it.max || !onSale('refill')) return state;
       const cost = itemRefillPr(it);
       if (cost > state.pr) return state;
       return log(

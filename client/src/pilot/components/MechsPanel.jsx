@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { OC_STEPS, PR_SERVICES, SHOP_DATA, mechSlots } from '../constants';
-import { shopPrice } from '../logic';
+import { OC_STEPS, mechSlots } from '../constants';
+import { kitPr, kitsFullPr, manaFullRepairPrice, onSale, prFullRepairPr } from '../shopCatalog';
 import { showUpgrade } from '../../components/overlayBus';
 import {
-  KIT_PR,
-  KITS_FULL_PR,
   MECH_REACTOR,
   MECH_STRUCTURE,
   isBalor,
@@ -300,8 +298,10 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
       setMsg('>> Мех цілий — ремонтувати нічого.');
       return;
     }
-    const prCost = PR_SERVICES.find((x) => x.key === 'fullrepair').cost;
-    const manaCost = shopPrice(SHOP_DATA.find((x) => x.key === 'fullrepair'));
+    const prCost = prFullRepairPr();
+    const manaCost = manaFullRepairPrice();
+    const prOn = onSale('prfull');
+    const manaOn = onSale('mfull');
     const mana = state.mana.balance;
     const res = await ask({
       title: 'ПОВНИЙ РЕМОНТ / ПЕРЕДРУК',
@@ -311,15 +311,15 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
         { t: `PR: ${pr}${pr >= prCost ? ` → ${pr - prCost}` : ' — бракує'} · Мана: ${mana}${mana >= manaCost ? ` → ${mana - manaCost}` : ' — бракує'}`, ink: 'var(--text)' },
       ],
       yesLabel: `${prCost} PR`,
-      canYes: pr >= prCost,
+      canYes: prOn && pr >= prCost,
       altLabel: `${manaCost} М`,
-      canAlt: mana >= manaCost,
+      canAlt: manaOn && mana >= manaCost,
     });
     if (res === true) {
       dispatch({ type: 'PR_FULL_REPAIR', id: m.id });
       setMsg(`>> Повний ремонт. Списано ${prCost} PR.`);
     } else if (res === 'alt') {
-      dispatch({ type: 'SHOP_BUY', key: 'fullrepair', mechId: m.id });
+      dispatch({ type: 'SHOP_BUY', key: 'mfull', mechId: m.id });
       setMsg(`>> Повний ремонт. Списано ${manaCost} М.`);
     }
   }
@@ -361,7 +361,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
           {frameLabel && <span className="ss-tag accent">{frameLabel}</span>}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <SlotImportButton slot={slot} importCompcon={importCompcon} onResult={(r) => setMsg(`${r.ok ? '>>' : '!!'} ${r.text}`)} />
-            <button className="btn-ghost" type="button" title="Повний ремонт / передрук за 100 PR або 500 М: усе до максимуму. Перед оплатою вікно покаже, що зламано" onClick={fullRepair}>ПОВНИЙ РЕМОНТ</button>
+            <button className="btn-ghost" type="button" title={`Повний ремонт / передрук за ${prFullRepairPr()} PR або ${manaFullRepairPrice()} М: усе до максимуму. Перед оплатою вікно покаже, що зламано`} onClick={fullRepair}>ПОВНИЙ РЕМОНТ</button>
             <Menu
               items={[
                 { label: editing ? 'ЗАКРИТИ РЕДАГУВАННЯ' : 'РЕДАГУВАТИ', onClick: () => dispatch({ type: 'TOGGLE_MECH_EDIT', id: m.id }) },
@@ -441,13 +441,13 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
               <div className="v">{m.repairCurrent} / {m.repairMax}</div>
               <button
                 type="button"
-                title={`Купити 1 ремкомплект за ${KIT_PR} PR`}
-                disabled={repFull}
+                title={`Купити 1 ремкомплект за ${kitPr()} PR`}
+                disabled={repFull || !onSale('kit')}
                 onClick={() =>
                   spendPr({
                     title: 'КУПІВЛЯ РЕМКОМПЛЕКТУ',
-                    question: `Купити 1 ремкомплект за ${KIT_PR} PR?`,
-                    price: KIT_PR,
+                    question: `Купити 1 ремкомплект за ${kitPr()} PR?`,
+                    price: kitPr(),
                     lines: [`Ремкомплекти: ${m.repairCurrent} → ${m.repairCurrent + 1}`],
                     action: { type: 'BUY_KITS', id: m.id, mode: 'one' },
                     done: 'Куплено 1 ремкомплект.',
@@ -461,20 +461,20 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
               <button
                 className="btn-ghost sm"
                 type="button"
-                disabled={repFull}
-                title={`Поповнити ремкомплекти до максимуму за ${KITS_FULL_PR} PR`}
+                disabled={repFull || !onSale('kitsfull')}
+                title={`Поповнити ремкомплекти до максимуму за ${kitsFullPr()} PR`}
                 onClick={() =>
                   spendPr({
                     title: 'КУПІВЛЯ РЕМКОМПЛЕКТІВ',
-                    question: `Поповнити до максимуму за ${KITS_FULL_PR} PR?`,
-                    price: KITS_FULL_PR,
+                    question: `Поповнити до максимуму за ${kitsFullPr()} PR?`,
+                    price: kitsFullPr(),
                     lines: [`Ремкомплекти: ${m.repairCurrent} → ${m.repairMax}`],
                     action: { type: 'BUY_KITS', id: m.id, mode: 'full' },
                     done: 'Ремкомплекти поповнено до максимуму.',
                   })
                 }
               >
-                {repFull ? 'ПОВНІ' : `МАКС · ${KITS_FULL_PR} PR`}
+                {repFull ? 'ПОВНІ' : `МАКС · ${kitsFullPr()} PR`}
               </button>
             </div>
           </div>
