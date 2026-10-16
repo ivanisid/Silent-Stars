@@ -99,4 +99,20 @@ test('файл для Foundry — лише з мехом слота, mechId — 
   assert.deepEqual(p[0].data.data.mechs.map((m) => m.id), ['ccA']);
 });
 
+test('таланти й ліцензії спільні, поки немає ADJUTANT / Квантового', () => {
+  const t = (talents, licenses = []) => ({ skills: [], talents, coreBonuses: [], licenses });
+  const ace = [{ name: 'Ace', rank: 2 }];
+  const X = mech(1, 'Godhammer', 'ccA', { build: t(ace, [{ name: 'BLACKBEARD', rank: 2 }]) });
+  const Y = mech(105, 'Mastiff', 'ccB', { build: t([{ name: 'Brawler', rank: 1 }], [{ name: 'BLACKBEARD', rank: 2 }]) });
+  const Z = mech(106, 'Mastiff', 'ccB', { build: t(ace, [{ name: 'DRAKE', rank: 1 }]) });
+  const both = { talents: true, licenses: true };
+  assert.match(applyAssignment([X], [Y], [null, 0], both).error, /Таланти мехів/);
+  assert.ok(!applyAssignment([X], [Y], [null, 0], { talents: false, licenses: true }).error);
+  assert.match(applyAssignment([X], [Z], [null, 0], both).error, /Ліцензії мехів/);
+  assert.ok(!applyAssignment([X], [Z], [null, 0], { talents: true, licenses: false }).error);
+  assert.ok(!applyAssignment([X], [Y], [null, 0]).error);
+  // Мех без збірки з файлу (старий запис) не порівнюється.
+  assert.ok(!applyAssignment([A], [Y], [null, 0], both).error);
+});
+
 console.log(`\n${n} тестів пройдено`);

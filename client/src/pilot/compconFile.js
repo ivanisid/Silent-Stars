@@ -1,6 +1,7 @@
 import { api } from '../api';
 import { mapCompconBond, mapCompconPilot } from './compconImport';
-import { applyAssignment, changesText, defaultAssignment, isObvious, profilesFor, slotCount } from './slotImport';
+import { applyAssignment, changesText, defaultAssignment, isObvious, profilesFor, sameMech, slotCount } from './slotImport';
+import { sharedBuild } from './constants';
 
 // Імпорт файлу COMP/CON у відкритий профіль пілота — спільний для кнопки під профілем
 // (пілот, мех і бонд), кнопок слотів ангару (лише мех цього слота) і сторінки пілотів.
@@ -21,21 +22,31 @@ export function prepareImport(json, state, slots, target = null) {
   const imported = mapped.state.mechs;
   if (!imported.length) throw new Error('У файлі COMP/CON немає жодного меха.');
   const existing = state.mechs || [];
-  const assignment = defaultAssignment(existing, slots, imported, target);
+  const shared = sharedBuild(state.hangar?.owned);
+  let assignment = defaultAssignment(existing, slots, imported, target);
+  // Таланти й ліцензії спільні для слотів, а файл COMP/CON — один на пілота: якщо з кнопки
+  // слота нова збірка розійшлася з іншим слотом, той самий файл оновлює й решту мехів,
+  // що в ньому є.
+  if (target != null && applyAssignment(existing, imported, assignment, shared).error) {
+    const all = defaultAssignment(existing, slots, imported);
+    const wider = assignment.map((j, i) => (j != null ? j : existing[i] && all[i] != null && sameMech(existing[i], imported[all[i]]) ? all[i] : null));
+    if (!applyAssignment(existing, imported, wider, shared).error) assignment = wider;
+  }
   return {
     mapped,
     imported,
     existing,
+    shared,
     slots: slotCount(existing, slots),
     assignment,
-    obvious: isObvious(existing, imported, assignment),
+    obvious: isObvious(existing, imported, assignment) && !applyAssignment(existing, imported, assignment, shared).error,
   };
 }
 
 // Застосувати розклад: мехи в стан, бонд (withBond), файли для Foundry — по одному на меха.
 // Повертає { ok, text }; помилку розкладу кидає з поясненням.
 export async function commitImport({ json, prep, assignment, pilotId, dispatch, withBond, fileName }) {
-  const r = applyAssignment(prep.existing, prep.imported, assignment);
+  const r = applyAssignment(prep.existing, prep.imported, assignment, prep.shared);
   if (r.error) throw new Error(r.error);
   const what = changesText(r.changes) || 'мехи не змінено';
   // Бонуси до HP / Overcharge з файлу — щоб нове HP не виглядало вигаданим.

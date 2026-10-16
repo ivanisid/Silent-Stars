@@ -52,7 +52,7 @@ const label = (m) => (m.frame && m.frame.toUpperCase() !== m.name.toUpperCase() 
 function SlotDialog({ prep, target, fileName, hangarSlots, onCancel, onConfirm }) {
   const [a, setA] = useState(prep.assignment);
   const { existing, imported } = prep;
-  const check = applyAssignment(existing, imported, a);
+  const check = applyAssignment(existing, imported, a, prep.shared);
   const placed = new Set(a.filter((j) => j != null));
   const skipped = imported.filter((_, j) => !placed.has(j));
   const replaces = check.changes?.filter((c) => c.kind === 'replace') || [];
@@ -67,7 +67,7 @@ function SlotDialog({ prep, target, fileName, hangarSlots, onCancel, onConfirm }
         <div className="modal-body">
           <div style={{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.6 }}>
             «{fileName}»: у файлі {imported.length} {imported.length === 1 ? 'мех' : 'мехів'}, слотів в ангарі {hangarSlots}
-            {hangarSlots < 2 ? ' (другий дає «Розширений ангар»)' : ''}. Оберіть, який мех куди.
+            {hangarSlots < 2 ? ' (другий дає «Місце стоянки»)' : ''}. Оберіть, який мех куди.
           </div>
           {rows.map((i) => {
             const cur = existing[i];

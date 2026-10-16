@@ -1,7 +1,7 @@
 // Імпорт мехів з файлу COMP/CON у слоти ангару (чиста логіка — тестується простим `node`,
 // див. slotImport.test.mjs).
 //
-// Ангар має слоти (1, з «Розширеним ангаром» — 2), а COMP/CON — ні: у файлі може бути
+// Ангар має слоти (1, з «Місцем стоянки» — 2), а COMP/CON — ні: у файлі може бути
 // скільки завгодно мехів. Тому імпорт — це розклад «який мех з файлу в який слот»:
 //
 //   assignment[i] — індекс меха з файлу для слота i, або null (слот не чіпаємо).
@@ -64,10 +64,20 @@ export function isObvious(existing, imported, assignment) {
   return assignment.every((j, i) => j == null || !existing[i] || sameMech(existing[i], imported[j]));
 }
 
+// Набір талантів чи ліцензій меха як рядок для порівняння; null — у меха немає збірки
+// з файлу (старий запис), такого не порівнюємо.
+function buildKey(m, field) {
+  const list = m?.build?.[field];
+  if (!Array.isArray(list)) return null;
+  return list.map((x) => `${key(x.name)}:${Number(x.rank) || 0}`).sort().join('|');
+}
+
 // Застосування розкладу. Повертає мехи пілота після імпорту і що з кожним слотом сталося:
 //   changes: [{ slot, kind: 'update' | 'replace' | 'add', mech, old? }]
-// Помилка — рядок у error (один мех у двох слотах, однакові назви).
-export function applyAssignment(existing, imported, assignment) {
+// Помилка — рядок у error (один мех у двох слотах, однакові назви, різні таланти чи
+// ліцензії там, де вони спільні).
+//   shared — { talents, licenses }: що мусить збігатися в усіх мехів (sharedBuild).
+export function applyAssignment(existing, imported, assignment, shared = {}) {
   const seen = new Set();
   for (const j of assignment) {
     if (j == null) continue;
@@ -99,6 +109,13 @@ export function applyAssignment(existing, imported, assignment) {
       return { error: `Два мехи з назвою «${m.name}». Назви мехів мають бути різні — перейменуйте меха в COMP/CON.` };
     }
     names.add(key(m.name));
+  }
+  const differ = (field) => new Set(result.map((m) => buildKey(m, field)).filter((k) => k != null)).size > 1;
+  if (shared.talents && differ('talents')) {
+    return { error: 'Таланти мехів у слотах різні. Різні набори талантів дає «ADJUTANT-SUB SYSTEM UPDATE» — без нього оновіть обох мехів з одного файлу COMP/CON.' };
+  }
+  if (shared.licenses && differ('licenses')) {
+    return { error: 'Ліцензії мехів у слотах різні. Різні набори ліцензій дає «Квантове ліцензування» — без нього оновіть обох мехів з одного файлу COMP/CON.' };
   }
   return { mechs: result, changes };
 }

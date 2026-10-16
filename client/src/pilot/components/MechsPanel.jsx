@@ -47,7 +47,7 @@ export default function MechsPanel({
   const d = state.mechDraft;
   const [ask, dialog] = useConfirm();
   const nameTaken = isMechNameTaken(state.mechs, d.name);
-  // Слотів у ангарі: 1, з «Розширеним ангаром» — 2. Не блокуємо: мехів понад слоти могли
+  // Слотів у ангарі: 1, з «Місцем стоянки» — 2. Не блокуємо: мехів понад слоти могли
   // додати раніше (або для іншого профілю COMP/CON) — лише попереджаємо.
   const slots = mechSlots(state.hangar.owned);
   const over = state.mechs.length > slots;
@@ -60,7 +60,7 @@ export default function MechsPanel({
           <div className="warn-box" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span style={{ flex: 1, minWidth: 200 }}>
               :: Мехів {state.mechs.length}, а слотів в ангарі {slots}.{' '}
-              {slots < 2 ? 'Другий слот дає покращення «Розширений ангар».' : 'Більше слотів жодне покращення не дає.'}
+              {slots < 2 ? 'Другий слот дає покращення «Місце стоянки».' : 'Більше слотів жодне покращення не дає.'}
             </span>
             {slots < 2 && (
               <button type="button" className="btn-ghost sm" onClick={() => showUpgrade('parking')}>

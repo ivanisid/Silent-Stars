@@ -9,8 +9,7 @@ import {
   PR_CAP_BASE,
   PR_CAP_BUFFER,
   MAX_LL,
-  REDISTRIBUTE_TALENTS_COST,
-  REDISTRIBUTE_LICENSES_COST,
+  redistributeCosts,
   BOND_XP_PER_POWER,
   BOND_POWERS_ON_CHOOSE,
   BOND_POWERS_FOR_VETERAN,
@@ -160,9 +159,8 @@ function reduce(state, action) {
       const base = manaLevelCost(state.ll);
       if (base == null) return state;
 
-      const extras =
-        (lu.allTalents ? REDISTRIBUTE_TALENTS_COST : 0) +
-        (lu.allLicenses ? REDISTRIBUTE_LICENSES_COST : 0);
+      const cost = redistributeCosts(state.hangar.owned);
+      const extras = (lu.allTalents ? cost.talents : 0) + (lu.allLicenses ? cost.licenses : 0);
       const totalCost = base + extras;
       if (totalCost > state.mana.balance) {
         return { ...state, levelUp: { ...lu, error: 'Недостатньо мани.' } };
@@ -197,8 +195,8 @@ function reduce(state, action) {
       const repaired = state.mechs.find((m) => m.id === lu.mechId);
       const notes = [
         repaired ? `повний ремонт «${repaired.name}»` : null,
-        lu.allTalents ? `перерозподіл усіх талантів (+${REDISTRIBUTE_TALENTS_COST})` : null,
-        lu.allLicenses ? `перерозподіл усіх ліцензій (+${REDISTRIBUTE_LICENSES_COST})` : null,
+        lu.allTalents ? `перерозподіл усіх талантів (+${cost.talents})` : null,
+        lu.allLicenses ? `перерозподіл усіх ліцензій (+${cost.licenses})` : null,
       ].filter(Boolean);
 
       return log(
