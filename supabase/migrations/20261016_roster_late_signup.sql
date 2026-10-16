@@ -13,7 +13,8 @@
 -- пізні записи не мають заднім числом робити контест і роздавати +3 тим, хто не потрапив.
 -- Пізній запис у контесті не брав участі: прибраний зі складу +3 не отримує.
 --
--- Відкат: drop function public.gm_add_signup(uuid, uuid, text); drop function private.roster_set(uuid, boolean, boolean);
+-- Відкат: тіло private.discord_notify — з 20261011c_play_calendar.sql;
+-- drop function public.gm_add_signup(uuid, uuid, text); drop function private.roster_set(uuid, boolean, boolean);
 -- drop trigger signup_late on public.game_signups; drop function private.signup_late();
 -- alter table public.game_signups drop column late; alter table public.game_slots drop column contested;
 -- тіла settle_roster і gm_edit_roster — з 20261011_auto_roster.sql; release_seat — з 20261008;
@@ -420,4 +421,50 @@ as $function$
   ) order by s.game_at desc nulls first, s.created_at desc), '[]'::jsonb)
   from game_slots s
   where auth.uid() is not null;
+$function$;
+
+-- ----- ГМу: гравець відписався -----
+-- Як у 20261011c, плюс: видалення запису з відкритої чи затвердженої гри — подія 'withdrawn'
+-- з даними запису (його вже немає в базі). Каскадне видалення разом зі слотом слота вже не
+-- бачить — і нічого не шле.
+create or replace function private.discord_notify()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  sid uuid;
+  ev text;
+  sched boolean := false;
+  extra jsonb := '{}'::jsonb;
+begin
+  if tg_table_name = 'game_slots' then
+    sid := coalesce(new.id, old.id);
+    if tg_op = 'UPDATE' and new.status is distinct from old.status then
+      ev := new.status;
+    end if;
+    sched := tg_op <> 'DELETE' and new.game_at is not null and new.status = 'open'
+      and (tg_op = 'INSERT' or new.game_at is distinct from old.game_at);
+  else
+    sid := coalesce(new.slot_id, old.slot_id);
+    if tg_op = 'DELETE' and exists (select 1 from game_slots where id = old.slot_id and status in ('open', 'approved')) then
+      ev := 'withdrawn';
+      extra := jsonb_build_object(
+        'withdrawn_user', old.user_id, 'withdrawn_pilot', old.pilot_id,
+        'withdrawn_discord', old.discord_user_id, 'withdrawn_name', old.discord_name);
+    end if;
+  end if;
+  perform net.http_post(
+    url := 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/discord-sync',
+    body := jsonb_build_object(
+      'slot_id', sid,
+      'post', tg_table_name = 'game_slots' and tg_op = 'INSERT',
+      'event', ev,
+      'scheduled', sched) || extra,
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-sync-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'discord_sync_secret')));
+  return null;
+end;
 $function$;

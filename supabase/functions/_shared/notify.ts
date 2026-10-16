@@ -1,6 +1,6 @@
 // Сповіщення в Discord окремими повідомленнями, на відміну від оголошення, яке лише тихо
 // перемальовується. Скасування, старт і день з календаря — відповіддю на оголошення гри
-// з пінгом лише тих, кого стосується. Звільнене місце — ГМу в особисті; якщо особисті
+// з пінгом лише тих, кого стосується. Звільнене місце й відписка — ГМу в особисті; якщо особисті
 // закриті чи Discord ГМа невідомий — як раніше, відповіддю на оголошення.
 
 import { SupabaseClient } from 'npm:@supabase/supabase-js@2';
@@ -69,6 +69,20 @@ export async function notifyStatus(db: SupabaseClient, slotId: string, event: st
       : `${gm}, у резерві нікого немає — місце вільне.`);
     // Склад змінився — ГМ має знати завжди, навіть коли заміна з резерву зайшла сама.
     await deliver(db, slotId, lines.join('\n'), [slot.gmDiscordId]);
+    return 'notified';
+  }
+
+  // Гравець відписався (з апки чи Discord) — ГМу. Запису вже немає, тож хто це — з даних події.
+  if (event === 'withdrawn') {
+    const [{ data: prof }, { data: link }, { data: pilot }] = await Promise.all([
+      extra.withdrawn_user ? db.from('profiles').select('nick').eq('id', extra.withdrawn_user).maybeSingle() : { data: null },
+      extra.withdrawn_user ? db.from('discord_links').select('discord_user_id').eq('user_id', extra.withdrawn_user).maybeSingle() : { data: null },
+      extra.withdrawn_pilot ? db.from('pilots').select('callsign').eq('id', extra.withdrawn_pilot).maybeSingle() : { data: null },
+    ]);
+    const discordId = link?.discord_user_id ?? extra.withdrawn_discord;
+    const name = discordId ? `<@${discordId}>` : `**${prof?.nick || extra.withdrawn_name || 'Гравець'}**`;
+    const gone = pilot?.callsign ? `${name} (${pilot.callsign})` : name;
+    await deliver(db, slotId, `➖ ${gone} відписався від ${titleOf(slot)}. Записалось: ${signups.length}/${slot.seats}.`, [slot.gmDiscordId]);
     return 'notified';
   }
 
