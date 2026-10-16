@@ -1,7 +1,7 @@
 // Сповіщення в Discord окремими повідомленнями, на відміну від оголошення, яке лише тихо
-// перемальовується. Кожне йде в особисті тому, кого стосується, — у каналі воно не висить.
-// Кому написати в особисті не вдалося (закриті особисті, немає спільного сервера), тим —
-// як раніше: відповіддю на оголошення гри з пінгом лише їх.
+// перемальовується. Скасування, старт і день з календаря — відповіддю на оголошення гри
+// з пінгом лише тих, кого стосується. Звільнене місце — ГМу в особисті; якщо особисті
+// закриті чи Discord ГМа невідомий — як раніше, відповіддю на оголошення.
 
 import { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { clip, discordFetch, loadSlotView, SlotView } from './discord.ts';
@@ -68,13 +68,13 @@ export async function notifyStatus(db: SupabaseClient, slotId: string, event: st
       ? `На його місце в склад заходить ${withPilot(inn)} — якщо не зможеш, теж тисни «Звільнити місце». ${gm}, склад змінився.`
       : `${gm}, у резерві нікого немає — місце вільне.`);
     // Склад змінився — ГМ має знати завжди, навіть коли заміна з резерву зайшла сама.
-    await deliver(db, slotId, lines.join('\n'), [inn?.discordId, slot.gmDiscordId]);
+    await deliver(db, slotId, lines.join('\n'), [slot.gmDiscordId]);
     return 'notified';
   }
 
   if (event === 'cancelled') {
     if (!signups.length) return 'nobody';
-    await deliver(db, slotId, `❌ ${titleOf(slot)} скасовано. ${signups.map(who).join(', ')}`, signups.map((g) => g.discordId));
+    await post(db, slotId, `❌ ${titleOf(slot)} скасовано. ${signups.map(who).join(', ')}`, signups.map((g) => g.discordId));
     return 'notified';
   }
 
@@ -113,7 +113,7 @@ export async function remind(db: SupabaseClient) {
     if (!going.length) continue;
     if (!(await claim(db, id, '2h'))) continue;
     const t = unix(slot.game_at);
-    await deliver(db, id, `🚀 ${titleOf(slot)} стартує <t:${t}:R> (<t:${t}:t>). ${pilotList(going)}`, going.map((g) => g.discordId));
+    await post(db, id, `🚀 ${titleOf(slot)} стартує <t:${t}:R> (<t:${t}:t>). ${pilotList(going)}`, going.map((g) => g.discordId));
     sent++;
   }
   return sent;
@@ -144,7 +144,7 @@ export async function notifyCalendarMatch(db: SupabaseClient, slotId: string) {
   if (!ids.length) return 'nobody';
 
   const t = unix(slot.game_at);
-  await deliver(db, slotId,
+  await post(db, slotId,
     `📅 ${titleOf(slot)} заплановано на <t:${t}:F> — день, який ви відмітили в календарі: ` +
       `${ids.map((id) => `<@${id}>`).join(' ')}. Записатись — кнопка під оголошенням.`,
     ids);
