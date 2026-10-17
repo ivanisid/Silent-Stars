@@ -529,6 +529,7 @@ async function placeNew(actors, p, m) {
   if (!list.length) return;
   const folder = await folderFor(p, m, game.user.isGM).catch((err) => {
     console.warn(`${MODULE} | папки:`, err);
+    if (game.user.isGM) ui.notifications.warn(`Silent Stars: папки — ${err.message}`);
     return null;
   });
   for (const a of list) {
@@ -734,10 +735,11 @@ function compconReviewHtml(plan) {
 }
 
 // true — версію прийнято (у хабі з'явиться «Зміна потребує підтвердження на Foundry»).
-async function syncFromCompcon(p) {
+// quiet — без повідомлення «нової версії немає» (кнопка хабу перевіряє кількох пілотів підряд).
+async function syncFromCompcon(p, { quiet = false } = {}) {
   let ctx = await compconFetch(p);
   if (Number(ctx.cloud.updated) === Number(ctx.pilot.compcon?.version)) {
-    ui.notifications.info('COMP/CON: нової версії немає.');
+    if (!quiet) ui.notifications.info('COMP/CON: нової версії немає.');
     return false;
   }
   const title = `COMP/CON · ${ctx.cloud.name || p.callsign}`;
@@ -1082,7 +1084,6 @@ const HUB_CSS = `
 .ssh-pilot-head { display: flex; align-items: center; gap: 8px; padding: 2px 0 4px; border-bottom: 1px solid rgba(127,127,127,.35); }
 .ssh-pilot-head b { font-size: 15px; }
 .ssh-pilot-head .cc { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
-.ssh-pilot-head .ssh-chip { height: 26px; }
 .ssh-mech { flex: none; display: flex; align-items: center; gap: 10px; padding: 5px 8px 5px 4px; margin-top: 4px; border-left: 3px solid; background: rgba(0,0,0,.18); }
 .ssh-mech input[type=checkbox] { flex: none; width: 18px; height: 18px; margin: 0 4px; }
 .ssh-mech .nocheck { flex: none; width: 26px; }
@@ -1117,7 +1118,7 @@ class HubApp extends ApplicationV2 {
     position: { width: 1000, height: 720 },
     actions: {
       user: HubApp.#onUser, filter: HubApp.#onFilter, syncNow: HubApp.#onSyncNow, links: HubApp.#onLinks,
-      apply: HubApp.#onApply, logout: HubApp.#onLogout, compcon: HubApp.#onCompcon,
+      apply: HubApp.#onApply, logout: HubApp.#onLogout,
     },
   };
 
@@ -1141,7 +1142,10 @@ class HubApp extends ApplicationV2 {
     if (!this.pilots && !this.error) {
       try {
         this.pilots = (await appCall({ action: 'pull' })).pilots;
-        if (game.user.isGM) await ensureOwners(this.pilots);
+        if (game.user.isGM) {
+          await ensureOwners(this.pilots);
+          await placePending(this.pilots).catch((err) => console.warn(`${MODULE} | папки:`, err));
+        }
         else {
           await reportPlayerLinks(this.pilots).catch((err) => console.warn(`${MODULE} | links:`, err));
           await refreshPlayerEconomy(this.pilots).catch((err) => console.warn(`${MODULE} | economy:`, err));
@@ -1208,7 +1212,7 @@ class HubApp extends ApplicationV2 {
     const key = (r, p) => `${p.id}:${r.m.id}`;
     const rowActs = rows.flatMap(({ p, mechs }) => mechs.map((r) => ({ r, p, act: mechAction(r) })));
     const blocked = rowActs.some((x) => x.act === 'create' && !canCreate);
-    const n = rowActs.filter((x) => this.doable(x.act) && !this.unchecked.has(key(x.r, x.p))).length;
+    const n = rowActs.filter((x) => this.checkable(x.p, x.act) && !this.unchecked.has(key(x.r, x.p))).length;
 
     const chips = HUB_FILTERS.map((s) =>
       `<button type="button" class="ssh-chip${this.filter === s ? ' on' : ''}" data-action="filter" data-status="${s}">` +
@@ -1232,7 +1236,7 @@ class HubApp extends ApplicationV2 {
       const mechRows = mechs.map((r) => {
         const act = mechAction(r);
         const k = key(r, p);
-        const box = this.doable(act)
+        const box = this.checkable(p, act)
           ? `<input type="checkbox" data-key="${k}" ${this.unchecked.has(k) ? '' : 'checked'} aria-label="${esc(r.m.name)}">`
           : '<span class="nocheck"></span>';
         return `<div class="ssh-mech" style="border-left-color:${HUB_INK[r.status]}">${box}${thumb(r)}` +
@@ -1242,7 +1246,6 @@ class HubApp extends ApplicationV2 {
       }).join('');
       return `<div><div class="ssh-pilot-head"><span class="ssh-dot" style="border:1px solid #c23a48"></span><b>${esc(p.name || p.callsign)}</b>` +
         `<span style="opacity:.7">LL${esc(p.ll)}</span><span class="cc" style="color:${p.ccActive ? HUB_INK.ready : '#e05a5a'}">COMP/CON · ${cc}</span>` +
-        (p.ccLinked ? `<button type="button" class="ssh-chip" data-action="compcon" data-pilot="${esc(p.id)}" ${this.busy ? 'disabled' : ''}>СИНХРОНІЗУВАТИ З COMP/CON</button>` : '') +
         `</div>${mechRows}</div>`;
     }).join('');
 
@@ -1338,27 +1341,56 @@ class HubApp extends ApplicationV2 {
     return act === 'sync' || (act === 'create' && this.canCreate);
   }
 
-  // Відмічені рядки поточного гравця, які можна виконати.
+  // Галочка: є дія з актором, або пілот прив'язаний до COMP/CON (там може бути нова версія).
+  checkable(p, act) {
+    return this.doable(act) || !!p.ccLinked;
+  }
+
+  // Відмічені рядки поточного гравця.
   picked() {
     const cur = this.model().find((u) => u.nick === this.user);
     if (!cur) return [];
     return this.rowsOf(cur).flatMap(({ p, mechs }) => mechs
       .map((r) => ({ p, m: r.m, act: mechAction(r) }))
-      .filter((x) => this.doable(x.act) && !this.unchecked.has(`${p.id}:${x.m.id}`)));
+      .filter((x) => this.checkable(p, x.act) && !this.unchecked.has(`${p.id}:${x.m.id}`)));
   }
 
+  // Одна кнопка — увесь шлях (рішення користувача 17.10.2026): для пілотів відмічених мехів спершу
+  // нова версія з COMP/CON (вікно змін і ПРИЙНЯТИ, як в апці), потім актори — створити тих, кого
+  // немає, оновити тих, у кого старий білд. Після прийняття — усі мехи цього пілота з дією (мех
+  // міг замінити іншого і отримати новий id).
   async run() {
     const list = this.picked();
     if (!list.length || this.busy) return;
     this.busy = true;
     this.render();
-    for (const { p, m, act } of list) {
-      try {
-        await (act === 'create' ? createFromApp : rebuildFromApp)(p, m);
-      } catch (err) {
-        console.error(`${MODULE} |`, err);
-        ui.notifications.error(`Silent Stars: ${m.name}: ${err.message}`);
+    try {
+      const synced = new Set();
+      for (const p of new Map(list.filter((x) => x.p.ccLinked).map((x) => [x.p.id, x.p])).values()) {
+        try {
+          if (await syncFromCompcon(p, { quiet: true })) synced.add(p.id);
+        } catch (err) {
+          console.error(`${MODULE} |`, err);
+          ui.notifications.error(`Silent Stars: ${p.callsign || p.name}: ${err.message}`);
+        }
       }
+      if (synced.size) this.pilots = (await appCall({ action: 'pull' })).pilots;
+      const keys = new Set(list.map((x) => `${x.p.id}:${x.m.id}`));
+      const todo = this.model().flatMap((u) => u.pilots.flatMap(({ p, mechs }) => mechs
+        .map((r) => ({ p, m: r.m, act: mechAction(r) }))
+        .filter((x) => this.doable(x.act) && (keys.has(`${p.id}:${x.m.id}`) || synced.has(p.id)))));
+      for (const { p, m, act } of todo) {
+        try {
+          await (act === 'create' ? createFromApp : rebuildFromApp)(p, m);
+        } catch (err) {
+          console.error(`${MODULE} |`, err);
+          ui.notifications.error(`Silent Stars: ${m.name}: ${err.message}`);
+        }
+      }
+      if (!synced.size && !todo.length) ui.notifications.info('COMP/CON: нової версії немає.');
+    } catch (err) {
+      console.error(`${MODULE} |`, err);
+      ui.notifications.error(`Silent Stars: ${err.message}`);
     }
     this.busy = false;
     this.pilots = null;
@@ -1369,20 +1401,6 @@ class HubApp extends ApplicationV2 {
     await this.run();
   }
 
-  static async #onCompcon(_e, target) {
-    const p = (this.pilots || []).find((x) => x.id === target.dataset.pilot);
-    if (!p || this.busy) return;
-    this.busy = true;
-    this.render();
-    try {
-      if (await syncFromCompcon(p)) this.pilots = null;
-    } catch (err) {
-      console.error(`${MODULE} |`, err);
-      ui.notifications.error(`Silent Stars: ${err.message}`);
-    }
-    this.busy = false;
-    this.render();
-  }
 }
 
 // Кнопка хабу вгорі панелі акторів (як Comp/Con Sync у Lancer Comp/Con Sync) — для всіх.
