@@ -21,7 +21,8 @@ import {
   pilotBuildKey, actorBuildKey, folderPath, findFolder,
 } from './sync.js';
 import {
-  mapCompconPilot, defaultAssignment, isObvious, applyAssignment, profilesFor, changesText, mechSlots, mechDiff, wrapCloudPilot,
+  mapCompconPilot, defaultAssignment, isObvious, applyAssignment, profilesFor, changesText, slotCount, mechSlots, mechDiff,
+  wrapCloudPilot,
 } from './compcon-core.js';
 
 const DEFAULT_URL = 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/foundry-sync';
@@ -651,37 +652,71 @@ async function createFromApp(p, m) {
 // ----- Нова версія з COMP/CON (як кнопка в профілі пілота в апці) -----
 //
 // Прийняття рахує той самий код апки (compcon-core.js): мехи з файлу в слоти ангару, стан мехів
-// з апки лишається, файли для Foundry — по одному на меха. Функція записує результат, лише якщо
-// пілота за цей час ніхто не змінив; інакше модуль перераховує з новим станом. Неочевидний
-// розклад (мех замінює іншого, слотів бракує) — лише в апці, де є вікно вибору слотів.
+// з апки лишається, файли для Foundry — по одному на меха. Неочевидний розклад (у файлі кілька
+// мехів, слотів бракує, мех замінює іншого) — вікно «який мех у який слот», як в апці. Функція
+// записує результат, лише якщо пілота за цей час ніхто не змінив; інакше модуль перераховує
+// з новим станом.
 
-const NOT_OBVIOUS = 'Мехи з COMP/CON не лягають у слоти однозначно — прийміть цю версію в апці.';
-
-async function compconPlan(p) {
-  const r = await appCall({ action: 'compcon', pilotId: p.id });
-  const { cloud, pilot, updatedAt } = r;
-  if (Number(cloud.updated) === Number(pilot.compcon?.version)) return { fresh: false };
+async function compconFetch(p) {
+  const { cloud, pilot, updatedAt } = await appCall({ action: 'compcon', pilotId: p.id });
   const json = wrapCloudPilot(cloud.data);
   const imported = mapCompconPilot(json).state.mechs;
   if (!imported.length) throw new Error('У файлі COMP/CON немає жодного меха.');
-  const existing = pilot.mechs || [];
-  const assignment = defaultAssignment(existing, mechSlots(pilot.owned), imported);
-  if (!isObvious(existing, imported, assignment)) throw new Error(NOT_OBVIOUS);
+  return { cloud, pilot, updatedAt, json, imported, existing: pilot.mechs || [], hangar: mechSlots(pilot.owned) };
+}
+
+function compconResult(ctx, assignment) {
+  const { cloud, pilot, json, imported, existing } = ctx;
   const res = applyAssignment(existing, imported, assignment);
   if (res.error) throw new Error(res.error);
-  const slots = assignment
-    .map((j, i) => (j == null ? null : { slot: i, name: imported[j].name, groups: mechDiff(existing[i] || null, imported[j]) }))
-    .filter(Boolean);
+  const placed = new Set(assignment.filter((j) => j != null));
   return {
-    fresh: true, cloud, slots, updatedAt,
+    slots: assignment
+      .map((j, i) => (j == null ? null : { slot: i, name: imported[j].name, groups: mechDiff(existing[i] || null, imported[j]) }))
+      .filter(Boolean),
+    replaces: res.changes.filter((c) => c.kind === 'replace'),
+    skipped: imported.filter((_, j) => !placed.has(j)),
     levelOff: cloud.data?.level != null && Number(cloud.data.level) !== Number(pilot.ll),
     body: {
-      action: 'compconAccept', pilotId: p.id, updatedAt,
+      action: 'compconAccept', pilotId: ctx.pilotId, updatedAt: ctx.updatedAt,
       mechs: res.mechs, profiles: profilesFor(res.changes, json),
       code: pilot.compcon.code, version: Number(cloud.updated), level: cloud.data?.level ?? null,
       name: cloud.name, callsign: pilot.callsign, what: changesText(res.changes),
     },
   };
+}
+
+const mechLabel = (m) => (m.frame && m.frame.toUpperCase() !== m.name.toUpperCase() ? `${m.frame.toUpperCase()} // ${m.name}` : m.name);
+
+// Вікно «який мех у який слот» — як SlotDialog в апці (client/src/pilot/components/CompconImport.jsx).
+async function chooseSlots(ctx, title) {
+  const esc = foundry.utils.escapeHTML;
+  const { imported, existing, hangar } = ctx;
+  const a = defaultAssignment(existing, hangar, imported);
+  const n = imported.length;
+  const rows = a.map((j, i) => {
+    const cur = existing[i];
+    const opts = [`<option value="">${cur ? '— не змінювати —' : '— лишити порожнім —'}</option>`,
+      ...imported.map((m, k) => `<option value="${k}" ${k === j ? 'selected' : ''}>${esc(mechLabel(m))}</option>`)].join('');
+    return `<div style="margin:0 0 8px"><div style="font-size:12px;font-weight:700;letter-spacing:1px">СЛОТ ${i + 1}${i >= hangar ? ' (понад слоти ангару)' : ''} · зараз: ${cur ? esc(mechLabel(cur)) : 'порожній'}</div>` +
+      `<select name="slot${i}" style="width:100%">${opts}</select></div>`;
+  }).join('');
+  const intro = `«${esc(title)}»: у файлі ${n} ${n === 1 ? 'мех' : 'мехів'}, слотів в ангарі ${hangar}${hangar < 2 ? ' (другий дає «Розширений ангар»)' : ''}. Оберіть, який мех куди.`;
+  return foundry.applications.api.DialogV2.wait({
+    window: { title: 'МЕХИ З COMP/CON → СЛОТИ АНГАРУ' },
+    content: `<p style="margin:0 0 8px">${intro}</p>${rows}`,
+    buttons: [
+      { action: 'cancel', label: 'СКАСУВАТИ', callback: () => null },
+      {
+        action: 'ok', label: 'ІМПОРТУВАТИ', default: true,
+        callback: (_e, button) => a.map((_, i) => {
+          const v = button.form.elements[`slot${i}`]?.value;
+          return v === '' || v == null ? null : Number(v);
+        }),
+      },
+    ],
+    rejectClose: false,
+  });
 }
 
 function compconReviewHtml(plan) {
@@ -692,35 +727,57 @@ function compconReviewHtml(plan) {
     s.groups.map((g) => `<div style="margin-top:4px;font-size:12px;font-weight:700;opacity:.7">${g.title}</div>` +
       g.lines.map((l) => `<div style="color:${l.sign === '+' ? HUB_INK.ready : '#e05a5a'}">${l.sign} ${esc(l.text)}</div>`).join('')).join('') +
     '</div>').join('');
-  return `<div style="max-height:60vh;overflow-y:auto">${warn}${slots}</div>`;
+  const replaces = plan.replaces.map((c) =>
+    `<div style="color:${HUB_INK.pending}">:: «${esc(c.old.name)}» буде замінено на «${esc(c.mech.name)}» — стан, пошкодження й арт старого меха не переносяться.</div>`).join('');
+  const skipped = plan.skipped.length ? `<div style="opacity:.7">Не імпортуються: ${esc(plan.skipped.map((m) => m.name).join(', '))}.</div>` : '';
+  return `<div style="max-height:60vh;overflow-y:auto">${warn}${slots}${replaces}${skipped}</div>`;
 }
 
 // true — версію прийнято (у хабі з'явиться «Зміна потребує підтвердження на Foundry»).
 async function syncFromCompcon(p) {
-  let plan = await compconPlan(p);
-  if (!plan.fresh) {
+  let ctx = await compconFetch(p);
+  if (Number(ctx.cloud.updated) === Number(ctx.pilot.compcon?.version)) {
     ui.notifications.info('COMP/CON: нової версії немає.');
     return false;
   }
-  const ok = await foundry.applications.api.DialogV2.confirm({
-    window: { title: `COMP/CON · ${plan.cloud.name || p.callsign}` },
-    content: compconReviewHtml(plan),
-    yes: { label: 'ПРИЙНЯТИ' },
-    no: { label: 'СКАСУВАТИ' },
-  });
-  if (!ok) return false;
-  const version = Number(plan.cloud.updated);
+  const title = `COMP/CON · ${ctx.cloud.name || p.callsign}`;
+  let assignment = defaultAssignment(ctx.existing, ctx.hangar, ctx.imported);
+  if (!isObvious(ctx.existing, ctx.imported, assignment)) {
+    assignment = await chooseSlots(ctx, title);
+    if (!assignment) return false;
+  }
+  if (assignment.every((j) => j == null)) return false;
+  ctx.pilotId = p.id;
+  let plan = compconResult(ctx, assignment);
+  // Нова версія без змін, які показує вікно (лише HASE, моди тощо, або гравець просто
+  // опублікував ще раз) — приймається без питань: версія й файли для Foundry оновлюються.
+  const visible = plan.slots.some((x) => x.groups.length) || plan.replaces.length || plan.skipped.length || plan.levelOff;
+  if (visible) {
+    const ok = await foundry.applications.api.DialogV2.confirm({
+      window: { title },
+      content: compconReviewHtml(plan),
+      yes: { label: 'ПРИЙНЯТИ' },
+      no: { label: 'СКАСУВАТИ' },
+    });
+    if (!ok) return false;
+  }
+  const version = Number(ctx.cloud.updated);
   for (let attempt = 0; ; attempt++) {
     const r = await appCall(plan.body);
     if (r.ok) {
       if (r.error) ui.notifications.warn(`Silent Stars: ${r.error}`);
-      ui.notifications.info(`COMP/CON: прийнято версію «${plan.cloud.name}»`);
+      ui.notifications.info(`COMP/CON: прийнято версію «${ctx.cloud.name}»`);
       return true;
     }
-    // Пілота щойно зберегли (апка, цикл ГМа) — перерахувати з новим станом тієї самої версії.
+    // Пілота щойно зберегли (апка, цикл ГМа) — перерахувати з новим станом тієї самої версії
+    // і тим самим розкладом.
     if (!r.conflict || attempt >= 2) throw new Error(r.error || 'пілота змінили під час прийняття — спробуйте ще раз.');
-    plan = await compconPlan(p);
-    if (!plan.fresh || Number(plan.cloud.updated) !== version) throw new Error('версія в COMP/CON змінилась — натисніть ще раз.');
+    const fresh = await compconFetch(p);
+    if (Number(fresh.cloud.updated) !== version || slotCount(fresh.existing, fresh.hangar) !== assignment.length) {
+      throw new Error('версія в COMP/CON або мехи пілота змінились — натисніть ще раз.');
+    }
+    ctx = { ...fresh, pilotId: p.id };
+    plan = compconResult(ctx, assignment);
   }
 }
 

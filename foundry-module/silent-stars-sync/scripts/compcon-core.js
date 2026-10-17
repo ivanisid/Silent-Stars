@@ -586,5 +586,6 @@ export {
   mechDiff,
   mechSlots,
   profilesFor,
+  slotCount,
   wrapCloudPilot
 };

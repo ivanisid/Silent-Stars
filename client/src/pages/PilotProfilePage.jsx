@@ -171,7 +171,17 @@ export default function PilotProfilePage() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       try {
-        await api.updatePilot(id, { state });
+        const { stale } = await api.savePilotState(id, state);
+        if (stale) {
+          // У базі нова версія з COMP/CON, прийнята в Foundry: вливаємо її і зберігаємо ще раз
+          // (зміна стану знову запустить цей ефект).
+          const p = await api.getPilot(id);
+          if (p?.state?.compconSyncAt && p.state.compconSyncAt !== state.compconSyncAt) {
+            dispatch({ type: '__FOUNDRY__', state: p.state });
+            return;
+          }
+          // Рядок не оновився з іншої причини (немає права) — як раніше, без повтору.
+        }
         setSaveStatus('saved');
         const now = new Date();
         setSavedAt(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
