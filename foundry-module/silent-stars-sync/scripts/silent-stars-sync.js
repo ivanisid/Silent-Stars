@@ -665,7 +665,7 @@ const ECONOMY_CSS = `
 .ss-status-body { gap: 8px; padding: 4px; }
 .ss-status-body .ss-policy { padding: 4px 8px; }
 .ss-status-body .ss-shop { justify-content: center; text-decoration: none; padding: 6px; }
-.ss-economy { display: flex; align-items: baseline; gap: 6px; padding: 4px 10px; border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent); font-size: 13px; line-height: 1.4; }
+.ss-economy { flex: 0 0 auto; display: flex; align-items: baseline; gap: 6px; padding: 4px 10px; border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent); font-size: 13px; line-height: 1.4; }
 .ss-economy .k { font-size: 11px; letter-spacing: 1.5px; opacity: .75; }
 .ss-economy b:first-of-type { margin-right: 10px; }
 .ss-economy small { opacity: .75; margin-right: 10px; }
