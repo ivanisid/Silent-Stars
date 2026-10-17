@@ -374,7 +374,26 @@ export function pilotIdentityUpdate(p, actor) {
   if (int(get(actor, 'system.level')) !== int(p.ll)) u['system.level'] = int(p.ll);
   if (p.player && get(actor, 'system.player_name') !== p.player) u['system.player_name'] = p.player;
   Object.assign(u, artUpdate(p.portrait, actor, p.portraitId));
+  Object.assign(u, economyUpdate(p, actor));
   return u;
+}
+
+// Мана, PR і страхові поліси пілота — лише з апки в прапорець актора (у Lancer таких полів
+// немає); чаркуш пілота показує їх усім, хто бачить актора. Стара функція foundry-sync їх не
+// віддає — тоді прапорець не чіпаємо. Без полів insured / policies (функція до 0.12.0) —
+// лише мана й PR.
+export function economyUpdate(p, actor) {
+  if (p.mana == null || p.pr == null) return {};
+  const next = { mana: int(p.mana), pr: int(p.pr), prCap: int(p.prCap) };
+  if (p.insured != null) {
+    next.insured = !!p.insured;
+    next.policies = Array.isArray(p.policies) ? p.policies.map(String) : [];
+  }
+  // Порівнюємо лише ключі next: Foundry зливає об'єкт прапорця з наявним, тож зайві старі
+  // ключі не зникають і повне порівняння оновлювало б актора щоцикл.
+  const cur = get(actor, `flags.${MODULE}.economy`) || {};
+  const same = Object.keys(next).every((k) => JSON.stringify(cur[k]) === JSON.stringify(next[k]));
+  return same ? {} : { [`flags.${MODULE}.economy`]: next };
 }
 
 // Арт, замінений в апці, бот кладе під тим самим шляхом (старий файл прибирається перед

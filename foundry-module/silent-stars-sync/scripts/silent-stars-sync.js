@@ -648,6 +648,59 @@ class LinksApp extends ApplicationV2 {
   }
 }
 
+// ----- Мана, PR і страховка в чаркуші пілота -----
+//
+// Рядок угорі вікна будь-якого чаркуша пілота (системного Lancer, Alternative Sheets тощо):
+// значення бере з прапорця economy, який пише цикл синхронізації ГМа, тож гравцю не
+// потрібні ні ключ, ні запити до апки. Зміна прапорця оновлює актора — чаркуш
+// перемальовується сам. Стилі — без кольорів теми: колір тексту чаркуша й прозорість.
+
+const ECONOMY_CSS = `
+.ss-economy { display: flex; align-items: baseline; gap: 6px; padding: 4px 10px; border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent); font-size: 13px; line-height: 1.4; }
+.ss-economy .k { font-size: 11px; letter-spacing: 1.5px; opacity: .75; }
+.ss-economy b:first-of-type { margin-right: 10px; }
+.ss-economy small { opacity: .75; margin-right: 10px; }
+.ss-economy .pol { font-weight: 600; }
+`;
+
+function renderEconomy(app, html) {
+  const actor = app.document ?? app.actor;
+  if (actor?.type !== 'pilot') return;
+  const e = flag(actor, 'economy');
+  if (!e) return;
+  const el = html instanceof HTMLElement ? html : html?.[0];
+  if (!el) return;
+  const content = el.closest('.window-content') ?? el.querySelector('.window-content') ?? el;
+  if (!document.getElementById('ss-economy-css')) {
+    const style = document.createElement('style');
+    style.id = 'ss-economy-css';
+    style.textContent = ECONOMY_CSS;
+    document.head.append(style);
+  }
+  content.querySelector(':scope > .ss-economy')?.remove();
+  const row = document.createElement('div');
+  row.className = 'ss-economy';
+  const add = (tag, cls, text) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    n.textContent = text;
+    row.append(n);
+  };
+  add('span', 'k', 'МАНА');
+  add('b', '', String(Number(e.mana) || 0));
+  add('span', 'k', 'PR');
+  add('b', '', String(Number(e.pr) || 0));
+  add('small', '', `/${Number(e.prCap) || 0}`);
+  if (e.insured) {
+    add('span', 'k', 'ПОЛІСИ');
+    add('b', 'pol', e.policies?.length ? e.policies.join(' · ') : '—');
+  }
+  content.prepend(row);
+}
+
+Hooks.on('renderActorSheet', renderEconomy);
+Hooks.on('renderActorSheetV2', renderEconomy);
+
 // ----- Реєстрація -----
 
 Hooks.once('init', () => {

@@ -7,7 +7,8 @@
 //
 //   POST { action: 'pull' }
 //     → { pilots: [...], fingerprint } — усі пілоти з полями, які синхронізуються (див.
-//       toSyncPilot), і відбиток усіх даних, які віддає pull.
+//       toSyncPilot; mana, pr, prCap, policies — лише для показу), і відбиток усіх даних,
+//       які віддає pull.
 //
 //   POST { action: 'ping' }
 //     → { fingerprint } — той самий відбиток без читання state пілотів. Збігся з відбитком
@@ -105,7 +106,37 @@ function toSyncMech(m: any, art: Art, pilotId: string, profiles: Set<string>) {
   };
 }
 
-function toSyncPilot(p: any, nicks: Map<string, string>, art: Art, profiles: Set<string>) {
+// Каталог магазину (shop_items, shop_settings) — для капу PR і назв страхових полісів.
+type Shop = { items: Map<string, any>; capBase: number };
+
+const loadShopItems = () => db.from('shop_items').select('key, kind, title, params, updated_at');
+const loadShopSettings = () => db.from('shop_settings').select('pr_cap_base, updated_at').maybeSingle();
+
+function shopOf(items: any[], settings: any): Shop {
+  return { items: new Map(items.map((it) => [it.key, it])), capBase: num(settings?.pr_cap_base) || 100 };
+}
+
+// Кап PR — як private.pr_cap() і prCapFor() в апці: «Трастовий фонд» (buffer) піднімає його
+// до свого cap.
+function prCapOf(s: any, shop: Shop) {
+  if (num(s.hangar?.owned?.buffer) >= 1) return num(shop.items.get('buffer')?.params?.cap) || 200;
+  return shop.capBase;
+}
+
+// Куплені й ще не використані поліси — назвами з каталогу; з «Страховим фондом
+// покращення» (insure2) пакет із upgraded показується під новою назвою, як insurancePack() в апці.
+function policiesOf(s: any, shop: Shop) {
+  const owned = s.hangar?.owned || {};
+  return Object.keys(s.hangar?.policies || {})
+    .filter((k) => s.hangar.policies[k])
+    .map((k) => {
+      const it = shop.items.get(k);
+      if (!it) return k;
+      return (owned.insure2 && it.params?.upgraded?.title) || it.title;
+    });
+}
+
+function toSyncPilot(p: any, nicks: Map<string, string>, art: Art, profiles: Set<string>, shop: Shop) {
   const s = p.state || {};
   const portrait = art.get(`${p.id}:portrait`);
   return {
@@ -119,6 +150,13 @@ function toSyncPilot(p: any, nicks: Map<string, string>, art: Art, profiles: Set
     hpMax: num(s.hp?.max),
     stress: num(s.stress),
     stressMax: num(s.stressMax ?? 8),
+    // Лише для показу в чаркуші пілота у Foundry, назад не синхронізуються.
+    mana: num(s.mana?.balance),
+    pr: num(s.pr),
+    prCap: prCapOf(s, shop),
+    // Поліси показуються лише зі «Страховим фондом» (insure) — без нього вкладки страховки немає.
+    insured: num(s.hangar?.owned?.insure) >= 1,
+    policies: policiesOf(s, shop),
     bondXp: num(s.bond?.xp),
     bondChecks: Array.from({ length: 5 }, (_, i) => !!s.bond?.checks?.[i]),
     bondPick: num(s.bond?.pick),
@@ -133,8 +171,10 @@ function toSyncPilot(p: any, nicks: Map<string, string>, art: Art, profiles: Set
 // Відбиток усього, що віддає pull, але без важкого state: pilots.updated_at міняє тригер
 // на кожну зміну рядка, решта таблиць читається цілком (вони малі). Модуль у холостих
 // циклах питає ping і робить повний pull лише коли відбиток змінився.
-async function fingerprintOf(pilots: any[], users: any[], arts: any[], cc: any[]) {
+async function fingerprintOf(pilots: any[], users: any[], arts: any[], cc: any[], shopItems: any[], settings: any) {
   const lines = [
+    ...shopItems.map((it) => `s:${it.key}:${it.updated_at}`),
+    `ss:${settings?.updated_at ?? ''}`,
     ...pilots.map((p) => `p:${p.id}:${p.updated_at}`),
     ...users.map((u) => `u:${u.id}:${u.nick}`),
     ...arts.map((a) => `a:${a.id}:${a.pilot_id}:${a.kind}:${a.mech_id}:${a.foundry_path}`),
@@ -149,22 +189,26 @@ const loadArts = () =>
     .is('deleted_at', null).not('foundry_path', 'is', null);
 
 async function ping() {
-  const [{ data: pilots, error }, { data: users }, { data: arts }, { data: cc }] = await Promise.all([
+  const [{ data: pilots, error }, { data: users }, { data: arts }, { data: cc }, { data: items }, { data: settings }] = await Promise.all([
     db.from('pilots').select('id, updated_at'),
     db.from('profiles').select('id, nick'),
     loadArts(),
     db.from('pilot_compcon').select('pilot_id, mech_id'),
+    loadShopItems(),
+    loadShopSettings(),
   ]);
   if (error) throw new Error(error.message);
-  return { fingerprint: await fingerprintOf(pilots || [], users || [], arts || [], cc || []) };
+  return { fingerprint: await fingerprintOf(pilots || [], users || [], arts || [], cc || [], items || [], settings) };
 }
 
 async function pull() {
-  const [{ data: pilots, error }, { data: users }, { data: arts }, { data: cc }] = await Promise.all([
+  const [{ data: pilots, error }, { data: users }, { data: arts }, { data: cc }, { data: items }, { data: settings }] = await Promise.all([
     db.from('pilots').select('id, user_id, name, callsign, state, updated_at'),
     db.from('profiles').select('id, nick'),
     loadArts(),
     db.from('pilot_compcon').select('pilot_id, mech_id'),
+    loadShopItems(),
+    loadShopSettings(),
   ]);
   if (error) throw new Error(error.message);
   const nicks = new Map((users || []).map((r) => [r.id, r.nick]));
@@ -173,9 +217,10 @@ async function pull() {
     art.set(a.kind === 'portrait' ? `${a.pilot_id}:portrait` : `${a.pilot_id}:mech:${a.mech_id}`, { id: a.id, path: a.foundry_path });
   }
   const profiles = new Set((cc || []).map((r) => `${r.pilot_id}:${r.mech_id}`));
+  const shop = shopOf(items || [], settings);
   return {
-    pilots: (pilots || []).map((p) => toSyncPilot(p, nicks, art, profiles)),
-    fingerprint: await fingerprintOf(pilots || [], users || [], arts || [], cc || []),
+    pilots: (pilots || []).map((p) => toSyncPilot(p, nicks, art, profiles, shop)),
+    fingerprint: await fingerprintOf(pilots || [], users || [], arts || [], cc || [], items || [], settings),
   };
 }
 
