@@ -1,3 +1,4 @@
+import { EMPTY_LINK } from './compconLink';
 import { PR_CAP_BASE } from './constants';
 import { prStart } from './shopCatalog';
 import { manaLevelCost } from './logic';
@@ -32,6 +33,8 @@ export function createDefaultPilotState() {
     // в ще не придбані ({key: {mana, pr}}), списане з гаманця; policies — куплені й ще не
     // використані страхові поліси ({key: 1}).
     hangar: { owned: {}, deposits: {}, policies: {} },
+    // Прив'язка до COMP/CON за share code (compconLink.js): код, прийнята версія, коли прийнято.
+    compcon: { ...EMPTY_LINK },
     // Тір 1 стартує з готовим запасом PR (правила: «На старті кожен гравець вже має 30PR»).
     pr: prStart(),
     // Відкритість і вкладка магазину — стан інтерфейсу (ShopDrawer), у пілоті не зберігаються.
@@ -164,6 +167,7 @@ export function normalizePilotState(raw) {
   if (!raw || typeof raw !== 'object') return base;
 
   const next = { ...base, ...raw };
+  next.compcon = { ...base.compcon, ...(raw.compcon && typeof raw.compcon === 'object' ? raw.compcon : {}) };
 
   // Рівень: раніше виводився з кількості ігор.
   const ll = raw.ll == null ? legacyLl(raw.games) : raw.ll;

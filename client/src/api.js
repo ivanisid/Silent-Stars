@@ -55,6 +55,7 @@ function toPilotSummary(row) {
     pr: row.state?.pr ?? 0,
     stress: row.state?.stress ?? 0,
     mechCount: row.state?.mechs?.length || 0,
+    compcon: row.state?.compcon || null,
     mechs: (row.state?.mechs || []).map((m) => ({ id: String(m.id), name: m.name })),
     updatedAt: row.updated_at,
   };
@@ -277,6 +278,13 @@ export const api = {
     if (error) throw new Error(error.message);
   },
 
+  // Пілот COMP/CON за share code (функція compcon-code): { updated, name, data }.
+  fetchCompconByCode: async (code) => {
+    const { data, error } = await supabase.functions.invoke('compcon-code', { body: { code } });
+    if (error) throw await readFunctionError(error);
+    return data;
+  },
+
   // Які мехи пілота мають збережений файл COMP/CON і коли його оновлено: { [mechId]: updated_at }.
   listCompconProfiles: async (pilotId) => {
     const { data, error } = await supabase.from('pilot_compcon').select('mech_id, updated_at').eq('pilot_id', pilotId);
@@ -290,6 +298,16 @@ export const api = {
     const { data, error } = await supabase.from('foundry_mech_links').select('mech_id, actor_name, seen_at').eq('pilot_id', pilotId);
     if (error) return {};
     return Object.fromEntries((data || []).map((r) => [String(r.mech_id), { actor: r.actor_name, seenAt: r.seen_at }]));
+  },
+
+  // Зв'язки мехів з акторами Foundry для кількох пілотів: { pilotId: { mechId: { actor, seenAt } } }.
+  listFoundryLinksFor: async (pilotIds) => {
+    if (!pilotIds.length) return {};
+    const { data, error } = await supabase.from('foundry_mech_links').select('pilot_id, mech_id, actor_name, seen_at').in('pilot_id', pilotIds);
+    if (error) return {};
+    const out = {};
+    for (const r of data || []) (out[r.pilot_id] ||= {})[String(r.mech_id)] = { actor: r.actor_name, seenAt: r.seen_at };
+    return out;
   },
 
   // М'яке видалення: файл із Foundry і зі сховища прибирає синхронізатор.

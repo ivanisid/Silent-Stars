@@ -18,16 +18,7 @@ import {
 import { Menu, Msg, Panel, Track, useConfirm } from '../../components/kit.jsx';
 import ArtSlot from './ArtSlot.jsx';
 import { isMechNameTaken } from '../compconImport';
-
-// Зв'язок з Foundry вважається робочим, якщо модуль звітував про нього за останні 14 днів:
-// між іграми синхронізація мовчить (ГМ не тримає світ відкритим), але бій іде лише там.
-const LINK_FRESH_MS = 14 * 24 * 3600e3;
-
-function freshLink(link) {
-  if (!link?.seenAt) return null;
-  const t = new Date(link.seenAt).getTime();
-  return Number.isFinite(t) && Date.now() - t < LINK_FRESH_MS ? link : null;
-}
+import { ccStatus, freshLink, mechFoundryStatus } from '../compconLink';
 
 function ago(iso) {
   const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -190,6 +181,7 @@ function FieldLabel({ children }) {
 
 function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt, onRemoveArt, hasFile, link, isGm, slot, importCompcon }) {
   const [msg, setMsg] = useState('');
+  const slotFileRef = useRef(null);
   const [addType, setAddType] = useState('weapon');
   const [addName, setAddName] = useState('');
   const [addLim, setAddLim] = useState('');
@@ -198,6 +190,25 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
   const st = structureLeft(m);
   const rx = reactorLeft(m);
   const oc = Math.min(m.overcharge || 0, 3);
+  // Статуси меха (compconLink.js): COMP/CON — код пілота активний і файл цього меха є.
+  const cc = ccStatus(state.compcon);
+  const ccOn = cc.active && hasFile !== false;
+  const ccText = ccOn ? cc.text : ccStatus(null).text;
+  const fv = mechFoundryStatus(link);
+
+  // Ручне завантаження файлу COMP/CON у цей слот (меню «⋯»): той самий мех оновиться зі
+  // збереженням стану, інший — замінить цього після підтвердження.
+  async function handleSlotFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const r = await importCompcon(file, { target: slot });
+      if (r) setMsg(`${r.ok ? '>>' : '!!'} ${r.text}`);
+    } catch (err) {
+      setMsg(`!! ${err.message}`);
+    }
+  }
   const items = m.items || [];
   const build = m.build;
   const [open, setOpen] = useState({ items: false, skills: false, talents: false, core: false });
@@ -360,11 +371,11 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
           <div className="title-font" style={{ fontSize: 20, letterSpacing: 1, color: 'var(--text-bright)' }}>{m.name.toUpperCase()}</div>
           {frameLabel && <span className="ss-tag accent">{frameLabel}</span>}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <SlotImportButton slot={slot} importCompcon={importCompcon} onResult={(r) => setMsg(`${r.ok ? '>>' : '!!'} ${r.text}`)} />
             <button className="btn-ghost" type="button" title={`Повний ремонт / передрук за ${prFullRepairPr()} PR або ${manaFullRepairPrice()} М: усе до максимуму. Перед оплатою вікно покаже, що зламано`} onClick={fullRepair}>ПОВНИЙ РЕМОНТ</button>
             <Menu
               items={[
                 { label: editing ? 'ЗАКРИТИ РЕДАГУВАННЯ' : 'РЕДАГУВАТИ', onClick: () => dispatch({ type: 'TOGGLE_MECH_EDIT', id: m.id }) },
+                { label: 'ОНОВИТИ З COMP/CON', onClick: () => slotFileRef.current?.click() },
                 isGm && link && { label: unlocked ? 'ЗАБЛОКУВАТИ РУЧНІ ЗМІНИ' : 'РОЗБЛОКУВАТИ РУЧНІ ЗМІНИ (ГМ)', onClick: () => setUnlocked((u) => !u) },
                 isGm && { label: 'СКИНУТИ СТАН БЕЗ ВИТРАТ (ГМ)…', onClick: resetState },
                 { label: 'ВИДАЛИТИ…', danger: true, onClick: removeMech },
@@ -374,23 +385,10 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {link ? (
-            <span className="ss-tag ok" title={`Актор «${link.actor || '—'}» · остання синхронізація ${ago(link.seenAt)}`}>
-              ⇄ FOUNDRY · {ago(link.seenAt).toUpperCase()}
-            </span>
-          ) : (
-            <span className="ss-tag" title="Модуль Foundry не повідомляв про зв'язок з цим мехом останні 14 днів — стан ведеться в апці вручну">
-              FOUNDRY · НЕ ЗВ'ЯЗАНО
-            </span>
-          )}
-          {hasFile != null && (
-            <span
-              className={`ss-tag ${hasFile ? 'ok' : 'bad'}`}
-              title={hasFile ? 'Файл COMP/CON цього меха збережено в апці' : 'Немає файлу COMP/CON — ГМ не зможе створити з нього актора. Завантажте «Оновити з COMP/CON JSON»'}
-            >
-              {hasFile ? '● ФАЙЛ ОНЛАЙН' : '○ ФАЙЛ НЕ ЗАВАНТАЖЕНО'}
-            </span>
-          )}
+          <span className={`ss-tag ${ccOn ? 'ok' : 'bad'}`}>COMP/CON · {ccText}</span>
+          <span className={`ss-tag ${fv.tone}`} title={link ? `Актор «${link.actor || '—'}» · ${ago(link.seenAt)}` : undefined}>FOUNDRY · {fv.text}</span>
+          {hasFile === false && <span className="ss-tag bad">○ ФАЙЛ НЕ ЗАВАНТАЖЕНО</span>}
+          <input ref={slotFileRef} type="file" accept=".json,application/json" onChange={handleSlotFile} style={{ display: 'none' }} />
         </div>
         {locked && (
           <div className="ss-note" style={{ fontSize: 11 }}>

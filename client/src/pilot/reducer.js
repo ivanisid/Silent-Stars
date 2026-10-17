@@ -1394,6 +1394,12 @@ function reduce(state, action) {
       return log(next, msg);
     }
     // Мехи після імпорту COMP/CON у слоти ангару — розклад рахує slotImport.js.
+    // Прив'язка до COMP/CON за share code: action.patch зливається в state.compcon; msg — у журнал.
+    case 'SET_COMPCON_LINK': {
+      const next = { ...state, compcon: { ...(state.compcon || {}), ...action.patch } };
+      return action.msg ? log(next, action.msg) : next;
+    }
+
     case 'SET_COMPCON_MECHS': {
       if (!Array.isArray(action.mechs)) return state;
       return log({ ...state, mechs: action.mechs }, action.msg || 'Мехи підтягнуто з COMP/CON');
