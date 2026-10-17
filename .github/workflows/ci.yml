@@ -40,6 +40,11 @@ jobs:
       - name: Прив'язка до COMP/CON за share code
         run: node src/pilot/compconLink.test.mjs
         working-directory: client
+      - name: Зміни з бази у відкритому профілі
+        run: node src/pilot/foundrySync.test.mjs
+        working-directory: client
+      - name: Логіка прийняття COMP/CON у модулі Foundry зібрана з поточної апки
+        run: node foundry-module/bundle-compcon.mjs --check
       - name: Збірка
         run: npm run build
         working-directory: client

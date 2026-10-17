@@ -5,8 +5,11 @@
 // новою позначкою foundrySyncAt вливається в стан у пам'яті — лише поля, які Foundry
 // взагалі може міняти. Власна «луна» автозбереження має ту саму позначку, що й локальний
 // стан, і ігнорується — інакше вона відкочувала б ще не збережені локальні зміни.
+//
+// Нову версію з COMP/CON можна прийняти й у модулі Foundry: тоді функція пише мехи й
+// прив'язку (state.compcon) з позначкою compconSyncAt — вони вливаються в стан цілком.
 
-import { pruneRetainedState } from './mechMerge';
+import { pruneRetainedState } from './mechMerge.js';
 
 const MECH_KEYS = [
   'hpCurrent', 'hpMax', 'repairCurrent', 'repairMax',
@@ -15,10 +18,31 @@ const MECH_KEYS = [
 
 const sameEntry = (a, b) => a.ts === b.ts && a.msg === b.msg;
 
+// Записи журналу дій з бази, яких локально ще немає.
+function freshLog(local, remote) {
+  const localLog = local.actionLog || [];
+  const fresh = (remote.actionLog || []).filter((e) => !localLog.some((l) => sameEntry(l, e)));
+  return [...fresh, ...localLog].slice(0, 300);
+}
+
 // Повертає новий стан або той самий об'єкт, якщо вливати нічого.
 export function mergeFoundryState(local, remote) {
-  if (!local || !remote?.foundrySyncAt || remote.foundrySyncAt === local.foundrySyncAt) return local;
+  if (!local || !remote) return local;
+  let next = local;
+  if (remote.compconSyncAt && remote.compconSyncAt !== local.compconSyncAt) {
+    next = pruneRetainedState({
+      ...next,
+      mechs: remote.mechs || [],
+      compcon: { ...next.compcon, ...remote.compcon },
+      actionLog: freshLog(next, remote),
+      compconSyncAt: remote.compconSyncAt,
+    });
+  }
+  if (!remote.foundrySyncAt || remote.foundrySyncAt === local.foundrySyncAt) return next;
+  return mergeCombat(next, remote);
+}
 
+function mergeCombat(local, remote) {
   const remoteMechs = new Map((remote.mechs || []).map((m) => [String(m.id), m]));
   const mechs = (local.mechs || []).map((m) => {
     const r = remoteMechs.get(String(m.id));
@@ -41,10 +65,6 @@ export function mergeFoundryState(local, remote) {
     return next;
   });
 
-  // Записи «Foundry: …» з журналу дій, яких локально ще немає.
-  const localLog = local.actionLog || [];
-  const fresh = (remote.actionLog || []).filter((e) => !localLog.some((l) => sameEntry(l, e)));
-
   return pruneRetainedState({
     ...local,
     hp: { ...local.hp, current: remote.hp?.current ?? local.hp?.current },
@@ -57,7 +77,8 @@ export function mergeFoundryState(local, remote) {
       pick: remote.bond?.pick ?? local.bond?.pick,
     },
     mechs,
-    actionLog: [...fresh, ...localLog].slice(0, 300),
+    // Записи «Foundry: …» з журналу дій, яких локально ще немає.
+    actionLog: freshLog(local, remote),
     foundrySyncAt: remote.foundrySyncAt,
   });
 }

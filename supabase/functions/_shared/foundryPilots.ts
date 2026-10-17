@@ -102,6 +102,8 @@ function toSyncPilot(p: any, nicks: Map<string, string>, art: Art, profiles: Map
     shopUrl: APP_URL ? `${APP_URL}/pilots/${p.id}?shop=repair` : null,
     // Прив'язка до COMP/CON за share code — як ccStatus() в апці (client/src/pilot/compconLink.js).
     ccActive: !!(s.compcon?.code && !s.compcon?.error && s.compcon?.version),
+    // Є share code — модуль показує кнопку «Синхронізувати з COMP/CON».
+    ccLinked: !!s.compcon?.code,
     bondXp: num(s.bond?.xp),
     bondChecks: Array.from({ length: 5 }, (_, i) => !!s.bond?.checks?.[i]),
     bondPick: num(s.bond?.pick),
@@ -197,4 +199,84 @@ export async function saveLinks(db: SupabaseClient, world: string, list: any[], 
     if (e3) throw new Error(e3.message);
   }
   return { ok: true, count: fresh.length };
+}
+
+function pad(n: number) {
+  return String(n).padStart(2, '0');
+}
+// Той самий формат, що й logEntry у клієнті (дд.мм.рррр гг:хх:сс), за київським часом.
+export function nowTs() {
+  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Kyiv' }));
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// ----- Нова версія з COMP/CON, прийнята в модулі Foundry (docs/foundry-sync.md) -----
+//
+// Модуль рахує прийняття тим самим кодом апки (compcon-core.js), що й кнопка в профілі; сюди
+// приходить готовий результат. compcon — пілот з хмари і те, з чого модуль рахує: мехи пілота,
+// прив'язка, куплені слоти ангару. compconAccept — запис, лише якщо пілота за цей час ніхто не
+// змінив (updated_at), з позначкою compconSyncAt: відкритий профіль в апці вливає мехи й
+// прив'язку в стан у пам'яті (mergeFoundryState), а не затирає їх автозбереженням.
+
+export async function loadCompcon(db: SupabaseClient, pilotId: string, byCode: (code: string) => Promise<any>) {
+  const { data: row, error } = await db.from('pilots').select('callsign, state, updated_at').eq('id', pilotId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!row) return { error: 'пілота не знайдено' };
+  const s = row.state || {};
+  const code = String(s.compcon?.code || '');
+  if (!code) return { error: 'У пілота немає share code COMP/CON — його задають у профілі пілота в апці.' };
+  const cloud = await byCode(code);
+  if (!cloud) return { error: 'Такого коду в COMP/CON немає.' };
+  return {
+    cloud,
+    updatedAt: row.updated_at,
+    pilot: { callsign: row.callsign, ll: s.ll ?? 2, mechs: s.mechs || [], compcon: s.compcon || {}, owned: s.hangar?.owned || {} },
+  };
+}
+
+const isObj = (v: unknown) => !!v && typeof v === 'object' && !Array.isArray(v);
+
+export async function acceptCompcon(db: SupabaseClient, pilotId: string, b: any) {
+  const mechs = Array.isArray(b?.mechs) ? b.mechs : null;
+  const profiles = Array.isArray(b?.profiles) ? b.profiles : [];
+  if (!b?.updatedAt || !mechs || mechs.length > 10 || !mechs.every((m: any) => isObj(m) && m.id != null && m.name)) {
+    return { error: 'Некоректні дані прийняття.' };
+  }
+  const ids = new Set(mechs.map((m: any) => String(m.id)));
+  if (profiles.length > 10 || !profiles.every((p: any) => isObj(p) && ids.has(String(p.mechId)) && isObj(p.data))) {
+    return { error: 'Некоректні файли мехів.' };
+  }
+  const code = String(b.code || '');
+  const version = Number(b.version);
+  if (!code || !Number.isFinite(version)) return { error: 'Некоректна версія COMP/CON.' };
+
+  const { data: row, error } = await db.from('pilots').select('state, updated_at').eq('id', pilotId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!row) return { error: 'пілота не знайдено' };
+  if (new Date(row.updated_at).getTime() !== new Date(b.updatedAt).getTime()) return { conflict: true };
+
+  const s = row.state || {};
+  const now = new Date().toISOString();
+  const msgs = [
+    `COMP/CON («${String(b.callsign || '').slice(0, 80)}»): ${String(b.what || 'мехи не змінено').slice(0, 500)}`,
+    `COMP/CON: прийнято версію «${String(b.name || code).slice(0, 80)}»`,
+  ];
+  const next = {
+    ...s,
+    mechs,
+    compcon: { ...(s.compcon || {}), code, version, acceptedAt: now, level: b.level ?? null, checkedAt: now, error: '' },
+    actionLog: [...msgs.reverse().map((msg) => ({ ts: nowTs(), msg: `Foundry: ${msg}` })), ...(s.actionLog || [])].slice(0, 300),
+    compconSyncAt: now,
+  };
+  const { data: saved, error: upErr } = await db.from('pilots').update({ state: next })
+    .eq('id', pilotId).eq('updated_at', row.updated_at).select('updated_at');
+  if (upErr) throw new Error(upErr.message);
+  if (!saved?.length) return { conflict: true };
+
+  if (profiles.length) {
+    const rows = profiles.map((p: any) => ({ pilot_id: pilotId, mech_id: String(p.mechId), data: p.data, updated_at: now }));
+    const { error: e2 } = await db.from('pilot_compcon').upsert(rows, { onConflict: 'pilot_id,mech_id' });
+    if (e2) return { ok: true, updatedAt: saved[0].updated_at, error: `файли для Foundry не збережено: ${e2.message}` };
+  }
+  return { ok: true, updatedAt: saved[0].updated_at };
 }
