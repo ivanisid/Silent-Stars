@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { isLimited, itemRefillPr } from '../repair';
 import {
   BUILTIN_KEYS,
@@ -68,6 +69,15 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
 
   useEffect(() => onOtherOpen('shop', close), []);
   useEffect(() => onOpenShop(show), []);
+  // ?shop=<вкладка> — посилання з чаркуша пілота у Foundry відкриває магазин одразу.
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const t = params.get('shop');
+    if (t == null) return;
+    show(TABS.some((x) => x.key === t) ? t : 'repair');
+    params.delete('shop');
+    setParams(params, { replace: true });
+  }, [params]);
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
   useEffect(() => {
     if (!open) return undefined;
