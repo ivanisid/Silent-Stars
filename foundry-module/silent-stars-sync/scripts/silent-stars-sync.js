@@ -17,9 +17,14 @@ import {
   idleDecision, isFreshCreating, syncOption, artSrc, linksKey, linksDecision,
   buildBaseline, hubModel, mechAction, STATUS_TEXT, takeSnapshot, snapshotItems, restoreItemUpdates, restoreUpdate,
   SNAPSHOT_PILOT, SNAPSHOT_MECH,
+  nickToEmail, appBase, sessionFrom, sessionStale, linksFor, linksKey as linksListKey, ownerUpdate,
 } from './sync.js';
 
 const DEFAULT_URL = 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/foundry-sync';
+// Публічний ключ проєкту Supabase (той самий, що в апці) — для входу гравця з хабу. Не секрет:
+// без ніка й пароля гравця він нічого не відкриває.
+const PUBLISHABLE_KEY = 'sb_publishable_xmZudk9HtHv9yNcEA79koA_M3HAw2k7';
+const NEED_CREATE = 'ПОТРІБЕН ДОЗВІЛ ГМА НА СТВОРЕННЯ АКТОРІВ';
 
 let timer = null;
 let pending = null;
@@ -80,6 +85,112 @@ async function call(body) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
+}
+
+// ----- Сесія гравця в апці (хаб, docs/compcon-link-spec.md §3.4, §7.3) -----
+//
+// Гравець входить у хаб ніком і паролем апки; модуль тримає сесію Supabase в клієнтському
+// налаштуванні цього браузера (пароль не зберігається) і ходить у функцію foundry-hub — лише
+// по своїх пілотах. ГМ ходить у foundry-sync ключем синхронізації, як раніше.
+
+const authUrl = (path) => `${appBase(setting('url'))}/auth/v1/${path}`;
+
+async function authRequest(path, body) {
+  let res;
+  try {
+    res = await fetch(authUrl(path), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: PUBLISHABLE_KEY },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new NetworkError(`немає зв'язку з апкою (${err.message})`);
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data.error_description || data.msg || data.message || data.error || `HTTP ${res.status}`;
+    throw new Error(/invalid login credentials/i.test(msg) ? 'Невірний нікнейм або пароль.' : msg);
+  }
+  return data;
+}
+
+const appSession = () => setting('session') || null;
+
+async function appLogin(nick, password) {
+  const auth = await authRequest('token?grant_type=password', { email: await nickToEmail(nick), password });
+  const s = sessionFrom(auth, Date.now(), String(nick).trim());
+  if (!s) throw new Error('Апка не повернула сесію.');
+  await game.settings.set(MODULE, 'session', s);
+  // За цим прапорцем ГМ знаходить користувача Foundry пілота і робить його власником акторів.
+  if (game.user.getFlag(MODULE, 'appUserId') !== s.userId) {
+    await game.user.setFlag(MODULE, 'appUserId', s.userId).catch((err) => console.warn(`${MODULE} |`, err));
+  }
+  return s;
+}
+
+async function appLogout() {
+  await game.settings.set(MODULE, 'session', null);
+}
+
+async function freshSession() {
+  let s = appSession();
+  if (!s) throw new Error('Увійдіть у хаб ніком і паролем апки.');
+  if (sessionStale(s, Date.now())) {
+    try {
+      s = sessionFrom(await authRequest('token?grant_type=refresh_token', { refresh_token: s.refresh }), Date.now(), s.nick);
+    } catch (err) {
+      if (!(err instanceof NetworkError)) await appLogout();
+      throw err;
+    }
+    await game.settings.set(MODULE, 'session', s);
+  }
+  return s;
+}
+
+async function hubCall(body) {
+  const s = await freshSession();
+  let res;
+  try {
+    res = await fetch(`${appBase(setting('url'))}/functions/v1/foundry-hub`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${s.access}` },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new NetworkError(`немає зв'язку з апкою (${err.message})`);
+  }
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) await appLogout();
+  if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+  return data;
+}
+
+// ГМ — ключем синхронізації (усі пілоти), гравець — своєю сесією (лише свої).
+const appCall = (body) => (game.user.isGM ? call(body) : hubCall(body));
+
+// Гравець звітує зв'язки своїх мехів сам: ГМа з циклом синхронізації може не бути в грі.
+let lastPlayerLinks = null;
+async function reportPlayerLinks(pilots) {
+  if (game.user.isGM) return;
+  const actors = mechActors().map((a) => ({ pilotId: flag(a, 'pilotId'), mechId: flag(a, 'mechId'), name: a.name, build: flag(a, 'build') }));
+  const list = linksFor(pilots, actors);
+  const key = linksListKey(list);
+  if (key === lastPlayerLinks) return;
+  await hubCall({ action: 'links', world: game.world.id, links: list });
+  lastPlayerLinks = key;
+}
+
+// Користувач Foundry — гравець цього пілота апки (прапорець appUserId ставить вхід у хаб).
+const foundryUserOf = (p) => (p?.userId ? game.users.find((u) => !u.isGM && u.getFlag(MODULE, 'appUserId') === p.userId) : null);
+
+// ГМ: зв'язані актори належать гравцям своїх пілотів (§4.2).
+async function ensureOwners(pilots) {
+  const byId = new Map(pilots.map((p) => [p.id, p]));
+  for (const actor of [...pilotActors(), ...mechActors()]) {
+    const u = foundryUserOf(byId.get(flag(actor, 'pilotId')));
+    const patch = u && ownerUpdate(actor.ownership, u.id);
+    if (patch) await actor.update(patch, syncOption()).catch((err) => console.warn(`${MODULE} | ${actor.name}:`, err));
+  }
 }
 
 // ----- Арти в Data цього Foundry -----
@@ -368,12 +479,12 @@ function restartTimer() {
 // запускає синхронізацію, яка підтягує ХП, стрес, структуру, заряди й арти.
 
 async function createFromApp(p, m) {
-  if (!game.user.isGM) throw new Error('Створювати акторів можуть лише ГМи.');
+  if (!game.user.isGM && !game.user.can('ACTOR_CREATE')) throw new Error(NEED_CREATE);
   const Sheet = game.lancer?.applications?.LancerPilotSheet;
   if (typeof Sheet?.prototype?._onPilotJsonParsed !== 'function') {
     throw new Error('Система Lancer не має імпорту COMP/CON (потрібна Lancer 3.x).');
   }
-  const { data } = await call({ action: 'profile', pilotId: p.id, mechId: m.id });
+  const { data } = await appCall({ action: 'profile', pilotId: p.id, mechId: m.id });
   const ccMechId = (data?.data ?? data)?.mechs?.[0]?.id;
 
   creating = true;
@@ -403,6 +514,14 @@ async function createFromApp(p, m) {
     }
     // Імпорт ставить ім'я з файлу — повертаємо наше.
     await pilot.update({ name: profileActorName(p, m.id) }, syncOption());
+    // Створює ГМ — власником стає гравець пілота (гравцю Foundry дає права сама).
+    if (game.user.isGM) {
+      const owner = foundryUserOf(p);
+      for (const a of [pilot, mech]) {
+        const patch = a && owner && ownerUpdate(a.ownership, owner.id);
+        if (patch) await a.update(patch, syncOption());
+      }
+    }
     if (!mech) ui.notifications.warn(`Silent Stars: меха «${m.name}» не створено — перевірте, чи є його фрейм у компендіумах світу.`);
   } finally {
     creating = false;
@@ -658,7 +777,6 @@ class LinksApp extends ApplicationV2 {
 // структуру, стрес і скидає тепло — тож стан бою знімається до імпорту й повертається після.
 // Наступний цикл зводить його з апкою за звичайними правилами.
 async function rebuildFromApp(p, m) {
-  if (!game.user.isGM) throw new Error('Оновлювати білд поки можуть лише ГМи.');
   const Sheet = game.lancer?.applications?.LancerPilotSheet;
   if (typeof Sheet?.prototype?._onPilotJsonParsed !== 'function') {
     throw new Error('Система Lancer не має імпорту COMP/CON (потрібна Lancer 3.x).');
@@ -668,7 +786,8 @@ async function rebuildFromApp(p, m) {
   const owner = get(mech, 'system.pilot.value');
   const pilot = owner?.type === 'pilot' ? owner : pilotActors().find((a) => flag(a, 'pilotId') === p.id);
   if (!pilot) throw new Error(`«${m.name}»: немає актора-пілота.`);
-  const { data } = await call({ action: 'profile', pilotId: p.id, mechId: m.id });
+  if (!pilot.isOwner || !mech.isOwner) throw new Error(`«${m.name}»: немає прав власника на актора — їх видає ГМ.`);
+  const { data } = await appCall({ action: 'profile', pilotId: p.id, mechId: m.id });
 
   const pilotSnap = takeSnapshot(pilot, SNAPSHOT_PILOT);
   const mechSnap = takeSnapshot(mech, SNAPSHOT_MECH);
@@ -694,7 +813,8 @@ async function rebuildFromApp(p, m) {
 //
 // Вигляд ГМа: ліворуч гравці апки з переліком пілотів, праворуч пілоти обраного гравця з
 // мехами — статус, актор, галочка для дії; унизу — створити акторів і синхронізувати зміни
-// для відмічених. Вигляд гравця (вхід за ніком апки) — наступним етапом.
+// для відмічених. Вигляд гравця: вхід ніком і паролем апки, далі лише його пілоти з тими самими
+// діями — без списку гравців.
 
 const HUB_CSS = `
 .ssh { display: flex; flex-direction: column; gap: 8px; flex: 1; height: 100%; min-height: 0; box-sizing: border-box; padding: 8px; font-size: 14px; }
@@ -731,6 +851,12 @@ const HUB_CSS = `
 .ssh-foot button { height: 36px; margin: 0; font-weight: 700; }
 .ssh-status { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .ssh-status span { flex: 1; min-width: 0; opacity: .75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ssh-cols.solo { grid-template-columns: minmax(0, 1fr); }
+.ssh-login { display: flex; flex-direction: column; gap: 10px; width: 300px; margin: 40px auto 0; }
+.ssh-login label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; letter-spacing: 1px; }
+.ssh-login input { height: 32px; }
+.ssh-login button { height: 36px; margin: 0; font-weight: 700; }
+.ssh-err { color: var(--color-level-error, #e05a5a); }
 `;
 
 const HUB_INK = { pending: '#e0a43a', ready: '#5cb87a', none: '#8a8a8a' };
@@ -743,7 +869,7 @@ class HubApp extends ApplicationV2 {
     position: { width: 1000, height: 720 },
     actions: {
       user: HubApp.#onUser, filter: HubApp.#onFilter, syncNow: HubApp.#onSyncNow, links: HubApp.#onLinks,
-      create: HubApp.#onCreate, rebuild: HubApp.#onRebuild,
+      create: HubApp.#onCreate, rebuild: HubApp.#onRebuild, logout: HubApp.#onLogout,
     },
   };
 
@@ -754,13 +880,25 @@ class HubApp extends ApplicationV2 {
   query = '';
   unchecked = new Set();
   busy = false;
+  loginError = '';
+  nick = '';
+
+  // Гравець без сесії апки бачить вхід.
+  get needLogin() {
+    return !game.user.isGM && !appSession();
+  }
 
   async _prepareContext() {
+    if (this.needLogin) return {};
     if (!this.pilots && !this.error) {
       try {
-        this.pilots = (await call({ action: 'pull' })).pilots;
+        this.pilots = (await appCall({ action: 'pull' })).pilots;
+        if (game.user.isGM) await ensureOwners(this.pilots);
+        else await reportPlayerLinks(this.pilots).catch((err) => console.warn(`${MODULE} | links:`, err));
       } catch (err) {
-        this.error = err.message;
+        // Сесія скінчилась (функція скинула її) — назад до входу з поясненням.
+        if (this.needLogin) this.loginError = err.message;
+        else this.error = err.message;
       }
     }
     return {};
@@ -793,14 +931,27 @@ class HubApp extends ApplicationV2 {
     const esc = foundry.utils.escapeHTML ?? ((s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`));
     const div = document.createElement('div');
     div.className = 'ssh';
+    const gm = game.user.isGM;
+    if (this.needLogin) {
+      div.innerHTML = `
+        <form class="ssh-login" data-login>
+          <label>НІКНЕЙМ<input type="text" name="nick" value="${esc(this.nick)}" autocomplete="username" autocapitalize="off" spellcheck="false" required></label>
+          <label>ПАРОЛЬ<input type="password" name="password" autocomplete="current-password" required></label>
+          <button type="submit" ${this.busy ? 'disabled' : ''}>УВІЙТИ</button>
+          ${this.loginError ? `<p class="ssh-err">${esc(this.loginError)}</p>` : ''}
+        </form>`;
+      return div;
+    }
+    const logout = gm ? '' : '<button type="button" class="ssh-chip" data-action="logout"><i class="fas fa-right-from-bracket"></i>ВИЙТИ</button>';
     if (this.error) {
-      div.innerHTML = `<p style="color:var(--color-level-error,#c00)">${esc(this.error)}</p>`;
+      div.innerHTML = `<p class="ssh-err">${esc(this.error)}</p><div class="ssh-status"><span></span>${logout}</div>`;
       return div;
     }
     const users = this.model();
     const all = users.flatMap((u) => u.pilots.flatMap((x) => x.mechs));
     const visibleUsers = users.filter((u) => this.rowsOf(u).length);
     if (!visibleUsers.some((u) => u.nick === this.user)) this.user = visibleUsers[0]?.nick ?? null;
+    const canCreate = gm || game.user.can('ACTOR_CREATE');
     const cur = visibleUsers.find((u) => u.nick === this.user);
     const rows = cur ? this.rowsOf(cur) : [];
     const key = (r, p) => `${p.id}:${r.m.id}`;
@@ -849,16 +1000,19 @@ class HubApp extends ApplicationV2 {
         ${chips}
       </div>
       <div class="ssh-status">
-        <span>${esc(lastStatus)}</span>
+        ${gm ? `<span>${esc(lastStatus)}</span>
         <button type="button" class="ssh-chip" data-action="syncNow"><i class="fas fa-sync"></i>Синхронізувати зараз</button>
-        <button type="button" class="ssh-chip" data-action="links"><i class="fas fa-link"></i>Відкрити зв'язки</button>
+        <button type="button" class="ssh-chip" data-action="links"><i class="fas fa-link"></i>Відкрити зв'язки</button>`
+    : `<span>${esc(appSession()?.nick || '')}</span>${logout}`}
       </div>
-      <div class="ssh-cols">
-        <div class="ssh-users">${userList}</div>
+      <div class="ssh-cols${gm ? '' : ' solo'}">
+        ${gm ? `<div class="ssh-users">${userList}</div>` : ''}
         <div class="ssh-main">
           <div class="ssh-list">${pilotBlocks}</div>
           <div class="ssh-foot">
-            <button type="button" data-action="create" ${nCreate && !this.busy ? '' : 'disabled'}><i class="fas fa-user-plus"></i> СТВОРИТИ АКТОРА (${nCreate})</button>
+            ${canCreate
+    ? `<button type="button" data-action="create" ${nCreate && !this.busy ? '' : 'disabled'}><i class="fas fa-user-plus"></i> СТВОРИТИ АКТОРА (${nCreate})</button>`
+    : `<button type="button" disabled>${NEED_CREATE}</button>`}
             <button type="button" data-action="rebuild" ${nSync && !this.busy ? '' : 'disabled'}><i class="fas fa-sync"></i> СИНХРОНІЗУВАТИ ЗМІНИ З COMP/CON (${nSync})</button>
           </div>
         </div>
@@ -872,6 +1026,22 @@ class HubApp extends ApplicationV2 {
 
   _onRender() {
     const root = this.element;
+    root.querySelector('[data-login]')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = new FormData(e.currentTarget);
+      this.nick = String(form.get('nick') || '');
+      this.busy = true;
+      this.loginError = '';
+      try {
+        await appLogin(this.nick, String(form.get('password') || ''));
+        this.pilots = null;
+        this.error = '';
+      } catch (err) {
+        this.loginError = err.message;
+      }
+      this.busy = false;
+      this.render();
+    });
     const input = root.querySelector('[data-search]');
     input?.addEventListener('change', () => { this.query = input.value; this.render(); });
     input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.query = input.value; this.render(); } });
@@ -900,6 +1070,13 @@ class HubApp extends ApplicationV2 {
 
   static #onLinks() {
     new LinksApp().render(true);
+  }
+
+  static async #onLogout() {
+    await appLogout();
+    this.pilots = null;
+    this.error = '';
+    this.render();
   }
 
   // Відмічені рядки поточного гравця з дією act.
@@ -938,9 +1115,8 @@ class HubApp extends ApplicationV2 {
   }
 }
 
-// Кнопка хабу вгорі панелі акторів (як Comp/Con Sync у Lancer Comp/Con Sync). Поки — лише ГМу.
+// Кнопка хабу вгорі панелі акторів (як Comp/Con Sync у Lancer Comp/Con Sync) — для всіх.
 Hooks.on('renderActorDirectory', (_app, html) => {
-  if (!game.user.isGM) return;
   const root = html instanceof HTMLElement ? html : html?.[0];
   if (!root || root.querySelector('[data-ss-hub]')) return;
   const button = document.createElement('button');
@@ -1110,6 +1286,8 @@ Hooks.once('init', () => {
     hint: 'Секрет foundry_sync_key з vault у Supabase. Зберігається лише в цьому браузері.',
     scope: 'client', config: true, type: String, default: '', onChange: restartTimer,
   });
+  // Сесія гравця в апці (хаб): лише в цьому браузері, без пароля.
+  game.settings.register(MODULE, 'session', { scope: 'client', config: false, type: Object, default: null });
   game.settings.register(MODULE, 'enabled', {
     name: 'Синхронізація увімкнена', scope: 'world', config: true, type: Boolean, default: true, onChange: restartTimer,
   });

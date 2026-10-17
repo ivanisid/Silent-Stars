@@ -607,3 +607,57 @@ export function restoreUpdate(snap, actor) {
   for (const [p, v] of Object.entries(snap)) if (get(actor, p) !== v) u[p] = v;
   return u;
 }
+
+// ----- Вхід гравця в апку з хабу (docs/compcon-link-spec.md §3.4) -----
+
+// Як nickToEmail у client/src/api.js і функції register: нік → ASCII-адреса для Supabase Auth.
+export const APP_EMAIL_DOMAIN = 'ferumvox-pilots.app';
+
+export async function nickToEmail(nick) {
+  const bytes = new TextEncoder().encode(String(nick || '').trim().toLowerCase());
+  const hash = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  const hex = Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex}@${APP_EMAIL_DOMAIN}`;
+}
+
+// Адреса проєкту Supabase з адреси функції foundry-sync (налаштування url модуля).
+export function appBase(fnUrl) {
+  return String(fnUrl || '').replace(/\/functions\/v1\/.*$/, '').replace(/\/+$/, '');
+}
+
+// Відповідь Supabase Auth (/auth/v1/token) → сесія, яку модуль тримає в клієнтському налаштуванні.
+export function sessionFrom(auth, now, fallbackNick = '') {
+  if (!auth?.access_token || !auth?.refresh_token) return null;
+  return {
+    access: auth.access_token,
+    refresh: auth.refresh_token,
+    expiresAt: now + (Number(auth.expires_in) || 3600) * 1000,
+    userId: auth.user?.id || '',
+    nick: auth.user?.user_metadata?.nick || fallbackNick,
+  };
+}
+
+// Токен закінчується за хвилину або вже закінчився — спершу оновити.
+export function sessionStale(s, now) {
+  return !s?.access || !s.expiresAt || s.expiresAt - now < 60e3;
+}
+
+// Зв'язки мехів для звіту links: актори-мехи з прапорцями pilotId/mechId, чиї пілот і мех є серед
+// pilots. actors — { pilotId, mechId, name, build }.
+export function linksFor(pilots, actors) {
+  const byId = new Map(pilots.map((p) => [p.id, p]));
+  const list = [];
+  for (const a of actors) {
+    const p = byId.get(a.pilotId);
+    const m = p?.mechs.find((x) => x.id === a.mechId);
+    if (m) list.push({ pilotId: p.id, mechId: m.id, actor: a.name, build: a.build ?? null });
+  }
+  return list;
+}
+
+// Рівень OWNER для користувача Foundry, якщо його ще немає (CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER = 3).
+export const OWNER = 3;
+export function ownerUpdate(ownership, foundryUserId) {
+  if (!foundryUserId || (ownership?.[foundryUserId] ?? 0) >= OWNER) return null;
+  return { [`ownership.${foundryUserId}`]: OWNER };
+}

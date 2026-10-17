@@ -7,7 +7,9 @@ import {
   idleDecision, MAX_IDLE_SKIPS, isFreshCreating, CREATING_TTL, syncOption, artSrc, artUpdate,
   linksKey, linksDecision, LINKS_REFRESH_MS, economyUpdate,
   buildStatus, buildBaseline, hubModel, mechAction, takeSnapshot, snapshotItems, restoreItemUpdates, restoreUpdate, SNAPSHOT_MECH,
+  nickToEmail, appBase, sessionFrom, sessionStale, linksFor, ownerUpdate, OWNER,
 } from './sync.js';
+import { createHash } from 'node:crypto';
 
 let n = 0;
 const test = (name, fn) => {
@@ -445,6 +447,51 @@ test('предмети: заряди й «знищено» за назвою і 
     { _id: 'b', 'system.uses.value': 1 },
     { _id: 'c', 'system.uses.value': 0 },
   ]);
+});
+
+// ----- Вхід гравця з хабу -----
+
+{
+  // Та сама адреса, що й в апці: sha256 від ніка в нижньому регістрі без пробілів по краях.
+  const hex = createHash('sha256').update('вовк').digest('hex');
+  assert.equal(await nickToEmail('  Вовк '), `${hex}@ferumvox-pilots.app`);
+  n++;
+  console.log('ok - нік → адреса входу як в апці');
+}
+
+test('адреса проєкту з адреси функції', () => {
+  assert.equal(appBase('https://x.supabase.co/functions/v1/foundry-sync'), 'https://x.supabase.co');
+  assert.equal(appBase('https://x.supabase.co/'), 'https://x.supabase.co');
+});
+
+test('сесія з відповіді Auth; без токенів — немає', () => {
+  const s = sessionFrom({ access_token: 'a', refresh_token: 'r', expires_in: 3600, user: { id: 'u', user_metadata: { nick: 'Вовк' } } }, 1000);
+  assert.deepEqual(s, { access: 'a', refresh: 'r', expiresAt: 1000 + 3600e3, userId: 'u', nick: 'Вовк' });
+  assert.equal(sessionFrom({ access_token: 'a' }, 0), null);
+  assert.equal(sessionFrom({ access_token: 'a', refresh_token: 'r', user: { id: 'u' } }, 0, 'нік').nick, 'нік');
+});
+
+test('сесію оновлювати за хвилину до кінця', () => {
+  assert.ok(sessionStale(null, 0));
+  assert.ok(sessionStale({ access: 'a', expiresAt: 100e3 }, 50e3));
+  assert.ok(!sessionStale({ access: 'a', expiresAt: 200e3 }, 50e3));
+});
+
+test('зв\'язки — лише мехи пілотів зі списку', () => {
+  const pilots = [{ id: 'p1', mechs: [{ id: 'm1' }] }];
+  const list = linksFor(pilots, [
+    { pilotId: 'p1', mechId: 'm1', name: 'A', build: 5 },
+    { pilotId: 'p1', mechId: 'm9', name: 'B' },
+    { pilotId: 'p2', mechId: 'm1', name: 'C' },
+  ]);
+  assert.deepEqual(list, [{ pilotId: 'p1', mechId: 'm1', actor: 'A', build: 5 }]);
+});
+
+test('власник актора: OWNER лише якщо ще немає', () => {
+  assert.deepEqual(ownerUpdate({ default: 0 }, 'f1'), { 'ownership.f1': OWNER });
+  assert.deepEqual(ownerUpdate({ f1: 2 }, 'f1'), { 'ownership.f1': OWNER });
+  assert.equal(ownerUpdate({ f1: 3 }, 'f1'), null);
+  assert.equal(ownerUpdate({}, null), null);
 });
 
 console.log(`\n${n} тестів пройдено`);

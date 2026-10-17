@@ -7,8 +7,8 @@
 //
 //   POST { action: 'pull' }
 //     → { pilots: [...], fingerprint } — усі пілоти з полями, які синхронізуються (див.
-//       toSyncPilot; mana, pr, prCap, policies — лише для показу; shopUrl — магазин пілота
-//       в апці, з секрету APP_URL), і відбиток усіх даних, які віддає pull.
+//       toSyncPilot у _shared/foundryPilots.ts; mana, pr, prCap, policies — лише для показу;
+//       shopUrl — магазин пілота в апці, з секрету APP_URL), і відбиток усіх даних, які віддає pull.
 //
 //   POST { action: 'ping' }
 //     → { fingerprint } — той самий відбиток без читання state пілотів. Збігся з відбитком
@@ -47,6 +47,9 @@
 // Розгортається з verify_jwt = false.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import {
+  itemsKey, itemsOf, loadArts, loadProfile, loadPull, loadShopItems, loadShopSettings, num, saveLinks, toSyncPilots,
+} from '../_shared/foundryPilots.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
   auth: { persistSession: false },
@@ -75,107 +78,6 @@ async function loadKey() {
 
 // ----- pull -----
 
-const STRUCTURE_MAX = 4; // у апці 4 клітинки структури і 4 реактора (MechsPanel)
-
-type Art = Map<string, { id: string; path: string }>;
-
-function toSyncMech(m: any, art: Art, pilotId: string, profiles: Map<string, number>) {
-  const a = art.get(`${pilotId}:mech:${m.id}`);
-  return {
-    id: String(m.id),
-    name: m.name || '',
-    frame: m.frame || '',
-    hpCurrent: num(m.hpCurrent),
-    hpMax: num(m.hpMax),
-    repairCurrent: num(m.repairCurrent),
-    repairMax: num(m.repairMax),
-    structureFilled: num(m.structureFilled),
-    reactorFilled: num(m.reactorFilled),
-    overcharge: num(m.overcharge),
-    corePower: m.corePower !== false,
-    // Лімітна зброя й системи. Новіша форма — mech.items (уся зброя й системи, лімітні мають
-    // max), старіша — mech.limited; рядки, які ще не пересохранялись з апки, мають саме її.
-    limited: itemsOf(m).filter((l: any) => l.max != null)
-      .map((l: any) => ({ name: l.name || '', current: num(l.current), max: num(l.max) })),
-    // Уся зброя й системи — для позначки «знищено» (зіставлення за назвою).
-    items: itemsOf(m).map((l: any) => ({ name: l.name || '', destroyed: !!l.destroyed })),
-    art: a?.path || null,
-    artId: a?.id || null,
-    // Є файл COMP/CON — з нього модуль може створити актора.
-    hasProfile: profiles.has(`${pilotId}:${m.id}`),
-    // Версія білду — час файлу COMP/CON (мс); модуль порівнює її з прапорцем build актора.
-    build: profiles.get(`${pilotId}:${m.id}`) || 0,
-  };
-}
-
-// Адреса апки (той самий секрет, що й для кнопок у Discord) — для кнопки МАГАЗИН у Foundry.
-const APP_URL = (Deno.env.get('APP_URL') || '').replace(/\/+$/, '');
-
-// Каталог магазину (shop_items, shop_settings) — для капу PR і назв страхових полісів.
-type Shop = { items: Map<string, any>; capBase: number };
-
-const loadShopItems = () => db.from('shop_items').select('key, kind, title, params, updated_at');
-const loadShopSettings = () => db.from('shop_settings').select('pr_cap_base, updated_at').maybeSingle();
-
-function shopOf(items: any[], settings: any): Shop {
-  return { items: new Map(items.map((it) => [it.key, it])), capBase: num(settings?.pr_cap_base) || 100 };
-}
-
-// Кап PR — як private.pr_cap() і prCapFor() в апці: «Трастовий фонд» (buffer) піднімає його
-// до свого cap.
-function prCapOf(s: any, shop: Shop) {
-  if (num(s.hangar?.owned?.buffer) >= 1) return num(shop.items.get('buffer')?.params?.cap) || 200;
-  return shop.capBase;
-}
-
-// Куплені й ще не використані поліси — назвами з каталогу; з «Страховим фондом
-// покращення» (insure2) пакет із upgraded показується під новою назвою, як insurancePack() в апці.
-function policiesOf(s: any, shop: Shop) {
-  const owned = s.hangar?.owned || {};
-  return Object.keys(s.hangar?.policies || {})
-    .filter((k) => s.hangar.policies[k])
-    .map((k) => {
-      const it = shop.items.get(k);
-      if (!it) return k;
-      return (owned.insure2 && it.params?.upgraded?.title) || it.title;
-    });
-}
-
-function toSyncPilot(p: any, nicks: Map<string, string>, art: Art, profiles: Map<string, number>, shop: Shop) {
-  const s = p.state || {};
-  const portrait = art.get(`${p.id}:portrait`);
-  return {
-    id: p.id,
-    name: p.name,
-    callsign: p.callsign,
-    player: nicks.get(p.user_id) || '',
-    status: s.status || 'active',
-    ll: s.ll ?? 2,
-    hpCurrent: num(s.hp?.current),
-    hpMax: num(s.hp?.max),
-    stress: num(s.stress),
-    stressMax: num(s.stressMax ?? 8),
-    // Лише для показу в чаркуші пілота у Foundry, назад не синхронізуються.
-    mana: num(s.mana?.balance),
-    pr: num(s.pr),
-    prCap: prCapOf(s, shop),
-    // Поліси показуються лише зі «Страховим фондом» (insure) — без нього вкладки страховки немає.
-    insured: num(s.hangar?.owned?.insure) >= 1,
-    policies: policiesOf(s, shop),
-    shopUrl: APP_URL ? `${APP_URL}/pilots/${p.id}?shop=repair` : null,
-    // Прив'язка до COMP/CON за share code — як ccStatus() в апці (client/src/pilot/compconLink.js).
-    ccActive: !!(s.compcon?.code && !s.compcon?.error && s.compcon?.version),
-    bondXp: num(s.bond?.xp),
-    bondChecks: Array.from({ length: 5 }, (_, i) => !!s.bond?.checks?.[i]),
-    bondPick: num(s.bond?.pick),
-    minorIdeals: Array.isArray(s.bond?.minorIdeals) ? s.bond.minorIdeals : [],
-    portrait: portrait?.path || null,
-    portraitId: portrait?.id || null,
-    mechs: (s.mechs || []).map((m: any) => toSyncMech(m, art, p.id, profiles)),
-    updatedAt: p.updated_at,
-  };
-}
-
 // Відбиток усього, що віддає pull, але без важкого state: pilots.updated_at міняє тригер
 // на кожну зміну рядка, решта таблиць читається цілком (вони малі). Модуль у холостих
 // циклах питає ping і робить повний pull лише коли відбиток змінився.
@@ -192,55 +94,28 @@ async function fingerprintOf(pilots: any[], users: any[], arts: any[], cc: any[]
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-const loadArts = () =>
-  db.from('art_uploads').select('id, pilot_id, kind, mech_id, foundry_path')
-    .is('deleted_at', null).not('foundry_path', 'is', null);
-
 async function ping() {
   const [{ data: pilots, error }, { data: users }, { data: arts }, { data: cc }, { data: items }, { data: settings }] = await Promise.all([
     db.from('pilots').select('id, updated_at'),
     db.from('profiles').select('id, nick'),
-    loadArts(),
+    loadArts(db),
     db.from('pilot_compcon').select('pilot_id, mech_id, updated_at'),
-    loadShopItems(),
-    loadShopSettings(),
+    loadShopItems(db),
+    loadShopSettings(db),
   ]);
   if (error) throw new Error(error.message);
   return { fingerprint: await fingerprintOf(pilots || [], users || [], arts || [], cc || [], items || [], settings) };
 }
 
 async function pull() {
-  const [{ data: pilots, error }, { data: users }, { data: arts }, { data: cc }, { data: items }, { data: settings }] = await Promise.all([
-    db.from('pilots').select('id, user_id, name, callsign, state, updated_at'),
-    db.from('profiles').select('id, nick'),
-    loadArts(),
-    db.from('pilot_compcon').select('pilot_id, mech_id, updated_at'),
-    loadShopItems(),
-    loadShopSettings(),
-  ]);
-  if (error) throw new Error(error.message);
-  const nicks = new Map((users || []).map((r) => [r.id, r.nick]));
-  const art: Art = new Map();
-  for (const a of arts || []) {
-    art.set(a.kind === 'portrait' ? `${a.pilot_id}:portrait` : `${a.pilot_id}:mech:${a.mech_id}`, { id: a.id, path: a.foundry_path });
-  }
-  const profiles = new Map((cc || []).map((r) => [`${r.pilot_id}:${r.mech_id}`, Date.parse(r.updated_at) || 0]));
-  const shop = shopOf(items || [], settings);
+  const raw = await loadPull(db);
   return {
-    pilots: (pilots || []).map((p) => toSyncPilot(p, nicks, art, profiles, shop)),
-    fingerprint: await fingerprintOf(pilots || [], users || [], arts || [], cc || [], items || [], settings),
+    pilots: toSyncPilots(raw),
+    fingerprint: await fingerprintOf(raw.pilots, raw.users, raw.arts, raw.cc, raw.items, raw.settings),
   };
 }
 
 // ----- profile / art -----
-
-async function profile(pilotId: string, mechId: string) {
-  const { data, error } = await db.from('pilot_compcon').select('data')
-    .eq('pilot_id', pilotId).eq('mech_id', String(mechId)).maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) return { error: 'Для цього меха немає файлу COMP/CON — гравцю треба завантажити його в апці.' };
-  return { data: data.data };
-}
 
 async function artUrl(id: string) {
   const { data: row, error } = await db.from('art_uploads').select('storage_path')
@@ -252,15 +127,9 @@ async function artUrl(id: string) {
   return { url: data.signedUrl };
 }
 
-const itemsKey = (m: any) => (Array.isArray(m.items) ? 'items' : 'limited');
-const itemsOf = (m: any) => m[itemsKey(m)] || [];
-
 // ----- push -----
 
-function num(v: unknown) {
-  const n = Number(v);
-  return Number.isFinite(n) ? Math.round(n) : 0;
-}
+const STRUCTURE_MAX = 4; // у апці 4 клітинки структури і 4 реактора (MechsPanel)
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const has = (o: any, k: string) => o && Object.prototype.hasOwnProperty.call(o, k);
 
@@ -374,44 +243,6 @@ function applyPatch(state: any, u: any) {
   return { next, changes };
 }
 
-// ----- links -----
-
-async function links(world: string, list: any[]) {
-  if (!world) return { error: 'world обов\'язковий' };
-  const seen = new Date().toISOString();
-  const rows = new Map<string, any>();
-  for (const l of list) {
-    const pilotId = String(l?.pilotId || '');
-    const mechId = String(l?.mechId || '');
-    if (!pilotId || !mechId) continue;
-    rows.set(`${pilotId}:${mechId}`, {
-      world, pilot_id: pilotId, mech_id: mechId, actor_name: String(l?.actor || '').slice(0, 200), seen_at: seen,
-      // Версія білду актора (мс) — для статусу «зміна потребує підтвердження» в апці.
-      build: Number.isFinite(Number(l?.build)) ? Math.round(Number(l.build)) : null,
-    });
-  }
-  // Зв'язки до пілотів, яких уже немає, відкидає FK — тому пілоти перевіряються заздалегідь.
-  const ids = [...new Set([...rows.values()].map((r) => r.pilot_id))];
-  const { data: alive, error: e1 } = ids.length
-    ? await db.from('pilots').select('id').in('id', ids)
-    : { data: [], error: null };
-  if (e1) throw new Error(e1.message);
-  const ok = new Set((alive || []).map((p: any) => p.id));
-  const fresh = [...rows.values()].filter((r) => ok.has(r.pilot_id));
-
-  const { error: e2 } = await db.from('foundry_mech_links').delete().eq('world', world);
-  if (e2) throw new Error(e2.message);
-  if (fresh.length) {
-    let { error: e3 } = await db.from('foundry_mech_links').insert(fresh);
-    // Колонки build ще немає (міграція 20261017c не застосована) — зв'язки без версії.
-    if (e3 && /build/.test(e3.message)) {
-      ({ error: e3 } = await db.from('foundry_mech_links').insert(fresh.map(({ build: _b, ...r }) => r)));
-    }
-    if (e3) throw new Error(e3.message);
-  }
-  return { ok: true, count: fresh.length };
-}
-
 async function pushOne(u: any) {
   if (!u?.pilotId || !u?.updatedAt) return { pilotId: u?.pilotId, ok: false, error: 'pilotId і updatedAt обов\'язкові' };
   const { data: row, error } = await db.from('pilots').select('state, updated_at').eq('id', u.pilotId).maybeSingle();
@@ -451,7 +282,7 @@ Deno.serve(async (req) => {
     if (body.action === 'pull') return json(await pull());
     if (body.action === 'ping') return json(await ping());
     if (body.action === 'profile') {
-      const r = await profile(String(body.pilotId || ''), String(body.mechId || ''));
+      const r = await loadProfile(db, String(body.pilotId || ''), String(body.mechId || ''));
       return json(r, r.error ? 404 : 200);
     }
     if (body.action === 'art') {
@@ -459,7 +290,7 @@ Deno.serve(async (req) => {
       return json(r, r.error ? 404 : 200);
     }
     if (body.action === 'links') {
-      const r = await links(String(body.world || '').slice(0, 200), Array.isArray(body.links) ? body.links.slice(0, 1000) : []);
+      const r = await saveLinks(db, String(body.world || '').slice(0, 200), Array.isArray(body.links) ? body.links.slice(0, 1000) : []);
       return json(r, r.error ? 400 : 200);
     }
     if (body.action === 'push') {
