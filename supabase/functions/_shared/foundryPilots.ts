@@ -2,6 +2,7 @@
 // пілоти у формі, яку бачить модуль Foundry, файл COMP/CON меха і звіт зв'язків мехів.
 
 import { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { importCloudArt } from './compconArt.ts';
 
 export function num(v: unknown) {
   const n = Number(v);
@@ -278,5 +279,24 @@ export async function acceptCompcon(db: SupabaseClient, pilotId: string, b: any)
     const { error: e2 } = await db.from('pilot_compcon').upsert(rows, { onConflict: 'pilot_id,mech_id' });
     if (e2) return { ok: true, updatedAt: saved[0].updated_at, error: `файли для Foundry не збережено: ${e2.message}` };
   }
-  return { ok: true, updatedAt: saved[0].updated_at };
+  // Арти з хмари COMP/CON — лише туди, де в апці арту ще немає. Збій не скасовує прийняття.
+  const art = await importCloudArt(db, pilotId, profiles).catch((err) => ({ added: 0, errors: [String(err)] }));
+  return { ok: true, updatedAt: saved[0].updated_at, art: art.added, ...(art.errors.length ? { error: art.errors.join('; ') } : {}) };
+}
+
+// Тимчасові посилання на арти з апки (art_uploads.id → url) — хаб модуля показує портрети й арти
+// мехів і там, де файл ще не лежить у Data цього сервера Foundry (його кладе лише цикл ГМа і лише
+// для зв'язаних акторів). onlyPilots — лише арти цих пілотів (хаб гравця).
+export async function artUrls(db: SupabaseClient, ids: string[], onlyPilots?: string[]) {
+  const list = [...new Set(ids.map(String).filter(Boolean))].slice(0, 200);
+  if (!list.length) return { urls: {} };
+  let q = db.from('art_uploads').select('id, pilot_id, storage_path').in('id', list).is('deleted_at', null);
+  if (onlyPilots) q = q.in('pilot_id', onlyPilots.length ? onlyPilots : ['']);
+  const { data: rows, error } = await q;
+  if (error) throw new Error(error.message);
+  if (!rows?.length) return { urls: {} };
+  const { data, error: signErr } = await db.storage.from('pilot-art').createSignedUrls(rows.map((r: any) => r.storage_path), 3600);
+  if (signErr) throw new Error(signErr.message);
+  const byPath = new Map((data || []).map((d: any) => [d.path, d.signedUrl]));
+  return { urls: Object.fromEntries(rows.map((r: any) => [r.id, byPath.get(r.storage_path)]).filter(([, u]) => u)) };
 }

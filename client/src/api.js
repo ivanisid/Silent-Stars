@@ -285,6 +285,14 @@ export const api = {
     return data;
   },
 
+  // Арти з хмари COMP/CON (посилання у файлах COMP/CON пілота) — туди, де в апці арту ще немає.
+  // → { added, errors }
+  importCompconArt: async (pilotId) => {
+    const { data, error } = await supabase.functions.invoke('compcon-code', { body: { action: 'art', pilotId } });
+    if (error) throw await readFunctionError(error);
+    return data;
+  },
+
   // Які мехи пілота мають збережений файл COMP/CON і коли його оновлено: { [mechId]: updated_at }.
   listCompconProfiles: async (pilotId) => {
     const { data, error } = await supabase.from('pilot_compcon').select('mech_id, updated_at').eq('pilot_id', pilotId);
@@ -332,6 +340,15 @@ export const api = {
     const channel = supabase
       .channel(`art-${pilotId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'art_uploads', filter: `pilot_id=eq.${pilotId}` }, onChange)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  },
+
+  // Звіт зв'язків мехів з Foundry (модуль замінює рядки світу: delete + insert).
+  subscribeFoundryLinks: (pilotId, onChange) => {
+    const channel = supabase
+      .channel(`links-${pilotId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'foundry_mech_links', filter: `pilot_id=eq.${pilotId}` }, onChange)
       .subscribe();
     return () => supabase.removeChannel(channel);
   },

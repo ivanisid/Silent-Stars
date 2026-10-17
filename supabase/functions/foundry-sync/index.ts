@@ -27,6 +27,9 @@
 //     foundry_mech_links; апка за ним блокує ручне списання стану меха.
 //     → { ok: true, count }
 //
+//   POST { action: 'arts', ids: [art_uploads.id] }
+//     → { urls: { id: url } } — тимчасові посилання (година) на арти для мініатюр хабу.
+//
 //   POST { action: 'compcon', pilotId }
 //     → { cloud: { updated, name, data }, updatedAt, pilot: { callsign, ll, mechs, compcon, owned } } —
 //       пілот з хмари COMP/CON за share code пілота і те, з чого модуль рахує прийняття.
@@ -57,7 +60,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
-  acceptCompcon, itemsKey, itemsOf, loadArts, loadCompcon, loadProfile, loadPull, loadShopItems, loadShopSettings, nowTs, num,
+  acceptCompcon, artUrls, itemsKey, itemsOf, loadArts, loadCompcon, loadProfile, loadPull, loadShopItems, loadShopSettings, nowTs, num,
   saveLinks, toSyncPilots,
 } from '../_shared/foundryPilots.ts';
 import { byCode } from '../_shared/compconCloud.ts';
@@ -295,6 +298,7 @@ Deno.serve(async (req) => {
       const r = await saveLinks(db, String(body.world || '').slice(0, 200), Array.isArray(body.links) ? body.links.slice(0, 1000) : []);
       return json(r, r.error ? 400 : 200);
     }
+    if (body.action === 'arts') return json(await artUrls(db, Array.isArray(body.ids) ? body.ids : []));
     if (body.action === 'compcon') {
       const r = await loadCompcon(db, String(body.pilotId || ''), byCode);
       return json(r, r.error ? 404 : 200);

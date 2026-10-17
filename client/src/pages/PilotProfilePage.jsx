@@ -94,6 +94,13 @@ export default function PilotProfilePage() {
   const [compconFiles, setCompconFiles] = useState(null);
   const [foundryLinks, setFoundryLinks] = useState({});
   const loadCompconFiles = () => api.listCompconProfiles(id).then(setCompconFiles).catch(() => setCompconFiles({}));
+  // Після прийняття версії COMP/CON: файли мехів і арти з хмари COMP/CON (лише туди, де арту ще немає).
+  const afterCompcon = () => {
+    loadCompconFiles();
+    api.importCompconArt(id)
+      .then((r) => (r?.added ? api.listPilotArt(id).then(setArt) : null))
+      .catch(() => {});
+  };
 
   const saveTimer = useRef(null);
   const isFirstStateSet = useRef(true);
@@ -128,14 +135,34 @@ export default function PilotProfilePage() {
 
   useEffect(() => {
     loadCompconFiles();
-    api.listFoundryLinks(id).then(setFoundryLinks);
+    let cancelled = false;
+    let timer = null;
+    const load = () => api.listFoundryLinks(id).then((l) => !cancelled && setFoundryLinks(l));
+    load();
+    // Звіт з Foundry — пачка рядків; перечитуємо один раз після неї.
+    const unsubscribe = api.subscribeFoundryLinks(id, () => {
+      clearTimeout(timer);
+      timer = setTimeout(load, 500);
+    });
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Бій у Foundry (ХП, структура, заряди…) записує функція foundry-sync. Вливаємо ці
-  // поля в стан у пам'яті, щоб автозбереження не затерло їх старими значеннями.
+  // поля в стан у пам'яті, щоб автозбереження не затерло їх старими значеннями. Версію
+  // COMP/CON, прийняту у Foundry (compconSyncAt), супроводжують нові файли мехів.
+  const compconSyncAt = useRef(null);
   useEffect(() => api.subscribePilot(id, (row) => {
-    if (row?.state) dispatch({ type: '__FOUNDRY__', state: row.state });
+    if (!row?.state) return;
+    dispatch({ type: '__FOUNDRY__', state: row.state });
+    const at = row.state.compconSyncAt || null;
+    if (at && at !== compconSyncAt.current) loadCompconFiles();
+    compconSyncAt.current = at;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [id]);
 
   const own = pilot?.user_id === user?.id;
@@ -203,7 +230,7 @@ export default function PilotProfilePage() {
     dispatch,
     pilotId: id,
     slots: mechSlots(state?.hangar?.owned),
-    onSaved: loadCompconFiles,
+    onSaved: afterCompcon,
   });
 
   // Файл, завантажений на сторінці пілотів для цього пілота: імпортуємо тут, де є слоти.
