@@ -11,6 +11,8 @@
 //   POST { action: 'compcon', pilotId } / { action: 'compconAccept', ... }
 //     Нова версія свого пілота з COMP/CON — як у foundry-sync.
 //
+//   POST { action: 'arts', ids } → { urls } — посилання на арти своїх пілотів, як у foundry-sync.
+//
 //   POST { action: 'links', world, links: [{ pilotId, mechId, actor, build? }] }
 //     Зв'язки мехів своїх пілотів у цьому світі Foundry — замінює лише їхні рядки.
 //     → { ok: true, count }
@@ -18,7 +20,7 @@
 // Розгортається з verify_jwt = true: викликати може лише залогінений гравець апки.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { acceptCompcon, loadCompcon, loadProfile, loadPull, saveLinks, toSyncPilots } from '../_shared/foundryPilots.ts';
+import { acceptCompcon, artUrls, loadCompcon, loadProfile, loadPull, saveLinks, toSyncPilots } from '../_shared/foundryPilots.ts';
 import { byCode } from '../_shared/compconCloud.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
@@ -69,6 +71,9 @@ Deno.serve(async (req) => {
       const list = Array.isArray(body.links) ? body.links.slice(0, 200) : [];
       const r = await saveLinks(db, String(body.world || '').slice(0, 200), list, await ownPilotIds(userId));
       return json(r, r.error ? 400 : 200);
+    }
+    if (body.action === 'arts') {
+      return json(await artUrls(db, Array.isArray(body.ids) ? body.ids : [], await ownPilotIds(userId)));
     }
     if (body.action === 'compcon' || body.action === 'compconAccept') {
       const pilotId = String(body.pilotId || '');

@@ -1083,6 +1083,7 @@ const HUB_CSS = `
 .ssh-list > div { flex: none; }
 .ssh-pilot-head { display: flex; align-items: center; gap: 8px; padding: 2px 0 4px; border-bottom: 1px solid rgba(127,127,127,.35); }
 .ssh-pilot-head b { font-size: 15px; }
+.ssh-pilot-head img { flex: none; width: 28px; height: 28px; object-fit: cover; border: 1px solid rgba(127,127,127,.4); }
 .ssh-pilot-head .cc { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
 .ssh-mech { flex: none; display: flex; align-items: center; gap: 10px; padding: 5px 8px 5px 4px; margin-top: 4px; border-left: 3px solid; background: rgba(0,0,0,.18); }
 .ssh-mech input[type=checkbox] { flex: none; width: 18px; height: 18px; margin: 0 4px; }
@@ -1123,6 +1124,7 @@ class HubApp extends ApplicationV2 {
   };
 
   pilots = null;
+  artUrls = {};
   error = '';
   user = null;
   filter = null;
@@ -1142,6 +1144,11 @@ class HubApp extends ApplicationV2 {
     if (!this.pilots && !this.error) {
       try {
         this.pilots = (await appCall({ action: 'pull' })).pilots;
+        // Арти з апки — тимчасовими посиланнями: у Data цього сервера вони лише для зв'язаних акторів.
+        const ids = this.pilots.flatMap((p) => [p.portraitId, ...p.mechs.map((m) => m.artId)]).filter(Boolean);
+        this.artUrls = ids.length
+          ? (await appCall({ action: 'arts', ids }).catch((err) => console.warn(`${MODULE} | арти:`, err)))?.urls || {}
+          : {};
         if (game.user.isGM) {
           await ensureOwners(this.pilots);
           await placePending(this.pilots).catch((err) => console.warn(`${MODULE} | папки:`, err));
@@ -1227,8 +1234,9 @@ class HubApp extends ApplicationV2 {
         `<b>${esc(u.nick || 'Без акаунту')}</b><span class="ssh-pills">${pills}</span></button>`;
     }).join('');
 
+    const art = (path, id) => this.artUrls?.[id] || artSrc(path, id);
     const thumb = (r) => {
-      const src = artSrc(r.m.art, r.m.artId) || r.actor?.img || 'icons/svg/mystery-man.svg';
+      const src = art(r.m.art, r.m.artId) || r.actor?.img || 'icons/svg/mystery-man.svg';
       return `<img src="${esc(src)}" alt="" onerror="this.onerror=null;this.src='icons/svg/mystery-man.svg'">`;
     };
     const pilotBlocks = rows.map(({ p, mechs }) => {
@@ -1244,7 +1252,9 @@ class HubApp extends ApplicationV2 {
           `<div class="l2"><span class="st" style="color:${HUB_INK[r.status]}"><span class="ssh-dot" style="background:${HUB_INK[r.status]}"></span>${STATUS_TEXT[r.status]}</span>` +
           `${r.actor ? `<span class="ac">→ ${esc(r.actor.name)}</span>` : ''}</div></div></div>`;
       }).join('');
-      return `<div><div class="ssh-pilot-head"><span class="ssh-dot" style="border:1px solid #c23a48"></span><b>${esc(p.name || p.callsign)}</b>` +
+      const portrait = art(p.portrait, p.portraitId) ||
+        pilotActors().find((a) => flag(a, 'pilotId') === p.id)?.img || 'icons/svg/mystery-man.svg';
+      return `<div><div class="ssh-pilot-head"><img src="${esc(portrait)}" alt="" onerror="this.onerror=null;this.src='icons/svg/mystery-man.svg'"><b>${esc(p.name || p.callsign)}</b>` +
         `<span style="opacity:.7">LL${esc(p.ll)}</span><span class="cc" style="color:${p.ccActive ? HUB_INK.ready : '#e05a5a'}">COMP/CON · ${cc}</span>` +
         `</div>${mechRows}</div>`;
     }).join('');
