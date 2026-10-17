@@ -15,7 +15,7 @@ import {
   mergeFields, mergeGroup, mergeLimited, mergeDestroyed, combineItemUpdates, mechMaxPatch, pilotIdentityUpdate, artUpdate,
   findAppPilotFor, findAppMechFor, profileActorName, matchGroup, suggestActors, resolveLinks, pendingMechs,
   idleDecision, isFreshCreating, syncOption, artSrc, linksKey, linksDecision,
-  buildBaseline, hubModel, mechAction, STATUS_TEXT, takeSnapshot, snapshotItems, restoreItemUpdates, restoreUpdate,
+  economyUpdate, buildBaseline, hubModel, mechAction, STATUS_TEXT, takeSnapshot, snapshotItems, restoreItemUpdates, restoreUpdate,
   SNAPSHOT_PILOT, SNAPSHOT_MECH,
   nickToEmail, appBase, sessionFrom, sessionStale, linksFor, linksKey as linksListKey, ownerUpdate,
 } from './sync.js';
@@ -178,6 +178,17 @@ async function reportPlayerLinks(pilots) {
   if (key === lastPlayerLinks) return;
   await hubCall({ action: 'links', world: game.world.id, links: list });
   lastPlayerLinks = key;
+}
+
+// Мана, PR і поліси у чаркуші своїх акторів-пілотів — з хабу гравця, без циклу ГМа.
+async function refreshPlayerEconomy(pilots) {
+  const byId = new Map(pilots.map((p) => [p.id, p]));
+  for (const actor of pilotActors()) {
+    const p = byId.get(flag(actor, 'pilotId'));
+    if (!p || !actor.isOwner) continue;
+    const patch = economyUpdate(p, actor);
+    if (Object.keys(patch).length) await actor.update(patch, syncOption());
+  }
 }
 
 // Користувач Foundry — гравець цього пілота апки (прапорець appUserId ставить вхід у хаб).
@@ -512,8 +523,8 @@ async function createFromApp(p, m) {
         .map((i) => ({ _id: i.id, [`flags.${MODULE}.-=base`]: null }));
       if (resets.length) await mech.updateEmbeddedDocuments('Item', resets, syncOption());
     }
-    // Імпорт ставить ім'я з файлу — повертаємо наше.
-    await pilot.update({ name: profileActorName(p, m.id) }, syncOption());
+    // Імпорт ставить ім'я з файлу — повертаємо наше; мана й PR — одразу, не чекаючи циклу ГМа.
+    await pilot.update({ name: profileActorName(p, m.id), ...economyUpdate(p, pilot) }, syncOption());
     // Створює ГМ — власником стає гравець пілота (гравцю Foundry дає права сама).
     if (game.user.isGM) {
       const owner = foundryUserOf(p);
@@ -894,7 +905,10 @@ class HubApp extends ApplicationV2 {
       try {
         this.pilots = (await appCall({ action: 'pull' })).pilots;
         if (game.user.isGM) await ensureOwners(this.pilots);
-        else await reportPlayerLinks(this.pilots).catch((err) => console.warn(`${MODULE} | links:`, err));
+        else {
+          await reportPlayerLinks(this.pilots).catch((err) => console.warn(`${MODULE} | links:`, err));
+          await refreshPlayerEconomy(this.pilots).catch((err) => console.warn(`${MODULE} | economy:`, err));
+        }
       } catch (err) {
         // Сесія скінчилась (функція скинула її) — назад до входу з поясненням.
         if (this.needLogin) this.loginError = err.message;
