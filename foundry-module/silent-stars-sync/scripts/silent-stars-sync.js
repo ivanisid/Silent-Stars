@@ -648,15 +648,24 @@ class LinksApp extends ApplicationV2 {
   }
 }
 
-// ----- Мана, PR, страховка й магазин у чаркуші пілота -----
+// ----- Вкладка <FERUM-VOX//STATUS> у чаркуші пілота -----
 //
-// Рядок угорі вікна будь-якого чаркуша пілота (системного Lancer, Alternative Sheets тощо):
-// значення бере з прапорця economy, який пише цикл синхронізації ГМа, тож гравцю не
-// потрібні ні ключ, ні запити до апки. Зміна прапорця оновлює актора — чаркуш
-// перемальовується сам. Стилі — без кольорів теми: колір тексту чаркуша й прозорість.
+// Мана, PR, страхові поліси й посилання на магазин апки. Значення бере з прапорця economy,
+// який пише цикл синхронізації ГМа, тож гравцю не потрібні ні ключ, ні запити до апки. Зміна
+// прапорця оновлює актора — чаркуш перемальовується сам. Без прапорця (актор не зв'язаний,
+// стара функція foundry-sync) вкладки немає.
+//
+// Системний чаркуш Lancer (nav.lancer-tabs + .sheet-body): вкладка додається сьомою, розмітка —
+// класами самої системи (stat-card, lancer-header, lancer-button). Чаркуш без таких вкладок
+// (Alternative Sheets тощо) отримує той самий вміст рядком угорі вікна.
+
+const STATUS_TAB = 'ss-status';
 
 const ECONOMY_CSS = `
-.ss-economy { display: flex; align-items: baseline; gap: 6px; padding: 4px 10px; border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent); font-size: 13px; line-height: 1.4; }
+.ss-status-body { gap: 8px; padding: 4px; }
+.ss-status-body .ss-policy { padding: 4px 8px; }
+.ss-status-body .ss-shop { justify-content: center; text-decoration: none; padding: 6px; }
+.ss-economy { flex: 0 0 auto; display: flex; align-items: baseline; gap: 6px; padding: 4px 10px; border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent); font-size: 13px; line-height: 1.4; }
 .ss-economy .k { font-size: 11px; letter-spacing: 1.5px; opacity: .75; }
 .ss-economy b:first-of-type { margin-right: 10px; }
 .ss-economy small { opacity: .75; margin-right: 10px; }
@@ -665,50 +674,102 @@ const ECONOMY_CSS = `
 .ss-economy .shop:hover { border-color: currentColor; }
 `;
 
+function node(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+function shopLink(url, cls) {
+  const a = node('a', cls, 'МАГАЗИН');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  return a;
+}
+
+// Картка як stat-card системи: заголовок і значення.
+function statCard(title, value) {
+  const card = node('div', 'stat-card card clipped');
+  const head = node('div', 'lancer-header lancer-primary');
+  head.append(node('span', 'major', title));
+  const row = node('div', 'flexrow flex-center');
+  row.append(node('span', 'lancer-stat major', value));
+  card.append(head, row);
+  return card;
+}
+
+function statusTab(e) {
+  const tab = node('div', 'tab flexcol ss-status-body');
+  tab.dataset.group = 'primary';
+  tab.dataset.tab = STATUS_TAB;
+  const stats = node('div', 'card clipped');
+  const row = node('div', 'flexrow');
+  row.append(statCard('МАНА', String(Number(e.mana) || 0)), statCard('PR', `${Number(e.pr) || 0} / ${Number(e.prCap) || 0}`));
+  stats.append(row);
+  tab.append(stats);
+  if (e.insured) {
+    const card = node('div', 'card clipped');
+    const head = node('div', 'lancer-header lancer-primary');
+    head.append(node('span', 'major', 'ПОЛІСИ'));
+    card.append(head);
+    const list = e.policies?.length ? e.policies : ['—'];
+    list.forEach((t) => card.append(node('div', 'ss-policy', t)));
+    tab.append(card);
+  }
+  // Магазин — у профілі пілота в апці (там і вся логіка покупок); результат повертається
+  // в актора наступним циклом синхронізації.
+  if (e.shopUrl) tab.append(shopLink(e.shopUrl, 'lancer-button lancer-tech flexrow ss-shop'));
+  return tab;
+}
+
+function statusRow(e) {
+  const row = node('div', 'ss-economy');
+  row.append(node('span', 'k', 'МАНА'), node('b', '', String(Number(e.mana) || 0)));
+  row.append(node('span', 'k', 'PR'), node('b', '', String(Number(e.pr) || 0)), node('small', '', `/${Number(e.prCap) || 0}`));
+  if (e.insured) row.append(node('span', 'k', 'ПОЛІСИ'), node('b', 'pol', e.policies?.length ? e.policies.join(' · ') : '—'));
+  if (e.shopUrl) row.append(shopLink(e.shopUrl, 'shop'));
+  return row;
+}
+
 function renderEconomy(app, html) {
   const actor = app.document ?? app.actor;
   if (actor?.type !== 'pilot') return;
   const e = flag(actor, 'economy');
   if (!e) return;
-  const el = html instanceof HTMLElement ? html : html?.[0];
-  if (!el) return;
-  const content = el.closest('.window-content') ?? el.querySelector('.window-content') ?? el;
+  const root = app.element instanceof HTMLElement ? app.element : app.element?.[0] ?? (html instanceof HTMLElement ? html : html?.[0]);
+  if (!root) return;
   if (!document.getElementById('ss-economy-css')) {
     const style = document.createElement('style');
     style.id = 'ss-economy-css';
     style.textContent = ECONOMY_CSS;
     document.head.append(style);
   }
+
+  const nav = root.querySelector('nav.lancer-tabs');
+  const body = root.querySelector('.sheet-body');
+  if (nav && body) {
+    nav.querySelector(`[data-tab="${STATUS_TAB}"]`)?.remove();
+    body.querySelector(`:scope > [data-tab="${STATUS_TAB}"]`)?.remove();
+    const link = node('a', 'item lancer-tab medium', '<FERUM-VOX//STATUS>');
+    link.dataset.tab = STATUS_TAB;
+    nav.append(link);
+    const tab = statusTab(e);
+    body.append(tab);
+    // Перемикає вкладки контролер Tabs самого чаркуша (делегування кліку в nav). Після
+    // перемальовування він відновлює активну вкладку ще до цього хука, коли нашої ще немає, —
+    // тож позначаємо її активною самі.
+    if (app._tabs?.[0]?.active === STATUS_TAB) {
+      link.classList.add('active');
+      tab.classList.add('active');
+    }
+    return;
+  }
+
+  const content = root.querySelector('.window-content') ?? root;
   content.querySelector(':scope > .ss-economy')?.remove();
-  const row = document.createElement('div');
-  row.className = 'ss-economy';
-  const add = (tag, cls, text) => {
-    const n = document.createElement(tag);
-    if (cls) n.className = cls;
-    n.textContent = text;
-    row.append(n);
-  };
-  add('span', 'k', 'МАНА');
-  add('b', '', String(Number(e.mana) || 0));
-  add('span', 'k', 'PR');
-  add('b', '', String(Number(e.pr) || 0));
-  add('small', '', `/${Number(e.prCap) || 0}`);
-  if (e.insured) {
-    add('span', 'k', 'ПОЛІСИ');
-    add('b', 'pol', e.policies?.length ? e.policies.join(' · ') : '—');
-  }
-  // Магазин — у профілі пілота в апці (там і вся логіка покупок); результат повертається
-  // в актора наступним циклом синхронізації.
-  if (e.shopUrl) {
-    const a = document.createElement('a');
-    a.className = 'shop';
-    a.href = e.shopUrl;
-    a.target = '_blank';
-    a.rel = 'noopener';
-    a.textContent = 'МАГАЗИН';
-    row.append(a);
-  }
-  content.prepend(row);
+  content.prepend(statusRow(e));
 }
 
 Hooks.on('renderActorSheet', renderEconomy);
