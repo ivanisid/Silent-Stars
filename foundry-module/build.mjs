@@ -1,6 +1,7 @@
 // Збирає модуль для сервера Foundry: dist/silent-stars-sync/ і dist/silent-stars-sync.zip.
 //
-// Версія з module.json вписується в імена скриптів (silent-stars-sync.0.2.0.js, sync.0.2.0.js).
+// Версія з module.json вписується в імена скриптів (silent-stars-sync.0.2.0.js, sync.0.2.0.js,
+// compcon-core.0.2.0.js).
 // Перед сервером Foundry стоїть кеш (Cloudflare), який віддавав старий скрипт навіть після
 // заміни файлу на диску; нове ім'я файлу кешу ще незнайоме. Тож при кожній зміні модуля:
 // підняти version у module.json → node foundry-module/build.mjs → залити теку з dist.
@@ -30,10 +31,14 @@ const lib = `sync.${v}.js`;
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(join(out, 'scripts'), { recursive: true });
 
+const core = `compcon-core.${v}.js`;
 const main = readFileSync(join(src, 'scripts/silent-stars-sync.js'), 'utf8');
-if (!main.includes("from './sync.js'")) throw new Error("Не знайдено import from './sync.js' у silent-stars-sync.js");
-writeFileSync(join(out, entry), main.replace("from './sync.js'", `from './${lib}'`));
+for (const name of ['sync.js', 'compcon-core.js']) {
+  if (!main.includes(`from './${name}'`)) throw new Error(`Не знайдено import from './${name}' у silent-stars-sync.js`);
+}
+writeFileSync(join(out, entry), main.replace("from './sync.js'", `from './${lib}'`).replace("from './compcon-core.js'", `from './${core}'`));
 writeFileSync(join(out, 'scripts', lib), readFileSync(join(src, 'scripts/sync.js'), 'utf8'));
+writeFileSync(join(out, 'scripts', core), readFileSync(join(src, 'scripts/compcon-core.js'), 'utf8'));
 const built = { ...manifest, esmodules: [entry], download: manifest.download.replace('{version}', v) };
 const json = JSON.stringify(built, null, 2) + '\n';
 writeFileSync(join(out, 'module.json'), json);

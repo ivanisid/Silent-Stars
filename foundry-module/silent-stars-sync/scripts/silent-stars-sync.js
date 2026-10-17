@@ -20,6 +20,9 @@ import {
   nickToEmail, appBase, sessionFrom, sessionStale, linksFor, linksKey as linksListKey, ownerUpdate,
   pilotBuildKey, actorBuildKey, folderPath, findFolder,
 } from './sync.js';
+import {
+  mapCompconPilot, defaultAssignment, isObvious, applyAssignment, profilesFor, changesText, mechSlots, mechDiff, wrapCloudPilot,
+} from './compcon-core.js';
 
 const DEFAULT_URL = 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/foundry-sync';
 // Публічний ключ проєкту Supabase (той самий, що в апці) — для входу гравця з хабу. Не секрет:
@@ -645,6 +648,82 @@ async function createFromApp(p, m) {
   return pilot;
 }
 
+// ----- Нова версія з COMP/CON (як кнопка в профілі пілота в апці) -----
+//
+// Прийняття рахує той самий код апки (compcon-core.js): мехи з файлу в слоти ангару, стан мехів
+// з апки лишається, файли для Foundry — по одному на меха. Функція записує результат, лише якщо
+// пілота за цей час ніхто не змінив; інакше модуль перераховує з новим станом. Неочевидний
+// розклад (мех замінює іншого, слотів бракує) — лише в апці, де є вікно вибору слотів.
+
+const NOT_OBVIOUS = 'Мехи з COMP/CON не лягають у слоти однозначно — прийміть цю версію в апці.';
+
+async function compconPlan(p) {
+  const r = await appCall({ action: 'compcon', pilotId: p.id });
+  const { cloud, pilot, updatedAt } = r;
+  if (Number(cloud.updated) === Number(pilot.compcon?.version)) return { fresh: false };
+  const json = wrapCloudPilot(cloud.data);
+  const imported = mapCompconPilot(json).state.mechs;
+  if (!imported.length) throw new Error('У файлі COMP/CON немає жодного меха.');
+  const existing = pilot.mechs || [];
+  const assignment = defaultAssignment(existing, mechSlots(pilot.owned), imported);
+  if (!isObvious(existing, imported, assignment)) throw new Error(NOT_OBVIOUS);
+  const res = applyAssignment(existing, imported, assignment);
+  if (res.error) throw new Error(res.error);
+  const slots = assignment
+    .map((j, i) => (j == null ? null : { slot: i, name: imported[j].name, groups: mechDiff(existing[i] || null, imported[j]) }))
+    .filter(Boolean);
+  return {
+    fresh: true, cloud, slots, updatedAt,
+    levelOff: cloud.data?.level != null && Number(cloud.data.level) !== Number(pilot.ll),
+    body: {
+      action: 'compconAccept', pilotId: p.id, updatedAt,
+      mechs: res.mechs, profiles: profilesFor(res.changes, json),
+      code: pilot.compcon.code, version: Number(cloud.updated), level: cloud.data?.level ?? null,
+      name: cloud.name, callsign: pilot.callsign, what: changesText(res.changes),
+    },
+  };
+}
+
+function compconReviewHtml(plan) {
+  const esc = foundry.utils.escapeHTML;
+  const warn = plan.levelOff
+    ? `<p style="color:${HUB_INK.pending};margin:0 0 8px">Рівень персонажу в файлі не відповідає рівню вашого персонажу.</p>` : '';
+  const slots = plan.slots.map((s) => `<div style="margin:0 0 10px"><b>СЛОТ ${s.slot + 1} · ${esc(s.name.toUpperCase())}</b>` +
+    s.groups.map((g) => `<div style="margin-top:4px;font-size:12px;font-weight:700;opacity:.7">${g.title}</div>` +
+      g.lines.map((l) => `<div style="color:${l.sign === '+' ? HUB_INK.ready : '#e05a5a'}">${l.sign} ${esc(l.text)}</div>`).join('')).join('') +
+    '</div>').join('');
+  return `<div style="max-height:60vh;overflow-y:auto">${warn}${slots}</div>`;
+}
+
+// true — версію прийнято (у хабі з'явиться «Зміна потребує підтвердження на Foundry»).
+async function syncFromCompcon(p) {
+  let plan = await compconPlan(p);
+  if (!plan.fresh) {
+    ui.notifications.info('COMP/CON: нової версії немає.');
+    return false;
+  }
+  const ok = await foundry.applications.api.DialogV2.confirm({
+    window: { title: `COMP/CON · ${plan.cloud.name || p.callsign}` },
+    content: compconReviewHtml(plan),
+    yes: { label: 'ПРИЙНЯТИ' },
+    no: { label: 'СКАСУВАТИ' },
+  });
+  if (!ok) return false;
+  const version = Number(plan.cloud.updated);
+  for (let attempt = 0; ; attempt++) {
+    const r = await appCall(plan.body);
+    if (r.ok) {
+      if (r.error) ui.notifications.warn(`Silent Stars: ${r.error}`);
+      ui.notifications.info(`COMP/CON: прийнято версію «${plan.cloud.name}»`);
+      return true;
+    }
+    // Пілота щойно зберегли (апка, цикл ГМа) — перерахувати з новим станом тієї самої версії.
+    if (!r.conflict || attempt >= 2) throw new Error(r.error || 'пілота змінили під час прийняття — спробуйте ще раз.');
+    plan = await compconPlan(p);
+    if (!plan.fresh || Number(plan.cloud.updated) !== version) throw new Error('версія в COMP/CON змінилась — натисніть ще раз.');
+  }
+}
+
 // ----- Вікно зв'язків -----
 
 const { ApplicationV2 } = foundry.applications.api;
@@ -946,6 +1025,7 @@ const HUB_CSS = `
 .ssh-pilot-head { display: flex; align-items: center; gap: 8px; padding: 2px 0 4px; border-bottom: 1px solid rgba(127,127,127,.35); }
 .ssh-pilot-head b { font-size: 15px; }
 .ssh-pilot-head .cc { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+.ssh-pilot-head .ssh-chip { height: 26px; }
 .ssh-mech { flex: none; display: flex; align-items: center; gap: 10px; padding: 5px 8px 5px 4px; margin-top: 4px; border-left: 3px solid; background: rgba(0,0,0,.18); }
 .ssh-mech input[type=checkbox] { flex: none; width: 18px; height: 18px; margin: 0 4px; }
 .ssh-mech .nocheck { flex: none; width: 26px; }
@@ -980,7 +1060,7 @@ class HubApp extends ApplicationV2 {
     position: { width: 1000, height: 720 },
     actions: {
       user: HubApp.#onUser, filter: HubApp.#onFilter, syncNow: HubApp.#onSyncNow, links: HubApp.#onLinks,
-      apply: HubApp.#onApply, logout: HubApp.#onLogout,
+      apply: HubApp.#onApply, logout: HubApp.#onLogout, compcon: HubApp.#onCompcon,
     },
   };
 
@@ -1104,7 +1184,9 @@ class HubApp extends ApplicationV2 {
           `${r.actor ? `<span class="ac">→ ${esc(r.actor.name)}</span>` : ''}</div></div></div>`;
       }).join('');
       return `<div><div class="ssh-pilot-head"><span class="ssh-dot" style="border:1px solid #c23a48"></span><b>${esc(p.name || p.callsign)}</b>` +
-        `<span style="opacity:.7">LL${esc(p.ll)}</span><span class="cc" style="color:${p.ccActive ? HUB_INK.ready : '#e05a5a'}">COMP/CON · ${cc}</span></div>${mechRows}</div>`;
+        `<span style="opacity:.7">LL${esc(p.ll)}</span><span class="cc" style="color:${p.ccActive ? HUB_INK.ready : '#e05a5a'}">COMP/CON · ${cc}</span>` +
+        (p.ccLinked ? `<button type="button" class="ssh-chip" data-action="compcon" data-pilot="${esc(p.id)}" ${this.busy ? 'disabled' : ''}>СИНХРОНІЗУВАТИ З COMP/CON</button>` : '') +
+        `</div>${mechRows}</div>`;
     }).join('');
 
     div.innerHTML = `
@@ -1228,6 +1310,21 @@ class HubApp extends ApplicationV2 {
 
   static async #onApply() {
     await this.run();
+  }
+
+  static async #onCompcon(_e, target) {
+    const p = (this.pilots || []).find((x) => x.id === target.dataset.pilot);
+    if (!p || this.busy) return;
+    this.busy = true;
+    this.render();
+    try {
+      if (await syncFromCompcon(p)) this.pilots = null;
+    } catch (err) {
+      console.error(`${MODULE} |`, err);
+      ui.notifications.error(`Silent Stars: ${err.message}`);
+    }
+    this.busy = false;
+    this.render();
   }
 }
 
@@ -1430,6 +1527,7 @@ Hooks.once('ready', () => {
     openHub: () => new HubApp().render(true),
     createFromApp,
     rebuildFromApp,
+    syncFromCompcon,
   };
   restartTimer();
 });

@@ -8,6 +8,9 @@
 //   POST { action: 'profile', pilotId, mechId }
 //     → { data } — файл COMP/CON меха свого пілота (для створення й оновлення актора).
 //
+//   POST { action: 'compcon', pilotId } / { action: 'compconAccept', ... }
+//     Нова версія свого пілота з COMP/CON — як у foundry-sync.
+//
 //   POST { action: 'links', world, links: [{ pilotId, mechId, actor, build? }] }
 //     Зв'язки мехів своїх пілотів у цьому світі Foundry — замінює лише їхні рядки.
 //     → { ok: true, count }
@@ -15,7 +18,8 @@
 // Розгортається з verify_jwt = true: викликати може лише залогінений гравець апки.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { loadProfile, loadPull, saveLinks, toSyncPilots } from '../_shared/foundryPilots.ts';
+import { acceptCompcon, loadCompcon, loadProfile, loadPull, saveLinks, toSyncPilots } from '../_shared/foundryPilots.ts';
+import { byCode } from '../_shared/compconCloud.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
   auth: { persistSession: false },
@@ -65,6 +69,16 @@ Deno.serve(async (req) => {
       const list = Array.isArray(body.links) ? body.links.slice(0, 200) : [];
       const r = await saveLinks(db, String(body.world || '').slice(0, 200), list, await ownPilotIds(userId));
       return json(r, r.error ? 400 : 200);
+    }
+    if (body.action === 'compcon' || body.action === 'compconAccept') {
+      const pilotId = String(body.pilotId || '');
+      if (!(await ownPilotIds(userId)).includes(pilotId)) return json({ error: 'Це не ваш пілот.' }, 403);
+      if (body.action === 'compcon') {
+        const r = await loadCompcon(db, pilotId, byCode);
+        return json(r, r.error ? 404 : 200);
+      }
+      const r = await acceptCompcon(db, pilotId, body);
+      return json(r, r.error && !r.ok ? 400 : 200);
     }
     return json({ error: `Невідома дія: ${body.action}` }, 400);
   } catch (err) {

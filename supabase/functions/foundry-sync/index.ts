@@ -27,6 +27,15 @@
 //     foundry_mech_links; апка за ним блокує ручне списання стану меха.
 //     → { ok: true, count }
 //
+//   POST { action: 'compcon', pilotId }
+//     → { cloud: { updated, name, data }, updatedAt, pilot: { callsign, ll, mechs, compcon, owned } } —
+//       пілот з хмари COMP/CON за share code пілота і те, з чого модуль рахує прийняття.
+//
+//   POST { action: 'compconAccept', pilotId, updatedAt, mechs, profiles, code, version, level, name,
+//          callsign, what }
+//     Прийняття нової версії з COMP/CON, пораховане модулем (_shared/foundryPilots.ts, acceptCompcon).
+//     → { ok, updatedAt } | { conflict: true }
+//
 //   POST { action: 'push', updates: [{ pilotId, updatedAt, pilot?, mechs?, log? }] }
 //     Кожне оновлення накладається на state пілота лише якщо updated_at у базі досі той,
 //     що бачив модуль (оптимістичне блокування). Інакше — conflict, і модуль повторить
@@ -48,8 +57,10 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
-  itemsKey, itemsOf, loadArts, loadProfile, loadPull, loadShopItems, loadShopSettings, num, saveLinks, toSyncPilots,
+  acceptCompcon, itemsKey, itemsOf, loadArts, loadCompcon, loadProfile, loadPull, loadShopItems, loadShopSettings, nowTs, num,
+  saveLinks, toSyncPilots,
 } from '../_shared/foundryPilots.ts';
+import { byCode } from '../_shared/compconCloud.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
   auth: { persistSession: false },
@@ -132,15 +143,6 @@ async function artUrl(id: string) {
 const STRUCTURE_MAX = 4; // у апці 4 клітинки структури і 4 реактора (MechsPanel)
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const has = (o: any, k: string) => o && Object.prototype.hasOwnProperty.call(o, k);
-
-function pad(n: number) {
-  return String(n).padStart(2, '0');
-}
-// Той самий формат, що й logEntry у клієнті (дд.мм.рррр гг:хх:сс), за київським часом.
-function nowTs() {
-  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Kyiv' }));
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
 
 // Накладає зміни з Foundry на state. Повертає новий state і список змін для журналу.
 function applyPatch(state: any, u: any) {
@@ -292,6 +294,14 @@ Deno.serve(async (req) => {
     if (body.action === 'links') {
       const r = await saveLinks(db, String(body.world || '').slice(0, 200), Array.isArray(body.links) ? body.links.slice(0, 1000) : []);
       return json(r, r.error ? 400 : 200);
+    }
+    if (body.action === 'compcon') {
+      const r = await loadCompcon(db, String(body.pilotId || ''), byCode);
+      return json(r, r.error ? 404 : 200);
+    }
+    if (body.action === 'compconAccept') {
+      const r = await acceptCompcon(db, String(body.pilotId || ''), body);
+      return json(r, r.error && !r.ok ? 400 : 200);
     }
     if (body.action === 'push') {
       const updates = Array.isArray(body.updates) ? body.updates.slice(0, 100) : [];
