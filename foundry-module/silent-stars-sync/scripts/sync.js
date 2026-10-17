@@ -661,3 +661,53 @@ export function ownerUpdate(ownership, foundryUserId) {
   if (!foundryUserId || (ownership?.[foundryUserId] ?? 0) >= OWNER) return null;
   return { [`ownership.${foundryUserId}`]: OWNER };
 }
+
+// ----- Один актор-пілот на кілька мехів -----
+//
+// Новий мех пілота імпортується в наявного актора-пілота, якщо збірка пілота у файлі та сама:
+// таланти й скіли (з рангами), кор-бонуси, HASE. Інакше (інший профіль COMP/CON) — новий
+// актор-пілот. Ключ рахується однаково з файлу COMP/CON і з актора системи Lancer.
+
+const keyPart = (tag, list) => `${tag}:${[...list].sort().join(',')}`;
+
+export function pilotBuildKey(file) {
+  const d = file?.data ?? file;
+  if (!d) return '';
+  const ranked = (xs) => (xs || []).filter((x) => x && !x.custom && x.id).map((x) => `${x.id}@${x.rank ?? 1}`);
+  const cbs = (d.core_bonuses || []).map((x) => (typeof x === 'string' ? x : x?.id)).filter(Boolean);
+  return [keyPart('T', ranked(d.talents)), keyPart('S', ranked(d.skills)), keyPart('C', cbs), `H:${(d.mechSkills || []).join(',')}`].join(';');
+}
+
+export function actorBuildKey(actor) {
+  const items = actor?.items?.contents ?? actor?.items ?? [];
+  const of = (type) => items.filter((i) => i.type === type && get(i, 'system.lid'));
+  const ranked = (type) => of(type).map((i) => `${get(i, 'system.lid')}@${get(i, 'system.curr_rank') ?? 1}`);
+  const hase = ['hull', 'agi', 'sys', 'eng'].map((k) => get(actor, `system.${k}`) ?? 0);
+  return [keyPart('T', ranked('talent')), keyPart('S', ranked('skill')), keyPart('C', of('core_bonus').map((i) => get(i, 'system.lid'))),
+    `H:${hase.join(',')}`].join(';');
+}
+
+// ----- Папки акторів: FERUM VOX / нік гравця / позивний / мех -----
+//
+// Кожна папка модуля має прапорець folderKey — за ним модуль знаходить її знову, тож одна й та
+// сама папка не створюється вдруге. FERUM VOX (корінь) шукається ще й за назвою — її могли
+// створити вручну.
+export const ROOT_FOLDER = 'FERUM VOX';
+
+export function folderPath(p, m) {
+  return [
+    { key: 'root', name: ROOT_FOLDER },
+    { key: `user:${p.userId || p.player || ''}`, name: p.player || '—' },
+    { key: `pilot:${p.id}`, name: p.callsign || p.name || '—' },
+    { key: `mech:${p.id}:${m.id}`, name: m.name || '—' },
+  ];
+}
+
+// Папка рівня серед folders ({ id, name, parent, key }): спершу за ключем під тим самим батьком,
+// далі за назвою (без регістру) серед папок без ключа — щоб підхопити створену вручну.
+export function findFolder(folders, parentId, step) {
+  const kids = folders.filter((f) => (f.parent ?? null) === (parentId ?? null));
+  return kids.find((f) => f.key === step.key)
+    ?? kids.find((f) => !f.key && norm(f.name) === norm(step.name))
+    ?? null;
+}

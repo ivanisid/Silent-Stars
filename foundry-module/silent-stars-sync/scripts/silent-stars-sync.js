@@ -18,6 +18,7 @@ import {
   economyUpdate, buildBaseline, hubModel, mechAction, STATUS_TEXT, takeSnapshot, snapshotItems, restoreItemUpdates, restoreUpdate,
   SNAPSHOT_PILOT, SNAPSHOT_MECH,
   nickToEmail, appBase, sessionFrom, sessionStale, linksFor, linksKey as linksListKey, ownerUpdate,
+  pilotBuildKey, actorBuildKey, folderPath, findFolder,
 } from './sync.js';
 
 const DEFAULT_URL = 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/foundry-sync';
@@ -322,6 +323,7 @@ export async function syncNow({ quiet = true, idle = false } = {}) {
       }
     };
     if (setting('autoLink')) await guard("автозв'язування", () => autoLink(pilots));
+    await guard('папки', () => placePending(pilots));
     const byId = new Map(pilots.map((p) => [p.id, p]));
 
     // pilotId → { pilotId, updatedAt, pilot, mechs, after: [функції, що дописують базу] }
@@ -482,6 +484,95 @@ function restartTimer() {
   syncNow();
 }
 
+// ----- Папки акторів (FERUM VOX / нік / позивний / мех) -----
+//
+// Актора кладуть у папку лише при створенні; далі ГМ переносить його куди хоче. Папки
+// створює лише ГМ (гравцям Foundry цього не дозволяє): актор, створений гравцем, отримує
+// прапорець needsFolder, і його розкладає найближчий цикл ГМа. Створення папок іде по одному
+// (folderLock), а наявні знаходяться за прапорцем folderKey — тож дублів немає.
+
+const actorFolders = () => game.folders.filter((f) => f.type === 'Actor').map((f) => ({
+  id: f.id, name: f.name, parent: f.folder?.id ?? null, key: f.getFlag(MODULE, 'folderKey') ?? null,
+}));
+
+let folderLock = Promise.resolve();
+
+// id папки меха; create = false — лише знайти (null, якщо якоїсь папки ще немає).
+function folderFor(p, m, create) {
+  const run = async () => {
+    let parent = null;
+    for (const step of folderPath(p, m)) {
+      const found = findFolder(actorFolders(), parent, step);
+      if (found) {
+        if (create && !found.key) await game.folders.get(found.id)?.setFlag(MODULE, 'folderKey', step.key);
+        parent = found.id;
+        continue;
+      }
+      if (!create) return null;
+      const doc = await Folder.create({ name: step.name, type: 'Actor', folder: parent, flags: { [MODULE]: { folderKey: step.key } } });
+      parent = doc.id;
+    }
+    return parent;
+  };
+  const next = folderLock.then(run, run);
+  folderLock = next.catch(() => {});
+  return next;
+}
+
+// Покласти щойно створених акторів у папку меха; не вийшло (гравець, папок ще немає) — позначка для ГМа.
+async function placeNew(actors, p, m) {
+  const list = actors.filter(Boolean);
+  if (!list.length) return;
+  const folder = await folderFor(p, m, game.user.isGM).catch((err) => {
+    console.warn(`${MODULE} | папки:`, err);
+    return null;
+  });
+  for (const a of list) {
+    await a.update(folder
+      ? { folder, [`flags.${MODULE}.-=needsFolder`]: null }
+      : { [`flags.${MODULE}.needsFolder`]: m.id }, syncOption());
+  }
+}
+
+// ГМ: розкласти акторів, яких створили гравці (прапорець needsFolder — id меха апки).
+async function placePending(pilots) {
+  if (!game.user.isGM) return;
+  const byId = new Map(pilots.map((p) => [p.id, p]));
+  for (const a of game.actors.filter((x) => flag(x, 'needsFolder'))) {
+    const p = byId.get(flag(a, 'pilotId'));
+    const m = p?.mechs.find((x) => x.id === String(flag(a, 'needsFolder')));
+    if (m) await placeNew([a], p, m);
+    else await a.update({ [`flags.${MODULE}.-=needsFolder`]: null }, syncOption());
+  }
+}
+
+// ----- Імпорт файлу COMP/CON в актора-пілота -----
+//
+// Імпорт системи Lancer спершу стирає предмети пілота й усіх мехів, прив'язаних до нього, а
+// наповнює лише мехів з файлу (у файлі апки — один мех). Тож інші мехи цього пілота на час
+// імпорту відв'язуються від нього і після повертаються — їхні предмети лишаються.
+async function importInto(pilot, data, ccMechId) {
+  const Sheet = game.lancer?.applications?.LancerPilotSheet;
+  if (typeof Sheet?.prototype?._onPilotJsonParsed !== 'function') {
+    throw new Error('Система Lancer не має імпорту COMP/CON (потрібна Lancer 3.x).');
+  }
+  const others = mechActors().filter((a) => get(a, 'system.pilot.value')?.id === pilot.id && get(a, 'system.lid') !== ccMechId);
+  for (const a of others) await a.update({ 'system.pilot': null }, syncOption());
+  try {
+    // Імпорт листа пілота без відкриття самого листа: метод бере лише this.actor і this.render.
+    await Sheet.prototype._onPilotJsonParsed.call({ actor: pilot, render() {} }, JSON.stringify(data));
+  } finally {
+    for (const a of others) await a.update({ 'system.pilot': pilot.uuid }, syncOption()).catch((err) => console.warn(`${MODULE} |`, err));
+  }
+}
+
+// Актор-пілот цього пілота апки з тією самою збіркою (таланти, скіли, кор-бонуси, HASE), що й
+// у файлі, — новий мех іде в нього, а не в нового актора-пілота.
+function reusablePilot(p, data) {
+  const key = pilotBuildKey(data);
+  return syncPilotActors().find((a) => flag(a, 'pilotId') === p.id && (game.user.isGM || a.isOwner) && actorBuildKey(a) === key) ?? null;
+}
+
 // ----- Створення актора з апки -----
 //
 // Файл COMP/CON (у ньому лише цей мех) імпортує сама система Lancer: вона заповнює
@@ -491,26 +582,33 @@ function restartTimer() {
 
 async function createFromApp(p, m) {
   if (!game.user.isGM && !game.user.can('ACTOR_CREATE')) throw new Error(NEED_CREATE);
-  const Sheet = game.lancer?.applications?.LancerPilotSheet;
-  if (typeof Sheet?.prototype?._onPilotJsonParsed !== 'function') {
-    throw new Error('Система Lancer не має імпорту COMP/CON (потрібна Lancer 3.x).');
-  }
   const { data } = await appCall({ action: 'profile', pilotId: p.id, mechId: m.id });
   const ccMechId = (data?.data ?? data)?.mechs?.[0]?.id;
+  const isMech = (a) => a.type === 'mech' && ccMechId && get(a, 'system.lid') === ccMechId;
+  const mechExisted = game.actors.some(isMech);
+  const reused = reusablePilot(p, data);
 
   creating = true;
-  let pilot;
+  let pilot = reused;
   try {
-    pilot = await Actor.create({
-      name: profileActorName(p, m.id),
-      type: 'pilot',
-      // creating — щоб цикл активного ГМа (інший браузер) не підхопив напівготового актора.
-      flags: { [MODULE]: { pilotId: p.id, profileMechId: m.id, creating: Date.now() } },
-    });
-    // Імпорт листа пілота без відкриття самого листа: метод бере лише this.actor і this.render.
-    await Sheet.prototype._onPilotJsonParsed.call({ actor: pilot, render() {} }, JSON.stringify(data));
+    if (reused) {
+      // Той самий пілот з іншим мехом: імпорт у наявного актора; стан бою пілота — як був.
+      const snap = takeSnapshot(reused, SNAPSHOT_PILOT);
+      await reused.update({ [`flags.${MODULE}.creating`]: Date.now() }, syncOption());
+      await importInto(reused, data, ccMechId);
+      // Актор тепер на кількох мехів — ім'я без меха і без автоперейменування за profileMechId.
+      await reused.update({ ...restoreUpdate(snap, reused), name: p.name || p.callsign, [`flags.${MODULE}.-=profileMechId`]: null }, syncOption());
+    } else {
+      pilot = await Actor.create({
+        name: profileActorName(p, m.id),
+        type: 'pilot',
+        // creating — щоб цикл активного ГМа (інший браузер) не підхопив напівготового актора.
+        flags: { [MODULE]: { pilotId: p.id, profileMechId: m.id, creating: Date.now() } },
+      });
+      await importInto(pilot, data, ccMechId);
+    }
 
-    const mech = game.actors.find((a) => a.type === 'mech' && ccMechId && get(a, 'system.lid') === ccMechId);
+    const mech = game.actors.find(isMech);
     if (mech) {
       // Новий зв'язок — стара база (якщо імпорт оновив уже наявного меха) не про нього.
       await mech.update({
@@ -524,7 +622,7 @@ async function createFromApp(p, m) {
       if (resets.length) await mech.updateEmbeddedDocuments('Item', resets, syncOption());
     }
     // Імпорт ставить ім'я з файлу — повертаємо наше; мана й PR — одразу, не чекаючи циклу ГМа.
-    await pilot.update({ name: profileActorName(p, m.id), ...economyUpdate(p, pilot) }, syncOption());
+    if (!reused) await pilot.update({ name: profileActorName(p, m.id), ...economyUpdate(p, pilot) }, syncOption());
     // Створює ГМ — власником стає гравець пілота (гравцю Foundry дає права сама).
     if (game.user.isGM) {
       const owner = foundryUserOf(p);
@@ -534,6 +632,8 @@ async function createFromApp(p, m) {
       }
     }
     if (!mech) ui.notifications.warn(`Silent Stars: меха «${m.name}» не створено — перевірте, чи є його фрейм у компендіумах світу.`);
+    // Папка — лише для створених зараз акторів.
+    await placeNew([reused ? null : pilot, mechExisted ? null : mech], p, m);
   } finally {
     creating = false;
     // Без syncOption() — навмисно: хук оновлення в браузері активного ГМа (інший, ніж цей) запустить
@@ -541,7 +641,7 @@ async function createFromApp(p, m) {
     if (pilot) await pilot.update({ [`flags.${MODULE}.-=creating`]: null }).catch((err) => console.warn(`${MODULE} |`, err));
   }
   await syncNow({ quiet: true });
-  ui.notifications.info(`Silent Stars: створено «${pilot.name}».`);
+  ui.notifications.info(`Silent Stars: створено «${reused ? m.name : pilot.name}».`);
   return pilot;
 }
 
@@ -788,10 +888,6 @@ class LinksApp extends ApplicationV2 {
 // структуру, стрес і скидає тепло — тож стан бою знімається до імпорту й повертається після.
 // Наступний цикл зводить його з апкою за звичайними правилами.
 async function rebuildFromApp(p, m) {
-  const Sheet = game.lancer?.applications?.LancerPilotSheet;
-  if (typeof Sheet?.prototype?._onPilotJsonParsed !== 'function') {
-    throw new Error('Система Lancer не має імпорту COMP/CON (потрібна Lancer 3.x).');
-  }
   const mech = mechActors().find((a) => flag(a, 'pilotId') === p.id && flag(a, 'mechId') === m.id);
   if (!mech) throw new Error(`«${m.name}»: актора немає — спершу створіть його.`);
   const owner = get(mech, 'system.pilot.value');
@@ -799,6 +895,7 @@ async function rebuildFromApp(p, m) {
   if (!pilot) throw new Error(`«${m.name}»: немає актора-пілота.`);
   if (!pilot.isOwner || !mech.isOwner) throw new Error(`«${m.name}»: немає прав власника на актора — їх видає ГМ.`);
   const { data } = await appCall({ action: 'profile', pilotId: p.id, mechId: m.id });
+  const ccMechId = (data?.data ?? data)?.mechs?.[0]?.id;
 
   const pilotSnap = takeSnapshot(pilot, SNAPSHOT_PILOT);
   const mechSnap = takeSnapshot(mech, SNAPSHOT_MECH);
@@ -806,9 +903,11 @@ async function rebuildFromApp(p, m) {
   creating = true;
   try {
     await pilot.update({ [`flags.${MODULE}.creating`]: Date.now() }, syncOption());
-    await Sheet.prototype._onPilotJsonParsed.call({ actor: pilot, render() {} }, JSON.stringify(data));
+    await importInto(pilot, data, ccMechId);
     const after = game.actors.get(mech.id) ?? mech;
-    await pilot.update({ ...restoreUpdate(pilotSnap, pilot), name: profileActorName(p, m.id) }, syncOption());
+    // Ім'я — лише актору одного меха (profileMechId); спільного пілота кількох мехів не перейменовуємо.
+    const profileMechId = flag(pilot, 'profileMechId');
+    await pilot.update({ ...restoreUpdate(pilotSnap, pilot), ...(profileMechId ? { name: profileActorName(p, profileMechId) } : {}) }, syncOption());
     await after.update({ ...restoreUpdate(mechSnap, after), [`flags.${MODULE}.build`]: m.build || 0 }, syncOption());
     const items = restoreItemUpdates(itemsSnap, after.items.contents);
     if (items.length) await after.updateEmbeddedDocuments('Item', items, syncOption());
@@ -859,6 +958,7 @@ const HUB_CSS = `
 .ssh-mech .st { display: inline-flex; gap: 6px; align-items: center; font-weight: 700; letter-spacing: 1px; white-space: nowrap; }
 .ssh-mech .ac { opacity: .75; white-space: nowrap; }
 .ssh-foot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px 12px 10px; border-top: 1px solid rgba(127,127,127,.35); }
+.ssh-foot.one { grid-template-columns: minmax(0, 1fr); }
 .ssh-foot button { height: 36px; margin: 0; font-weight: 700; }
 .ssh-status { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .ssh-status span { flex: 1; min-width: 0; opacity: .75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -880,7 +980,7 @@ class HubApp extends ApplicationV2 {
     position: { width: 1000, height: 720 },
     actions: {
       user: HubApp.#onUser, filter: HubApp.#onFilter, syncNow: HubApp.#onSyncNow, links: HubApp.#onLinks,
-      create: HubApp.#onCreate, rebuild: HubApp.#onRebuild, logout: HubApp.#onLogout,
+      apply: HubApp.#onApply, logout: HubApp.#onLogout,
     },
   };
 
@@ -965,14 +1065,13 @@ class HubApp extends ApplicationV2 {
     const all = users.flatMap((u) => u.pilots.flatMap((x) => x.mechs));
     const visibleUsers = users.filter((u) => this.rowsOf(u).length);
     if (!visibleUsers.some((u) => u.nick === this.user)) this.user = visibleUsers[0]?.nick ?? null;
-    const canCreate = gm || game.user.can('ACTOR_CREATE');
+    const canCreate = this.canCreate;
     const cur = visibleUsers.find((u) => u.nick === this.user);
     const rows = cur ? this.rowsOf(cur) : [];
     const key = (r, p) => `${p.id}:${r.m.id}`;
-    const actionable = rows.flatMap(({ p, mechs }) => mechs.map((r) => ({ r, p, act: mechAction(r) }))).filter((x) => x.act);
-    const checked = actionable.filter((x) => !this.unchecked.has(key(x.r, x.p)));
-    const nCreate = checked.filter((x) => x.act === 'create').length;
-    const nSync = checked.filter((x) => x.act === 'sync').length;
+    const rowActs = rows.flatMap(({ p, mechs }) => mechs.map((r) => ({ r, p, act: mechAction(r) })));
+    const blocked = rowActs.some((x) => x.act === 'create' && !canCreate);
+    const n = rowActs.filter((x) => this.doable(x.act) && !this.unchecked.has(key(x.r, x.p))).length;
 
     const chips = HUB_FILTERS.map((s) =>
       `<button type="button" class="ssh-chip${this.filter === s ? ' on' : ''}" data-action="filter" data-status="${s}">` +
@@ -996,7 +1095,7 @@ class HubApp extends ApplicationV2 {
       const mechRows = mechs.map((r) => {
         const act = mechAction(r);
         const k = key(r, p);
-        const box = act
+        const box = this.doable(act)
           ? `<input type="checkbox" data-key="${k}" ${this.unchecked.has(k) ? '' : 'checked'} aria-label="${esc(r.m.name)}">`
           : '<span class="nocheck"></span>';
         return `<div class="ssh-mech" style="border-left-color:${HUB_INK[r.status]}">${box}${thumb(r)}` +
@@ -1023,11 +1122,9 @@ class HubApp extends ApplicationV2 {
         ${gm ? `<div class="ssh-users">${userList}</div>` : ''}
         <div class="ssh-main">
           <div class="ssh-list">${pilotBlocks}</div>
-          <div class="ssh-foot">
-            ${canCreate
-    ? `<button type="button" data-action="create" ${nCreate && !this.busy ? '' : 'disabled'}><i class="fas fa-user-plus"></i> СТВОРИТИ АКТОРА (${nCreate})</button>`
-    : `<button type="button" disabled>${NEED_CREATE}</button>`}
-            <button type="button" data-action="rebuild" ${nSync && !this.busy ? '' : 'disabled'}><i class="fas fa-sync"></i> СИНХРОНІЗУВАТИ ЗМІНИ З COMP/CON (${nSync})</button>
+          <div class="ssh-foot${blocked ? '' : ' one'}">
+            <button type="button" data-action="apply" ${n && !this.busy ? '' : 'disabled'}><i class="fas fa-sync"></i> СИНХРОНІЗУВАТИ ЗМІНИ З COMP/CON (${n})</button>
+            ${blocked ? `<button type="button" disabled>${NEED_CREATE}</button>` : ''}
           </div>
         </div>
       </div>`;
@@ -1093,23 +1190,32 @@ class HubApp extends ApplicationV2 {
     this.render();
   }
 
-  // Відмічені рядки поточного гравця з дією act.
-  picked(act) {
+  get canCreate() {
+    return game.user.isGM || game.user.can('ACTOR_CREATE');
+  }
+
+  // Одна дія на мех: немає актора — створити (якщо можна), актор зі старим білдом — оновити.
+  doable(act) {
+    return act === 'sync' || (act === 'create' && this.canCreate);
+  }
+
+  // Відмічені рядки поточного гравця, які можна виконати.
+  picked() {
     const cur = this.model().find((u) => u.nick === this.user);
     if (!cur) return [];
     return this.rowsOf(cur).flatMap(({ p, mechs }) => mechs
-      .filter((r) => mechAction(r) === act && !this.unchecked.has(`${p.id}:${r.m.id}`))
-      .map((r) => ({ p, m: r.m })));
+      .map((r) => ({ p, m: r.m, act: mechAction(r) }))
+      .filter((x) => this.doable(x.act) && !this.unchecked.has(`${p.id}:${x.m.id}`)));
   }
 
-  async run(act, fn) {
-    const list = this.picked(act);
+  async run() {
+    const list = this.picked();
     if (!list.length || this.busy) return;
     this.busy = true;
     this.render();
-    for (const { p, m } of list) {
+    for (const { p, m, act } of list) {
       try {
-        await fn(p, m);
+        await (act === 'create' ? createFromApp : rebuildFromApp)(p, m);
       } catch (err) {
         console.error(`${MODULE} |`, err);
         ui.notifications.error(`Silent Stars: ${m.name}: ${err.message}`);
@@ -1120,12 +1226,8 @@ class HubApp extends ApplicationV2 {
     this.render();
   }
 
-  static async #onCreate() {
-    await this.run('create', createFromApp);
-  }
-
-  static async #onRebuild() {
-    await this.run('sync', rebuildFromApp);
+  static async #onApply() {
+    await this.run();
   }
 }
 
