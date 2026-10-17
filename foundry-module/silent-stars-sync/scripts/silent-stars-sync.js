@@ -704,18 +704,19 @@ const HUB_CSS = `
 .ssh-chip.on { outline: 2px solid #c23a48; }
 .ssh-dot { width: 7px; height: 7px; transform: rotate(45deg); flex: none; display: inline-block; }
 .ssh-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 10px; }
-.ssh-users { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
-.ssh-user { display: flex; flex-direction: column; gap: 5px; align-items: stretch; width: 100%; height: auto; margin: 0; padding: 8px 10px; text-align: left; line-height: 1.2; border-left-width: 4px; }
+.ssh-users { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; padding-right: 2px; }
+.ssh-user { flex: none; display: flex; flex-direction: column; gap: 5px; align-items: stretch; justify-content: flex-start; width: 100%; height: auto !important; min-height: 0; max-height: none; margin: 0; padding: 8px 10px; text-align: left; line-height: 1.2; border-left-width: 4px; }
 .ssh-user.on { border-color: #c23a48; }
 .ssh-user b { font-size: 15px; }
 .ssh-pills { display: flex; flex-wrap: wrap; gap: 4px; }
 .ssh-pill { display: inline-flex; align-items: center; gap: 5px; padding: 1px 6px; font-size: 12px; border: 1px solid rgba(127,127,127,.4); }
 .ssh-main { display: flex; flex-direction: column; min-height: 0; border: 1px solid rgba(194,58,72,.6); }
 .ssh-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px; display: flex; flex-direction: column; gap: 12px; }
+.ssh-list > div { flex: none; }
 .ssh-pilot-head { display: flex; align-items: center; gap: 8px; padding: 2px 0 4px; border-bottom: 1px solid rgba(127,127,127,.35); }
 .ssh-pilot-head b { font-size: 15px; }
 .ssh-pilot-head .cc { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
-.ssh-mech { display: flex; align-items: center; gap: 10px; padding: 5px 8px 5px 4px; margin-top: 4px; border-left: 3px solid; background: rgba(0,0,0,.18); }
+.ssh-mech { flex: none; display: flex; align-items: center; gap: 10px; padding: 5px 8px 5px 4px; margin-top: 4px; border-left: 3px solid; background: rgba(0,0,0,.18); }
 .ssh-mech input[type=checkbox] { flex: none; width: 18px; height: 18px; margin: 0 4px; }
 .ssh-mech .nocheck { flex: none; width: 26px; }
 .ssh-mech img { flex: none; width: 40px; height: 40px; object-fit: cover; border: 1px solid rgba(127,127,127,.4); }
@@ -946,14 +947,18 @@ Hooks.on('renderActorDirectory', (_app, html) => {
   button.type = 'button';
   button.dataset.ssHub = '';
   button.innerHTML = '<i class="fas fa-satellite-dish"></i> SILENT STARS';
-  button.style.cssText = 'flex:1 0 100%;margin:4px 0 0';
   button.addEventListener('click', (e) => {
     e.preventDefault();
     new HubApp().render(true);
   });
+  // Окремим рядком у блоці кнопок «Create Actor / Create Folder» — як Comp/Con Sync.
   const actions = root.querySelector('.header-actions');
-  if (actions) actions.after(button);
-  else (root.querySelector('.directory-header') ?? root).prepend(button);
+  if (actions) {
+    button.style.cssText = 'flex:1 0 100%';
+    actions.append(button);
+  } else {
+    (root.querySelector('.directory-header') ?? root).prepend(button);
+  }
 });
 
 // ----- Вкладка <FERUM-VOX//STATUS> у чаркуші пілота -----
