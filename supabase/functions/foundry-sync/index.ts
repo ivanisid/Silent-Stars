@@ -22,7 +22,7 @@
 //     → { url } — тимчасове посилання на арт (art_uploads.id) у сховищі. Модуль кладе файл
 //       у Data свого Foundry за шляхом foundry_path — так арти є й на локальних серверах ГМів.
 //
-//   POST { action: 'links', world, links: [{ pilotId, mechId, actor }] }
+//   POST { action: 'links', world, links: [{ pilotId, mechId, actor, build? }] }
 //     Які мехи цей світ Foundry зв'язав з акторами. Замінює список світу в
 //     foundry_mech_links; апка за ним блокує ручне списання стану меха.
 //     → { ok: true, count }
@@ -79,7 +79,7 @@ const STRUCTURE_MAX = 4; // у апці 4 клітинки структури і
 
 type Art = Map<string, { id: string; path: string }>;
 
-function toSyncMech(m: any, art: Art, pilotId: string, profiles: Set<string>) {
+function toSyncMech(m: any, art: Art, pilotId: string, profiles: Map<string, number>) {
   const a = art.get(`${pilotId}:mech:${m.id}`);
   return {
     id: String(m.id),
@@ -103,6 +103,8 @@ function toSyncMech(m: any, art: Art, pilotId: string, profiles: Set<string>) {
     artId: a?.id || null,
     // Є файл COMP/CON — з нього модуль може створити актора.
     hasProfile: profiles.has(`${pilotId}:${m.id}`),
+    // Версія білду — час файлу COMP/CON (мс); модуль порівнює її з прапорцем build актора.
+    build: profiles.get(`${pilotId}:${m.id}`) || 0,
   };
 }
 
@@ -139,7 +141,7 @@ function policiesOf(s: any, shop: Shop) {
     });
 }
 
-function toSyncPilot(p: any, nicks: Map<string, string>, art: Art, profiles: Set<string>, shop: Shop) {
+function toSyncPilot(p: any, nicks: Map<string, string>, art: Art, profiles: Map<string, number>, shop: Shop) {
   const s = p.state || {};
   const portrait = art.get(`${p.id}:portrait`);
   return {
@@ -161,6 +163,8 @@ function toSyncPilot(p: any, nicks: Map<string, string>, art: Art, profiles: Set
     insured: num(s.hangar?.owned?.insure) >= 1,
     policies: policiesOf(s, shop),
     shopUrl: APP_URL ? `${APP_URL}/pilots/${p.id}?shop=repair` : null,
+    // Прив'язка до COMP/CON за share code — як ccStatus() в апці (client/src/pilot/compconLink.js).
+    ccActive: !!(s.compcon?.code && !s.compcon?.error && s.compcon?.version),
     bondXp: num(s.bond?.xp),
     bondChecks: Array.from({ length: 5 }, (_, i) => !!s.bond?.checks?.[i]),
     bondPick: num(s.bond?.pick),
@@ -182,7 +186,7 @@ async function fingerprintOf(pilots: any[], users: any[], arts: any[], cc: any[]
     ...pilots.map((p) => `p:${p.id}:${p.updated_at}`),
     ...users.map((u) => `u:${u.id}:${u.nick}`),
     ...arts.map((a) => `a:${a.id}:${a.pilot_id}:${a.kind}:${a.mech_id}:${a.foundry_path}`),
-    ...cc.map((c) => `c:${c.pilot_id}:${c.mech_id}`),
+    ...cc.map((c) => `c:${c.pilot_id}:${c.mech_id}:${c.updated_at}`),
   ].sort();
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(lines.join('\n')));
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
@@ -197,7 +201,7 @@ async function ping() {
     db.from('pilots').select('id, updated_at'),
     db.from('profiles').select('id, nick'),
     loadArts(),
-    db.from('pilot_compcon').select('pilot_id, mech_id'),
+    db.from('pilot_compcon').select('pilot_id, mech_id, updated_at'),
     loadShopItems(),
     loadShopSettings(),
   ]);
@@ -210,7 +214,7 @@ async function pull() {
     db.from('pilots').select('id, user_id, name, callsign, state, updated_at'),
     db.from('profiles').select('id, nick'),
     loadArts(),
-    db.from('pilot_compcon').select('pilot_id, mech_id'),
+    db.from('pilot_compcon').select('pilot_id, mech_id, updated_at'),
     loadShopItems(),
     loadShopSettings(),
   ]);
@@ -220,7 +224,7 @@ async function pull() {
   for (const a of arts || []) {
     art.set(a.kind === 'portrait' ? `${a.pilot_id}:portrait` : `${a.pilot_id}:mech:${a.mech_id}`, { id: a.id, path: a.foundry_path });
   }
-  const profiles = new Set((cc || []).map((r) => `${r.pilot_id}:${r.mech_id}`));
+  const profiles = new Map((cc || []).map((r) => [`${r.pilot_id}:${r.mech_id}`, Date.parse(r.updated_at) || 0]));
   const shop = shopOf(items || [], settings);
   return {
     pilots: (pilots || []).map((p) => toSyncPilot(p, nicks, art, profiles, shop)),
@@ -382,6 +386,8 @@ async function links(world: string, list: any[]) {
     if (!pilotId || !mechId) continue;
     rows.set(`${pilotId}:${mechId}`, {
       world, pilot_id: pilotId, mech_id: mechId, actor_name: String(l?.actor || '').slice(0, 200), seen_at: seen,
+      // Версія білду актора (мс) — для статусу «зміна потребує підтвердження» в апці.
+      build: Number.isFinite(Number(l?.build)) ? Math.round(Number(l.build)) : null,
     });
   }
   // Зв'язки до пілотів, яких уже немає, відкидає FK — тому пілоти перевіряються заздалегідь.
@@ -396,7 +402,11 @@ async function links(world: string, list: any[]) {
   const { error: e2 } = await db.from('foundry_mech_links').delete().eq('world', world);
   if (e2) throw new Error(e2.message);
   if (fresh.length) {
-    const { error: e3 } = await db.from('foundry_mech_links').insert(fresh);
+    let { error: e3 } = await db.from('foundry_mech_links').insert(fresh);
+    // Колонки build ще немає (міграція 20261017c не застосована) — зв'язки без версії.
+    if (e3 && /build/.test(e3.message)) {
+      ({ error: e3 } = await db.from('foundry_mech_links').insert(fresh.map(({ build: _b, ...r }) => r)));
+    }
     if (e3) throw new Error(e3.message);
   }
   return { ok: true, count: fresh.length };

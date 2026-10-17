@@ -18,7 +18,7 @@ import {
 import { Menu, Msg, Panel, Track, useConfirm } from '../../components/kit.jsx';
 import ArtSlot from './ArtSlot.jsx';
 import { isMechNameTaken } from '../compconImport';
-import { ccStatus, freshLink, mechFoundryStatus } from '../compconLink';
+import { buildPending, ccStatus, freshLink, mechFoundryStatus } from '../compconLink';
 
 function ago(iso) {
   const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -70,6 +70,7 @@ export default function MechsPanel({
             onUploadArt={(file) => onUploadMechArt(m.id, file)}
             onRemoveArt={onRemoveArt}
             hasFile={compconFiles ? !!compconFiles[String(m.id)] : null}
+            fileAt={compconFiles?.[String(m.id)]}
             link={freshLink(foundryLinks[String(m.id)])}
             isGm={isGm}
             slot={slot}
@@ -179,7 +180,7 @@ function FieldLabel({ children }) {
   return <div className="ss-label" style={{ lineHeight: '16px' }}>{children}</div>;
 }
 
-function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt, onRemoveArt, hasFile, link, isGm, slot, importCompcon }) {
+function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt, onRemoveArt, hasFile, fileAt, link, isGm, slot, importCompcon }) {
   const [msg, setMsg] = useState('');
   const slotFileRef = useRef(null);
   const [addType, setAddType] = useState('weapon');
@@ -194,7 +195,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
   const cc = ccStatus(state.compcon);
   const ccOn = cc.active && hasFile !== false;
   const ccText = ccOn ? cc.text : ccStatus(null).text;
-  const fv = mechFoundryStatus(link);
+  const fv = mechFoundryStatus(link, buildPending(link, fileAt));
 
   // Ручне завантаження файлу COMP/CON у цей слот (меню «⋯»): той самий мех оновиться зі
   // збереженням стану, інший — замінить цього після підтвердження.

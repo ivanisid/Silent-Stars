@@ -6,12 +6,15 @@ import { findImportTarget, mapCompconPilot } from '../pilot/compconImport';
 import { pushLog, llTier } from '../pilot/logic';
 import { Menu, Msg, MobileHead, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
 import { useIsMobile } from '../useMobile';
-import { ccStatus, freshLink, mechFoundryStatus, pilotFoundryStatus } from '../pilot/compconLink';
+import { buildPending, ccStatus, freshLink, mechFoundryStatus, pilotFoundryStatus } from '../pilot/compconLink';
 
 // Зведені статуси синхронізації пілота (docs/compcon-link-spec.md §3.5).
-function SyncTags({ p, links }) {
+function SyncTags({ p, links, files }) {
   const cc = ccStatus(p.compcon);
-  const fv = pilotFoundryStatus(p.mechs.map((m) => mechFoundryStatus(freshLink(links?.[m.id]))));
+  const fv = pilotFoundryStatus(p.mechs.map((m) => {
+    const link = freshLink(links?.[m.id]);
+    return mechFoundryStatus(link, buildPending(link, files?.[m.id]));
+  }));
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
       <span className={`ss-tag ${cc.active ? 'ok' : 'bad'}`}>COMP/CON · {cc.text}{cc.at ? ` // ${cc.at}` : ''}</span>
@@ -32,6 +35,7 @@ export default function PilotSelectPage() {
   // Портрети окремо від списку: якщо їх не вдалося підтягнути, список однаково працює.
   const [portraits, setPortraits] = useState({});
   const [links, setLinks] = useState({});
+  const [files, setFiles] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
@@ -59,6 +63,7 @@ export default function PilotSelectPage() {
       setLoadError('');
       api.listPortraits(list.map((p) => p.id)).then(setPortraits).catch(() => {});
       api.listFoundryLinksFor(list.map((p) => p.id)).then(setLinks).catch(() => {});
+      api.listCompconFilesFor(list.map((p) => p.id)).then(setFiles).catch(() => {});
     } catch (err) {
       setLoadError(err.message);
     } finally {
@@ -357,7 +362,7 @@ export default function PilotSelectPage() {
                       ▮ {p.mechs.map((m) => m.name.toUpperCase()).join(' // ')}
                     </span>
                   )}
-                  <SyncTags p={p} links={links[p.id]} />
+                  <SyncTags p={p} links={links[p.id]} files={files[p.id]} />
                 </div>
                 <div>{menu}</div>
               </div>
@@ -398,7 +403,7 @@ export default function PilotSelectPage() {
                     ▮ {p.mechs.map((m) => m.name.toUpperCase()).join(' // ')}
                   </div>
                 )}
-                <SyncTags p={p} links={links[p.id]} />
+                <SyncTags p={p} links={links[p.id]} files={files[p.id]} />
                 {p.background && p.background !== 'Бекграунд не вказано.' && (
                   <div style={{ fontSize: 11, color: 'var(--text-grey)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.background}</div>
                 )}

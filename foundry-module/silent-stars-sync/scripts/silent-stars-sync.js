@@ -15,6 +15,8 @@ import {
   mergeFields, mergeGroup, mergeLimited, mergeDestroyed, combineItemUpdates, mechMaxPatch, pilotIdentityUpdate, artUpdate,
   findAppPilotFor, findAppMechFor, profileActorName, matchGroup, suggestActors, resolveLinks, pendingMechs,
   idleDecision, isFreshCreating, syncOption, artSrc, linksKey, linksDecision,
+  buildBaseline, hubModel, mechAction, STATUS_TEXT, takeSnapshot, snapshotItems, restoreItemUpdates, restoreUpdate,
+  SNAPSHOT_PILOT, SNAPSHOT_MECH,
 } from './sync.js';
 
 const DEFAULT_URL = 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/foundry-sync';
@@ -245,7 +247,7 @@ export async function syncNow({ quiet = true, idle = false } = {}) {
         await ensureArtSafe(m.art, m.artId);
 
         const r = mergeFields(MECH_FIELDS, m, actor, appTime);
-        const update = { ...artUpdate(m.art, actor, m.artId), ...(r.update || {}) };
+        const update = { ...artUpdate(m.art, actor, m.artId), ...(r.update || {}), ...(buildBaseline(m, actor) || {}) };
         if (Object.keys(update).length) await actor.update(update, syncOption());
 
         const lim = mergeLimited(m, actor.items.contents, appTime);
@@ -319,7 +321,7 @@ async function reportLinks(byId) {
   for (const actor of syncMechActors()) {
     const p = byId.get(flag(actor, 'pilotId'));
     const m = p?.mechs.find((x) => x.id === flag(actor, 'mechId'));
-    if (m) list.push({ pilotId: p.id, mechId: m.id, actor: actor.name });
+    if (m) list.push({ pilotId: p.id, mechId: m.id, actor: actor.name, build: flag(actor, 'build') ?? null });
   }
   const key = linksKey(list);
   const now = Date.now();
@@ -393,6 +395,7 @@ async function createFromApp(p, m) {
         [`flags.${MODULE}.-=base`]: null,
         [`flags.${MODULE}.pilotId`]: p.id,
         [`flags.${MODULE}.mechId`]: m.id,
+        [`flags.${MODULE}.build`]: m.build || 0,
       }, syncOption());
       const resets = mech.items.filter((i) => i.getFlag(MODULE, 'base') !== undefined)
         .map((i) => ({ _id: i.id, [`flags.${MODULE}.-=base`]: null }));
@@ -648,6 +651,311 @@ class LinksApp extends ApplicationV2 {
   }
 }
 
+// ----- Оновлення білду з апки (docs/compcon-link-spec.md §5) -----
+//
+// Повторний імпорт файлу COMP/CON у той самий актор-пілот: система Lancer знаходить меха за
+// lid і оновлює його предмети. Імпорт (і модулі на кшталт Lancer Comp/Con Sync) наповнює ХП,
+// структуру, стрес і скидає тепло — тож стан бою знімається до імпорту й повертається після.
+// Наступний цикл зводить його з апкою за звичайними правилами.
+async function rebuildFromApp(p, m) {
+  if (!game.user.isGM) throw new Error('Оновлювати білд поки можуть лише ГМи.');
+  const Sheet = game.lancer?.applications?.LancerPilotSheet;
+  if (typeof Sheet?.prototype?._onPilotJsonParsed !== 'function') {
+    throw new Error('Система Lancer не має імпорту COMP/CON (потрібна Lancer 3.x).');
+  }
+  const mech = mechActors().find((a) => flag(a, 'pilotId') === p.id && flag(a, 'mechId') === m.id);
+  if (!mech) throw new Error(`«${m.name}»: актора немає — спершу створіть його.`);
+  const owner = get(mech, 'system.pilot.value');
+  const pilot = owner?.type === 'pilot' ? owner : pilotActors().find((a) => flag(a, 'pilotId') === p.id);
+  if (!pilot) throw new Error(`«${m.name}»: немає актора-пілота.`);
+  const { data } = await call({ action: 'profile', pilotId: p.id, mechId: m.id });
+
+  const pilotSnap = takeSnapshot(pilot, SNAPSHOT_PILOT);
+  const mechSnap = takeSnapshot(mech, SNAPSHOT_MECH);
+  const itemsSnap = snapshotItems(mech.items.contents);
+  creating = true;
+  try {
+    await pilot.update({ [`flags.${MODULE}.creating`]: Date.now() }, syncOption());
+    await Sheet.prototype._onPilotJsonParsed.call({ actor: pilot, render() {} }, JSON.stringify(data));
+    const after = game.actors.get(mech.id) ?? mech;
+    await pilot.update({ ...restoreUpdate(pilotSnap, pilot), name: profileActorName(p, m.id) }, syncOption());
+    await after.update({ ...restoreUpdate(mechSnap, after), [`flags.${MODULE}.build`]: m.build || 0 }, syncOption());
+    const items = restoreItemUpdates(itemsSnap, after.items.contents);
+    if (items.length) await after.updateEmbeddedDocuments('Item', items, syncOption());
+  } finally {
+    creating = false;
+    await pilot.update({ [`flags.${MODULE}.-=creating`]: null }).catch((err) => console.warn(`${MODULE} |`, err));
+  }
+  await syncNow({ quiet: true });
+  ui.notifications.info(`Silent Stars: «${mech.name}» — білд оновлено.`);
+}
+
+// ----- Хаб SILENT STARS (docs/compcon-link-spec.md §4) -----
+//
+// Вигляд ГМа: ліворуч гравці апки з переліком пілотів, праворуч пілоти обраного гравця з
+// мехами — статус, актор, галочка для дії; унизу — створити акторів і синхронізувати зміни
+// для відмічених. Вигляд гравця (вхід за ніком апки) — наступним етапом.
+
+const HUB_CSS = `
+.ssh { display: flex; flex-direction: column; gap: 8px; flex: 1; height: 100%; min-height: 0; box-sizing: border-box; padding: 8px; font-size: 14px; }
+.ssh-bar { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+.ssh-bar input[type=search] { flex: 1 1 160px; min-width: 100px; height: 30px; }
+.ssh-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; width: auto; height: 30px; padding: 0 8px; margin: 0; font-size: 12px; font-weight: 700; white-space: nowrap; line-height: 1; }
+.ssh-chip.on { outline: 2px solid #c23a48; }
+.ssh-dot { width: 7px; height: 7px; transform: rotate(45deg); flex: none; display: inline-block; }
+.ssh-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 10px; }
+.ssh-users { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+.ssh-user { display: flex; flex-direction: column; gap: 5px; align-items: stretch; width: 100%; height: auto; margin: 0; padding: 8px 10px; text-align: left; line-height: 1.2; border-left-width: 4px; }
+.ssh-user.on { border-color: #c23a48; }
+.ssh-user b { font-size: 15px; }
+.ssh-pills { display: flex; flex-wrap: wrap; gap: 4px; }
+.ssh-pill { display: inline-flex; align-items: center; gap: 5px; padding: 1px 6px; font-size: 12px; border: 1px solid rgba(127,127,127,.4); }
+.ssh-main { display: flex; flex-direction: column; min-height: 0; border: 1px solid rgba(194,58,72,.6); }
+.ssh-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px; display: flex; flex-direction: column; gap: 12px; }
+.ssh-pilot-head { display: flex; align-items: center; gap: 8px; padding: 2px 0 4px; border-bottom: 1px solid rgba(127,127,127,.35); }
+.ssh-pilot-head b { font-size: 15px; }
+.ssh-pilot-head .cc { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+.ssh-mech { display: flex; align-items: center; gap: 10px; padding: 5px 8px 5px 4px; margin-top: 4px; border-left: 3px solid; background: rgba(0,0,0,.18); }
+.ssh-mech input[type=checkbox] { flex: none; width: 18px; height: 18px; margin: 0 4px; }
+.ssh-mech .nocheck { flex: none; width: 26px; }
+.ssh-mech img { flex: none; width: 40px; height: 40px; object-fit: cover; border: 1px solid rgba(127,127,127,.4); }
+.ssh-mech .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ssh-mech .l1 { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.ssh-mech .slot { flex: none; font-size: 11px; opacity: .7; letter-spacing: 1px; }
+.ssh-mech .nm { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ssh-mech .l2 { display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: center; font-size: 12px; }
+.ssh-mech .st { display: inline-flex; gap: 6px; align-items: center; font-weight: 700; letter-spacing: 1px; white-space: nowrap; }
+.ssh-mech .ac { opacity: .75; white-space: nowrap; }
+.ssh-foot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px 12px 10px; border-top: 1px solid rgba(127,127,127,.35); }
+.ssh-foot button { height: 36px; margin: 0; font-weight: 700; }
+.ssh-status { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.ssh-status span { flex: 1; min-width: 0; opacity: .75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+`;
+
+const HUB_INK = { pending: '#e0a43a', ready: '#5cb87a', none: '#8a8a8a' };
+const HUB_FILTERS = ['pending', 'ready', 'none'];
+
+class HubApp extends ApplicationV2 {
+  static DEFAULT_OPTIONS = {
+    id: `${MODULE}-hub`,
+    window: { title: 'SILENT STARS', resizable: true, icon: 'fas fa-satellite-dish' },
+    position: { width: 1000, height: 720 },
+    actions: {
+      user: HubApp.#onUser, filter: HubApp.#onFilter, syncNow: HubApp.#onSyncNow, links: HubApp.#onLinks,
+      create: HubApp.#onCreate, rebuild: HubApp.#onRebuild,
+    },
+  };
+
+  pilots = null;
+  error = '';
+  user = null;
+  filter = null;
+  query = '';
+  unchecked = new Set();
+  busy = false;
+
+  async _prepareContext() {
+    if (!this.pilots && !this.error) {
+      try {
+        this.pilots = (await call({ action: 'pull' })).pilots;
+      } catch (err) {
+        this.error = err.message;
+      }
+    }
+    return {};
+  }
+
+  model() {
+    const actorFor = (pid, mid) => mechActors().find((a) => flag(a, 'pilotId') === pid && flag(a, 'mechId') === mid);
+    return hubModel(this.pilots || [], actorFor);
+  }
+
+  // Рядки, що проходять пошук і фільтр статусу.
+  rowsOf(u) {
+    const q = norm(this.query);
+    const hit = (...xs) => !q || xs.some((x) => norm(x).includes(q));
+    const userHit = hit(u.nick);
+    return u.pilots.map(({ p, mechs }) => ({
+      p,
+      mechs: mechs.filter((r) => (!this.filter || r.status === this.filter) &&
+        (userHit || hit(p.name, p.callsign, r.m.name, r.m.frame, r.actor?.name))),
+    })).filter((x) => x.mechs.length);
+  }
+
+  async _renderHTML() {
+    if (!document.getElementById('ss-hub-css')) {
+      const style = document.createElement('style');
+      style.id = 'ss-hub-css';
+      style.textContent = HUB_CSS;
+      document.head.append(style);
+    }
+    const esc = foundry.utils.escapeHTML ?? ((s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`));
+    const div = document.createElement('div');
+    div.className = 'ssh';
+    if (this.error) {
+      div.innerHTML = `<p style="color:var(--color-level-error,#c00)">${esc(this.error)}</p>`;
+      return div;
+    }
+    const users = this.model();
+    const all = users.flatMap((u) => u.pilots.flatMap((x) => x.mechs));
+    const visibleUsers = users.filter((u) => this.rowsOf(u).length);
+    if (!visibleUsers.some((u) => u.nick === this.user)) this.user = visibleUsers[0]?.nick ?? null;
+    const cur = visibleUsers.find((u) => u.nick === this.user);
+    const rows = cur ? this.rowsOf(cur) : [];
+    const key = (r, p) => `${p.id}:${r.m.id}`;
+    const actionable = rows.flatMap(({ p, mechs }) => mechs.map((r) => ({ r, p, act: mechAction(r) }))).filter((x) => x.act);
+    const checked = actionable.filter((x) => !this.unchecked.has(key(x.r, x.p)));
+    const nCreate = checked.filter((x) => x.act === 'create').length;
+    const nSync = checked.filter((x) => x.act === 'sync').length;
+
+    const chips = HUB_FILTERS.map((s) =>
+      `<button type="button" class="ssh-chip${this.filter === s ? ' on' : ''}" data-action="filter" data-status="${s}">` +
+      `<span class="ssh-dot" style="background:${HUB_INK[s]}"></span>${STATUS_TEXT[s]}<span style="opacity:.7">${all.filter((r) => r.status === s).length}</span></button>`).join('');
+
+    const userList = visibleUsers.map((u) => {
+      const pills = u.pilots.map(({ p, mechs }) => {
+        const st = mechs.map((r) => r.status).sort((a, b) => HUB_FILTERS.indexOf(a) - HUB_FILTERS.indexOf(b))[0] || 'none';
+        return `<span class="ssh-pill"><span class="ssh-dot" style="background:${HUB_INK[st]}"></span>${esc(p.name || p.callsign)}</span>`;
+      }).join('');
+      return `<button type="button" class="ssh-user${u.nick === this.user ? ' on' : ''}" data-action="user" data-nick="${esc(u.nick)}" style="border-left-color:${HUB_INK[u.status]}">` +
+        `<b>${esc(u.nick || 'Без акаунту')}</b><span class="ssh-pills">${pills}</span></button>`;
+    }).join('');
+
+    const thumb = (r) => {
+      const src = artSrc(r.m.art, r.m.artId) || r.actor?.img || 'icons/svg/mystery-man.svg';
+      return `<img src="${esc(src)}" alt="" onerror="this.onerror=null;this.src='icons/svg/mystery-man.svg'">`;
+    };
+    const pilotBlocks = rows.map(({ p, mechs }) => {
+      const cc = p.ccActive ? 'КОД АКТИВНИЙ' : 'КОД НЕ АКТИВНИЙ';
+      const mechRows = mechs.map((r) => {
+        const act = mechAction(r);
+        const k = key(r, p);
+        const box = act
+          ? `<input type="checkbox" data-key="${k}" ${this.unchecked.has(k) ? '' : 'checked'} aria-label="${esc(r.m.name)}">`
+          : '<span class="nocheck"></span>';
+        return `<div class="ssh-mech" style="border-left-color:${HUB_INK[r.status]}">${box}${thumb(r)}` +
+          `<div class="tx"><div class="l1"><span class="slot">СЛОТ ${r.slot + 1}</span><span class="nm">${esc(r.m.name)}${r.m.frame ? ` · ${esc(r.m.frame.toUpperCase())}` : ''}</span></div>` +
+          `<div class="l2"><span class="st" style="color:${HUB_INK[r.status]}"><span class="ssh-dot" style="background:${HUB_INK[r.status]}"></span>${STATUS_TEXT[r.status]}</span>` +
+          `${r.actor ? `<span class="ac">→ ${esc(r.actor.name)}</span>` : ''}</div></div></div>`;
+      }).join('');
+      return `<div><div class="ssh-pilot-head"><span class="ssh-dot" style="border:1px solid #c23a48"></span><b>${esc(p.name || p.callsign)}</b>` +
+        `<span style="opacity:.7">LL${esc(p.ll)}</span><span class="cc" style="color:${p.ccActive ? HUB_INK.ready : '#e05a5a'}">COMP/CON · ${cc}</span></div>${mechRows}</div>`;
+    }).join('');
+
+    div.innerHTML = `
+      <div class="ssh-bar">
+        <input type="search" data-search aria-label="Пошук" value="${esc(this.query)}">
+        ${chips}
+      </div>
+      <div class="ssh-status">
+        <span>${esc(lastStatus)}</span>
+        <button type="button" class="ssh-chip" data-action="syncNow"><i class="fas fa-sync"></i>Синхронізувати зараз</button>
+        <button type="button" class="ssh-chip" data-action="links"><i class="fas fa-link"></i>Відкрити зв'язки</button>
+      </div>
+      <div class="ssh-cols">
+        <div class="ssh-users">${userList}</div>
+        <div class="ssh-main">
+          <div class="ssh-list">${pilotBlocks}</div>
+          <div class="ssh-foot">
+            <button type="button" data-action="create" ${nCreate && !this.busy ? '' : 'disabled'}><i class="fas fa-user-plus"></i> СТВОРИТИ АКТОРА (${nCreate})</button>
+            <button type="button" data-action="rebuild" ${nSync && !this.busy ? '' : 'disabled'}><i class="fas fa-sync"></i> СИНХРОНІЗУВАТИ ЗМІНИ З COMP/CON (${nSync})</button>
+          </div>
+        </div>
+      </div>`;
+    return div;
+  }
+
+  _replaceHTML(result, content) {
+    content.replaceChildren(result);
+  }
+
+  _onRender() {
+    const root = this.element;
+    const input = root.querySelector('[data-search]');
+    input?.addEventListener('change', () => { this.query = input.value; this.render(); });
+    input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.query = input.value; this.render(); } });
+    root.querySelectorAll('input[type=checkbox][data-key]').forEach((box) => box.addEventListener('change', () => {
+      if (box.checked) this.unchecked.delete(box.dataset.key);
+      else this.unchecked.add(box.dataset.key);
+      this.render();
+    }));
+  }
+
+  static #onUser(_e, target) {
+    this.user = target.dataset.nick;
+    this.render();
+  }
+
+  static #onFilter(_e, target) {
+    this.filter = this.filter === target.dataset.status ? null : target.dataset.status;
+    this.render();
+  }
+
+  static async #onSyncNow() {
+    await syncNow({ quiet: false });
+    this.pilots = null;
+    this.render();
+  }
+
+  static #onLinks() {
+    new LinksApp().render(true);
+  }
+
+  // Відмічені рядки поточного гравця з дією act.
+  picked(act) {
+    const cur = this.model().find((u) => u.nick === this.user);
+    if (!cur) return [];
+    return this.rowsOf(cur).flatMap(({ p, mechs }) => mechs
+      .filter((r) => mechAction(r) === act && !this.unchecked.has(`${p.id}:${r.m.id}`))
+      .map((r) => ({ p, m: r.m })));
+  }
+
+  async run(act, fn) {
+    const list = this.picked(act);
+    if (!list.length || this.busy) return;
+    this.busy = true;
+    this.render();
+    for (const { p, m } of list) {
+      try {
+        await fn(p, m);
+      } catch (err) {
+        console.error(`${MODULE} |`, err);
+        ui.notifications.error(`Silent Stars: ${m.name}: ${err.message}`);
+      }
+    }
+    this.busy = false;
+    this.pilots = null;
+    this.render();
+  }
+
+  static async #onCreate() {
+    await this.run('create', createFromApp);
+  }
+
+  static async #onRebuild() {
+    await this.run('sync', rebuildFromApp);
+  }
+}
+
+// Кнопка хабу вгорі панелі акторів (як Comp/Con Sync у Lancer Comp/Con Sync). Поки — лише ГМу.
+Hooks.on('renderActorDirectory', (_app, html) => {
+  if (!game.user.isGM) return;
+  const root = html instanceof HTMLElement ? html : html?.[0];
+  if (!root || root.querySelector('[data-ss-hub]')) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.dataset.ssHub = '';
+  button.innerHTML = '<i class="fas fa-satellite-dish"></i> SILENT STARS';
+  button.style.cssText = 'flex:1 0 100%;margin:4px 0 0';
+  button.addEventListener('click', (e) => {
+    e.preventDefault();
+    new HubApp().render(true);
+  });
+  const actions = root.querySelector('.header-actions');
+  if (actions) actions.after(button);
+  else (root.querySelector('.directory-header') ?? root).prepend(button);
+});
+
 // ----- Вкладка <FERUM-VOX//STATUS> у чаркуші пілота -----
 //
 // Мана, PR, страхові поліси й посилання на магазин апки. Значення бере з прапорця economy,
@@ -779,11 +1087,11 @@ Hooks.on('renderActorSheetV2', renderEconomy);
 
 Hooks.once('init', () => {
   game.settings.registerMenu(MODULE, 'links', {
-    name: "Зв'язки з апкою",
-    label: "Відкрити зв'язки",
-    hint: 'Які актори Foundry відповідають яким пілотам і мехам в апці; кнопка ручної синхронізації.',
-    icon: 'fas fa-link',
-    type: LinksApp,
+    name: 'SILENT STARS',
+    label: 'SILENT STARS',
+    hint: 'Пілоти й мехи апки, актори Foundry, створення акторів і синхронізація змін з COMP/CON.',
+    icon: 'fas fa-satellite-dish',
+    type: HubApp,
     restricted: true,
   });
   game.settings.register(MODULE, 'url', {
@@ -820,7 +1128,9 @@ Hooks.once('ready', () => {
   game.modules.get(MODULE).api = {
     syncNow: () => syncNow({ quiet: false }),
     openLinks: () => new LinksApp().render(true),
+    openHub: () => new HubApp().render(true),
     createFromApp,
+    rebuildFromApp,
   };
   restartTimer();
 });
@@ -835,10 +1145,10 @@ Hooks.on('renderSettings', (_app, html) => {
   const button = document.createElement('button');
   button.type = 'button';
   button.dataset.ssLinks = '';
-  button.innerHTML = `<i class="fas fa-link"></i> <span>Silent Stars: зв'язки</span>`;
+  button.innerHTML = '<i class="fas fa-satellite-dish"></i> <span>SILENT STARS</span>';
   button.addEventListener('click', (e) => {
     e.preventDefault();
-    new LinksApp().render(true);
+    new HubApp().render(true);
   });
   const anchor = root.querySelector('[data-action="modules"], [data-action="configure"], button[data-tab="modules"]');
   if (anchor) anchor.after(button);

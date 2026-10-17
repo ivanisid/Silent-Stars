@@ -175,7 +175,7 @@ export function idleDecision({ last, fp, skips, needFull }) {
 export const LINKS_REFRESH_MS = 30 * 60 * 1000;
 
 export function linksKey(list) {
-  return list.map((l) => `${l.pilotId}:${l.mechId}:${l.actor}`).sort().join('|');
+  return list.map((l) => `${l.pilotId}:${l.mechId}:${l.actor}:${l.build ?? ''}`).sort().join('|');
 }
 
 export function linksDecision({ lastKey, key, lastAt, now }) {
@@ -501,4 +501,109 @@ export function pendingMechs(p, pilots, mechs) {
   const hasPilot = pilots.some((a) => a.pilotId === p.id);
   const linked = new Set(mechs.filter((a) => a.pilotId === p.id).map((a) => a.mechId));
   return p.mechs.filter((m) => m.hasProfile && (!hasPilot || !linked.has(m.id)));
+}
+
+// ----- Хаб: версія білду, статуси, знімок стану (docs/compcon-link-spec.md §4–5) -----
+
+// Статуси меха в хабі — ті самі написи, що в апці (client/src/pilot/compconLink.js).
+export const FV_PENDING = 'ЗМІНА ПОТРЕБУЄ ПІДТВЕРДЖЕННЯ НА FOUNDRY';
+export const FV_READY = 'ПІЛОТ ГОТОВИЙ ДО ЗАВДАННЯ';
+export const FV_NONE = 'СИНХРОНІЗАЦІЯ ВІДСУТНЯ';
+
+// Версія білду меха — час файлу COMP/CON в апці (pull: m.build, мс); у актора-меха — прапорець
+// build, який ставить створення й оновлення білду. Немає актора → none; файл новіший → pending.
+export function buildStatus(m, actor) {
+  if (!actor) return 'none';
+  const have = int(get(actor, `flags.${MODULE}.build`));
+  return int(m.build) > have ? 'pending' : 'ready';
+}
+
+export const STATUS_TEXT = { none: FV_NONE, pending: FV_PENDING, ready: FV_READY };
+
+// Актор-мех, зв'язаний із мехом апки до появи версій білду, вважається актуальним: версію йому
+// ставить перший цикл (baseline), інакше всі старі актори одразу показали б «потребує».
+export function buildBaseline(m, actor) {
+  if (!actor || !m.build || get(actor, `flags.${MODULE}.build`) != null) return null;
+  return { [`flags.${MODULE}.build`]: int(m.build) };
+}
+
+// Хаб ГМа: гравці (акаунти апки) → їхні пілоти → мехи з актором і статусом.
+//   mechActorFor(pilotId, mechId) → актор або undefined.
+export function hubModel(pilots, mechActorFor) {
+  const users = new Map();
+  const abc = (a, b) => String(a).localeCompare(String(b), 'en', { sensitivity: 'base', numeric: true });
+  for (const p of [...pilots].sort((a, b) => abc(a.name || a.callsign, b.name || b.callsign))) {
+    const nick = p.player || '';
+    if (!users.has(nick)) users.set(nick, { nick, pilots: [] });
+    const mechs = p.mechs.map((m, slot) => {
+      const actor = mechActorFor(p.id, m.id);
+      return { m, slot, actor, status: buildStatus(m, actor) };
+    });
+    users.get(nick).pilots.push({ p, mechs });
+  }
+  const rank = { pending: 0, none: 1, ready: 2 };
+  return [...users.values()]
+    .sort((a, b) => (!a.nick - !b.nick) || abc(a.nick, b.nick))
+    .map((u) => {
+      const all = u.pilots.flatMap((x) => x.mechs.map((y) => y.status));
+      return { ...u, status: all.sort((a, b) => rank[a] - rank[b])[0] || 'none' };
+    });
+}
+
+// Дія для меха в хабі: створити (є файл, немає актора) або синхронізувати (білд новіший).
+export function mechAction(row) {
+  if (row.status === 'none') return row.m.hasProfile ? 'create' : null;
+  if (row.status === 'pending') return 'sync';
+  return null;
+}
+
+// Знімок стану бою перед повторним імпортом білду: імпорт (і модулі на кшталт Lancer Comp/Con
+// Sync) наповнює ХП, структуру, стрес, ремкомплекти й скидає тепло — після імпорту знімок
+// повертається. Предмети — за назвою, по порядку (дві однакові зброї — дві позиції).
+export const SNAPSHOT_PILOT = ['system.hp.value', 'system.bond_state.stress.value', 'system.level'];
+export const SNAPSHOT_MECH = [
+  'system.hp.value', 'system.repairs.value', 'system.structure.value', 'system.stress.value',
+  'system.heat.value', 'system.burn', 'system.overshield.value', 'system.overcharge', 'system.core_energy',
+];
+
+export function takeSnapshot(actor, paths) {
+  const out = {};
+  for (const p of paths) {
+    const v = get(actor, p);
+    if (v !== undefined) out[p] = v;
+  }
+  return out;
+}
+
+export function snapshotItems(items) {
+  const out = {};
+  for (const it of items || []) {
+    (out[norm(it.name)] ||= []).push({ uses: get(it, 'system.uses.value'), destroyed: get(it, 'system.destroyed') });
+  }
+  return out;
+}
+
+// Оновлення предметів після імпорту: для кожного предмета з тією ж назвою — заряди й «знищено»
+// зі знімка. Нові предмети (немає в знімку) лишаються як з імпорту.
+export function restoreItemUpdates(snap, items) {
+  const used = {};
+  const updates = [];
+  for (const it of items || []) {
+    const k = norm(it.name);
+    const i = used[k] = (used[k] ?? -1) + 1;
+    const s = snap[k]?.[i];
+    if (!s) continue;
+    const u = { _id: it._id ?? it.id };
+    if (s.uses !== undefined && get(it, 'system.uses.value') !== undefined && s.uses !== get(it, 'system.uses.value')) u['system.uses.value'] = s.uses;
+    if (s.destroyed !== undefined && !!s.destroyed !== !!get(it, 'system.destroyed')) u['system.destroyed'] = !!s.destroyed;
+    if (Object.keys(u).length > 1) updates.push(u);
+  }
+  return updates;
+}
+
+// Оновлення актора зі знімка — лише те, що змінилось.
+export function restoreUpdate(snap, actor) {
+  const u = {};
+  for (const [p, v] of Object.entries(snap)) if (get(actor, p) !== v) u[p] = v;
+  return u;
 }
