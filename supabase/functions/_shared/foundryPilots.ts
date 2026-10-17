@@ -2,6 +2,7 @@
 // пілоти у формі, яку бачить модуль Foundry, файл COMP/CON меха і звіт зв'язків мехів.
 
 import { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { importCloudArt } from './compconArt.ts';
 
 export function num(v: unknown) {
   const n = Number(v);
@@ -278,7 +279,9 @@ export async function acceptCompcon(db: SupabaseClient, pilotId: string, b: any)
     const { error: e2 } = await db.from('pilot_compcon').upsert(rows, { onConflict: 'pilot_id,mech_id' });
     if (e2) return { ok: true, updatedAt: saved[0].updated_at, error: `файли для Foundry не збережено: ${e2.message}` };
   }
-  return { ok: true, updatedAt: saved[0].updated_at };
+  // Арти з хмари COMP/CON — лише туди, де в апці арту ще немає. Збій не скасовує прийняття.
+  const art = await importCloudArt(db, pilotId, profiles).catch((err) => ({ added: 0, errors: [String(err)] }));
+  return { ok: true, updatedAt: saved[0].updated_at, art: art.added, ...(art.errors.length ? { error: art.errors.join('; ') } : {}) };
 }
 
 // Тимчасові посилання на арти з апки (art_uploads.id → url) — хаб модуля показує портрети й арти

@@ -94,6 +94,13 @@ export default function PilotProfilePage() {
   const [compconFiles, setCompconFiles] = useState(null);
   const [foundryLinks, setFoundryLinks] = useState({});
   const loadCompconFiles = () => api.listCompconProfiles(id).then(setCompconFiles).catch(() => setCompconFiles({}));
+  // Після прийняття версії COMP/CON: файли мехів і арти з хмари COMP/CON (лише туди, де арту ще немає).
+  const afterCompcon = () => {
+    loadCompconFiles();
+    api.importCompconArt(id)
+      .then((r) => (r?.added ? api.listPilotArt(id).then(setArt) : null))
+      .catch(() => {});
+  };
 
   const saveTimer = useRef(null);
   const isFirstStateSet = useRef(true);
@@ -203,7 +210,7 @@ export default function PilotProfilePage() {
     dispatch,
     pilotId: id,
     slots: mechSlots(state?.hangar?.owned),
-    onSaved: loadCompconFiles,
+    onSaved: afterCompcon,
   });
 
   // Файл, завантажений на сторінці пілотів для цього пілота: імпортуємо тут, де є слоти.

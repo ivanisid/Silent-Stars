@@ -285,6 +285,14 @@ export const api = {
     return data;
   },
 
+  // Арти з хмари COMP/CON (посилання у файлах COMP/CON пілота) — туди, де в апці арту ще немає.
+  // → { added, errors }
+  importCompconArt: async (pilotId) => {
+    const { data, error } = await supabase.functions.invoke('compcon-code', { body: { action: 'art', pilotId } });
+    if (error) throw await readFunctionError(error);
+    return data;
+  },
+
   // Які мехи пілота мають збережений файл COMP/CON і коли його оновлено: { [mechId]: updated_at }.
   listCompconProfiles: async (pilotId) => {
     const { data, error } = await supabase.from('pilot_compcon').select('mech_id, updated_at').eq('pilot_id', pilotId);
