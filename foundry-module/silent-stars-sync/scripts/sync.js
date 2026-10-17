@@ -390,6 +390,8 @@ export function economyUpdate(p, actor) {
     next.policies = Array.isArray(p.policies) ? p.policies.map(String) : [];
   }
   if (p.shopUrl !== undefined) next.shopUrl = p.shopUrl || '';
+  // Є share code — у вкладці STATUS кнопка синхронізації з COMP/CON.
+  if (p.ccLinked !== undefined) next.ccLinked = !!p.ccLinked;
   // Порівнюємо лише ключі next: Foundry зливає об'єкт прапорця з наявним, тож зайві старі
   // ключі не зникають і повне порівняння оновлювало б актора щоцикл.
   const cur = get(actor, `flags.${MODULE}.economy`) || {};

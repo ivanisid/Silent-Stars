@@ -344,6 +344,15 @@ export const api = {
     return () => supabase.removeChannel(channel);
   },
 
+  // Звіт зв'язків мехів з Foundry (модуль замінює рядки світу: delete + insert).
+  subscribeFoundryLinks: (pilotId, onChange) => {
+    const channel = supabase
+      .channel(`links-${pilotId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'foundry_mech_links', filter: `pilot_id=eq.${pilotId}` }, onChange)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  },
+
   // Оновлення рядка пілота (зокрема зміни з Foundry через foundry-sync). RLS діє і тут.
   subscribePilot: (pilotId, onChange) => {
     const channel = supabase

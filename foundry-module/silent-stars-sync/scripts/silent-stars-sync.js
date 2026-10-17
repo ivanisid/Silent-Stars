@@ -1112,6 +1112,30 @@ const HUB_CSS = `
 const HUB_INK = { pending: '#e0a43a', ready: '#5cb87a', none: '#8a8a8a' };
 const HUB_FILTERS = ['pending', 'ready', 'none'];
 
+const canCreateActors = () => game.user.isGM || game.user.can('ACTOR_CREATE');
+
+// Одна дія на мех: немає актора — створити (якщо можна), актор зі старим білдом — оновити.
+const doable = (act) => act === 'sync' || (act === 'create' && canCreateActors());
+
+const mechActorFor = (pid, mid) => mechActors().find((a) => flag(a, 'pilotId') === pid && flag(a, 'mechId') === mid);
+
+// Актори для мехів, які пропускає want(p, m): створити тих, кого немає, оновити тих, у кого
+// старий білд. → скільки мехів оброблено.
+async function applyActors(pilots, want) {
+  const todo = hubModel(pilots || [], mechActorFor).flatMap((u) => u.pilots.flatMap(({ p, mechs }) => mechs
+    .map((r) => ({ p, m: r.m, act: mechAction(r) }))
+    .filter((x) => doable(x.act) && want(x.p, x.m))));
+  for (const { p, m, act } of todo) {
+    try {
+      await (act === 'create' ? createFromApp : rebuildFromApp)(p, m);
+    } catch (err) {
+      console.error(`${MODULE} |`, err);
+      ui.notifications.error(`Silent Stars: ${m.name}: ${err.message}`);
+    }
+  }
+  return todo.length;
+}
+
 class HubApp extends ApplicationV2 {
   static DEFAULT_OPTIONS = {
     id: `${MODULE}-hub`,
@@ -1167,8 +1191,7 @@ class HubApp extends ApplicationV2 {
   }
 
   model() {
-    const actorFor = (pid, mid) => mechActors().find((a) => flag(a, 'pilotId') === pid && flag(a, 'mechId') === mid);
-    return hubModel(this.pilots || [], actorFor);
+    return hubModel(this.pilots || [], mechActorFor);
   }
 
   // Рядки, що проходять пошук і фільтр статусу.
@@ -1343,12 +1366,11 @@ class HubApp extends ApplicationV2 {
   }
 
   get canCreate() {
-    return game.user.isGM || game.user.can('ACTOR_CREATE');
+    return canCreateActors();
   }
 
-  // Одна дія на мех: немає актора — створити (якщо можна), актор зі старим білдом — оновити.
   doable(act) {
-    return act === 'sync' || (act === 'create' && this.canCreate);
+    return doable(act);
   }
 
   // Галочка: є дія з актором, або пілот прив'язаний до COMP/CON (там може бути нова версія).
@@ -1386,18 +1408,8 @@ class HubApp extends ApplicationV2 {
       }
       if (synced.size) this.pilots = (await appCall({ action: 'pull' })).pilots;
       const keys = new Set(list.map((x) => `${x.p.id}:${x.m.id}`));
-      const todo = this.model().flatMap((u) => u.pilots.flatMap(({ p, mechs }) => mechs
-        .map((r) => ({ p, m: r.m, act: mechAction(r) }))
-        .filter((x) => this.doable(x.act) && (keys.has(`${p.id}:${x.m.id}`) || synced.has(p.id)))));
-      for (const { p, m, act } of todo) {
-        try {
-          await (act === 'create' ? createFromApp : rebuildFromApp)(p, m);
-        } catch (err) {
-          console.error(`${MODULE} |`, err);
-          ui.notifications.error(`Silent Stars: ${m.name}: ${err.message}`);
-        }
-      }
-      if (!synced.size && !todo.length) ui.notifications.info('COMP/CON: нової версії немає.');
+      const done = await applyActors(this.pilots, (p, m) => keys.has(`${p.id}:${m.id}`) || synced.has(p.id));
+      if (!synced.size && !done) ui.notifications.info('COMP/CON: нової версії немає.');
     } catch (err) {
       console.error(`${MODULE} |`, err);
       ui.notifications.error(`Silent Stars: ${err.message}`);
@@ -1435,12 +1447,56 @@ Hooks.on('renderActorDirectory', (_app, html) => {
   }
 });
 
+// Кнопка синхронізації з COMP/CON у вкладці STATUS — те саме, що кнопка хабу, для одного пілота:
+// нова версія з COMP/CON, потім актори його мехів. Гравцю без сесії апки — хаб із входом.
+let sheetBusy = false;
+async function syncFromSheet(actor, button) {
+  if (sheetBusy) return;
+  if (!game.user.isGM && !appSession()) {
+    new HubApp().render(true);
+    return;
+  }
+  sheetBusy = true;
+  button.disabled = true;
+  try {
+    let pilots = (await appCall({ action: 'pull' })).pilots;
+    const p = pilots.find((x) => x.id === flag(actor, 'pilotId'));
+    if (!p) throw new Error('пілота немає в апці.');
+    const synced = p.ccLinked && (await syncFromCompcon(p, { quiet: true }));
+    if (synced) pilots = (await appCall({ action: 'pull' })).pilots;
+    const done = await applyActors(pilots, (x) => x.id === p.id);
+    if (!synced && !done) ui.notifications.info('COMP/CON: нової версії немає.');
+    if (!game.user.isGM) {
+      await reportPlayerLinks(pilots).catch((err) => console.warn(`${MODULE} | links:`, err));
+      await refreshPlayerEconomy(pilots).catch((err) => console.warn(`${MODULE} | economy:`, err));
+    }
+  } catch (err) {
+    console.error(`${MODULE} |`, err);
+    ui.notifications.error(`Silent Stars: ${err.message}`);
+  }
+  sheetBusy = false;
+  button.disabled = false;
+}
+
+function compconButton(actor, cls) {
+  const b = node('button', cls, 'СИНХРОНІЗУВАТИ ЗМІНИ З COMP/CON');
+  b.type = 'button';
+  b.disabled = sheetBusy;
+  b.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    syncFromSheet(actor, b);
+  });
+  return b;
+}
+
 // ----- Вкладка <FERUM-VOX//STATUS> у чаркуші пілота -----
 //
 // Мана, PR, страхові поліси й посилання на магазин апки. Значення бере з прапорця economy,
 // який пише цикл синхронізації ГМа, тож гравцю не потрібні ні ключ, ні запити до апки. Зміна
 // прапорця оновлює актора — чаркуш перемальовується сам. Без прапорця (актор не зв'язаний,
 // стара функція foundry-sync) вкладки немає.
+// Кнопка синхронізації з COMP/CON (пілот із share code, власник актора) ходить в апку — ГМ
+// ключем синхронізації, гравець сесією хабу.
 //
 // Системний чаркуш Lancer (nav.lancer-tabs + .sheet-body): вкладка додається сьомою, розмітка —
 // класами самої системи (stat-card, lancer-header, lancer-button). Чаркуш без таких вкладок
@@ -1459,6 +1515,8 @@ const ECONOMY_CSS = `
 .ss-economy .pol { font-weight: 600; }
 .ss-economy .shop { margin-left: auto; padding: 1px 8px; font-size: 11px; letter-spacing: 1.5px; color: inherit; text-decoration: none; border: 1px solid color-mix(in srgb, currentColor 40%, transparent); }
 .ss-economy .shop:hover { border-color: currentColor; }
+.ss-economy button.shop { width: auto; height: auto; line-height: inherit; background: none; cursor: pointer; }
+.ss-economy .shop + .shop { margin-left: 0; }
 `;
 
 function node(tag, cls, text) {
@@ -1487,7 +1545,7 @@ function statCard(title, value) {
   return card;
 }
 
-function statusTab(e) {
+function statusTab(e, actor) {
   const tab = node('div', 'tab flexcol ss-status-body');
   tab.dataset.group = 'primary';
   tab.dataset.tab = STATUS_TAB;
@@ -1508,15 +1566,17 @@ function statusTab(e) {
   // Магазин — у профілі пілота в апці (там і вся логіка покупок); результат повертається
   // в актора наступним циклом синхронізації.
   if (e.shopUrl) tab.append(shopLink(e.shopUrl, 'lancer-button lancer-tech flexrow ss-shop'));
+  if (e.ccLinked && actor.isOwner) tab.append(compconButton(actor, 'lancer-button lancer-tech flexrow ss-shop'));
   return tab;
 }
 
-function statusRow(e) {
+function statusRow(e, actor) {
   const row = node('div', 'ss-economy');
   row.append(node('span', 'k', 'МАНА'), node('b', '', String(Number(e.mana) || 0)));
   row.append(node('span', 'k', 'PR'), node('b', '', String(Number(e.pr) || 0)), node('small', '', `/${Number(e.prCap) || 0}`));
   if (e.insured) row.append(node('span', 'k', 'ПОЛІСИ'), node('b', 'pol', e.policies?.length ? e.policies.join(' · ') : '—'));
   if (e.shopUrl) row.append(shopLink(e.shopUrl, 'shop'));
+  if (e.ccLinked && actor.isOwner) row.append(compconButton(actor, 'shop'));
   return row;
 }
 
@@ -1542,7 +1602,7 @@ function renderEconomy(app, html) {
     const link = node('a', 'item lancer-tab medium', '<FERUM-VOX//STATUS>');
     link.dataset.tab = STATUS_TAB;
     nav.append(link);
-    const tab = statusTab(e);
+    const tab = statusTab(e, actor);
     body.append(tab);
     // Перемикає вкладки контролер Tabs самого чаркуша (делегування кліку в nav). Після
     // перемальовування він відновлює активну вкладку ще до цього хука, коли нашої ще немає, —
@@ -1556,7 +1616,7 @@ function renderEconomy(app, html) {
 
   const content = root.querySelector('.window-content') ?? root;
   content.querySelector(':scope > .ss-economy')?.remove();
-  content.prepend(statusRow(e));
+  content.prepend(statusRow(e, actor));
 }
 
 Hooks.on('renderActorSheet', renderEconomy);

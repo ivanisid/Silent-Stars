@@ -135,14 +135,34 @@ export default function PilotProfilePage() {
 
   useEffect(() => {
     loadCompconFiles();
-    api.listFoundryLinks(id).then(setFoundryLinks);
+    let cancelled = false;
+    let timer = null;
+    const load = () => api.listFoundryLinks(id).then((l) => !cancelled && setFoundryLinks(l));
+    load();
+    // Звіт з Foundry — пачка рядків; перечитуємо один раз після неї.
+    const unsubscribe = api.subscribeFoundryLinks(id, () => {
+      clearTimeout(timer);
+      timer = setTimeout(load, 500);
+    });
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Бій у Foundry (ХП, структура, заряди…) записує функція foundry-sync. Вливаємо ці
-  // поля в стан у пам'яті, щоб автозбереження не затерло їх старими значеннями.
+  // поля в стан у пам'яті, щоб автозбереження не затерло їх старими значеннями. Версію
+  // COMP/CON, прийняту у Foundry (compconSyncAt), супроводжують нові файли мехів.
+  const compconSyncAt = useRef(null);
   useEffect(() => api.subscribePilot(id, (row) => {
-    if (row?.state) dispatch({ type: '__FOUNDRY__', state: row.state });
+    if (!row?.state) return;
+    dispatch({ type: '__FOUNDRY__', state: row.state });
+    const at = row.state.compconSyncAt || null;
+    if (at && at !== compconSyncAt.current) loadCompconFiles();
+    compconSyncAt.current = at;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [id]);
 
   const own = pilot?.user_id === user?.id;

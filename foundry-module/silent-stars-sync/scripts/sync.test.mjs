@@ -370,6 +370,13 @@ test('economyUpdate: адреса магазину', () => {
   assert.deepEqual(economyUpdate({ ...p, shopUrl: null }, { flags: {} }), { [`flags.${MODULE}.economy`]: { mana: 1, pr: 2, prCap: 100, shopUrl: '' } });
 });
 
+test('economyUpdate: прив\'язка до COMP/CON', () => {
+  const p = { mana: 1, pr: 2, prCap: 100, ccLinked: true };
+  assert.deepEqual(economyUpdate(p, { flags: {} }), { [`flags.${MODULE}.economy`]: { mana: 1, pr: 2, prCap: 100, ccLinked: true } });
+  assert.deepEqual(economyUpdate({ ...p, ccLinked: false }, { flags: { [MODULE]: { economy: { mana: 1, pr: 2, prCap: 100, ccLinked: true } } } }),
+    { [`flags.${MODULE}.economy`]: { mana: 1, pr: 2, prCap: 100, ccLinked: false } });
+});
+
 test('economyUpdate: поліси — лише з полем insured', () => {
   const p = { mana: 10, pr: 5, prCap: 100, insured: true, policies: ['Full recover'] };
   const flag = { mana: 10, pr: 5, prCap: 100, insured: true, policies: ['Full recover'] };
