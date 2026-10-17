@@ -75,6 +75,20 @@
    меха й зберегти стан з апки (`mergeMechState`), зберегти файл на кожного меха
    (`pilot_compcon`), а модуль — створити з файлу актора.
 
+7. **Share code перевірено** (17.10.2026, код тестового пілота користувача):
+   - `GET https://api.compcon.app/v3/code?codes=["<код>"]&scope=items` із заголовком
+     `x-api-key` (ключ із системи Lancer, `src/module/util/compcon.ts`) → `200`, масив
+     `[{ code, uri, sortkey, name, author, version: 3, created, item_modified, updated, size }]`.
+     Та сама відповідь — з адреси й ключа модуля Lancer Comp/Con Sync (`…execute-api…/prod/code`).
+     Вхід не потрібен.
+   - `GET https://ds69h3g1zxwgy.cloudfront.net/<uri>` → `200`, файл пілота **v3 без обгортки**
+     (`itemType: "pilot"`, `id`, `level`, `callsign`, `name`, `mechs[]` з `frame`, `loadouts`, …).
+   - Версія для порівняння — `updated` (мс) з відповіді `/code`; у файлі — `save.lastModified`
+     (= `item_modified`).
+   - Імпорт апки (`mapCompconPilot`) приймає лише експорт-обгортку
+     `{ EXPORT_TYPE: "Save Pilot", data }`. Той самий файл, загорнутий так, імпортується без
+     змін коду (перевірено: пілот, LL, мех, фрейм, ХП, 7 предметів).
+
 ## 1. Хто джерело правди
 
 | Дані | Джерело | Куди йде |
