@@ -29,7 +29,7 @@ export default function CompconSync({ state, dispatch, importCompcon, onMessage 
       const r = await api.fetchCompconByCode(c);
       if (c === link.code && r.updated === link.version) {
         dispatch({ type: 'SET_COMPCON_LINK', patch: { checkedAt: now, error: '' } });
-        onMessage({ ok: true, text: `COMP/CON «${r.name}»: нової версії немає.` });
+        onMessage({ ok: true, text: 'COMP/CON: нової версії немає.' });
         return;
       }
       const json = wrapCloudPilot(r.data);
