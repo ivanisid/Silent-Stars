@@ -8,6 +8,7 @@ import {
   linksKey, linksDecision, LINKS_REFRESH_MS, economyUpdate,
   buildStatus, buildBaseline, hubModel, mechAction, takeSnapshot, snapshotItems, restoreItemUpdates, restoreUpdate, SNAPSHOT_MECH,
   nickToEmail, appBase, sessionFrom, sessionStale, linksFor, ownerUpdate, OWNER,
+  pilotBuildKey, actorBuildKey, folderPath, findFolder, ROOT_FOLDER,
 } from './sync.js';
 import { createHash } from 'node:crypto';
 
@@ -492,6 +493,58 @@ test('власник актора: OWNER лише якщо ще немає', () 
   assert.deepEqual(ownerUpdate({ f1: 2 }, 'f1'), { 'ownership.f1': OWNER });
   assert.equal(ownerUpdate({ f1: 3 }, 'f1'), null);
   assert.equal(ownerUpdate({}, null), null);
+});
+
+// ----- Один актор-пілот на кілька мехів -----
+
+const ccFile = (over = {}) => ({ EXPORT_TYPE: 'Save Pilot', data: {
+  talents: [{ id: 't_ace', rank: 3 }, { id: 't_duelist', rank: 1 }],
+  skills: [{ id: 'sk_spot', rank: 1 }, { id: 'Своє', custom: true, rank: 2 }],
+  core_bonuses: [{ id: 'cb_auto_stabilizing_hardpoints' }], mechSkills: [2, 0, 0, 2], ...over,
+} });
+const lancerPilot = (over = {}) => ({
+  system: { hull: 2, agi: 0, sys: 0, eng: 2 },
+  items: { contents: [
+    { type: 'talent', system: { lid: 't_duelist', curr_rank: 1 } },
+    { type: 'talent', system: { lid: 't_ace', curr_rank: 3 } },
+    { type: 'skill', system: { lid: 'sk_spot', curr_rank: 1 } },
+    { type: 'skill', system: { curr_rank: 2 } },
+    { type: 'core_bonus', system: { lid: 'cb_auto_stabilizing_hardpoints' } },
+    { type: 'pilot_gear', system: { lid: 'pg_x' } },
+    ...(over.items || []),
+  ] },
+});
+
+test('збірка пілота: файл і актор Lancer дають той самий ключ', () => {
+  assert.equal(pilotBuildKey(ccFile()), actorBuildKey(lancerPilot()));
+  assert.equal(pilotBuildKey(ccFile().data), pilotBuildKey(ccFile()));
+});
+
+test('збірка пілота: інший ранг таланту, HASE чи кор-бонус — інший ключ', () => {
+  const k = actorBuildKey(lancerPilot());
+  assert.notEqual(pilotBuildKey(ccFile({ talents: [{ id: 't_ace', rank: 2 }, { id: 't_duelist', rank: 1 }] })), k);
+  assert.notEqual(pilotBuildKey(ccFile({ mechSkills: [1, 1, 0, 2] })), k);
+  assert.notEqual(pilotBuildKey(ccFile({ core_bonuses: [] })), k);
+  assert.equal(pilotBuildKey(ccFile({ core_bonuses: ['cb_auto_stabilizing_hardpoints'] })), k);
+});
+
+test('папки: FERUM VOX / нік / позивний / мех', () => {
+  const path = folderPath({ id: 'p1', userId: 'u1', player: 'Ivanus', callsign: 'Blacksmith', name: 'Bell' }, { id: 'm1', name: 'Kidd' });
+  assert.deepEqual(path.map((s) => s.name), [ROOT_FOLDER, 'Ivanus', 'Blacksmith', 'Kidd']);
+  assert.deepEqual(path.map((s) => s.key), ['root', 'user:u1', 'pilot:p1', 'mech:p1:m1']);
+});
+
+test('папки: спершу за ключем, далі за назвою без ключа, лише під своїм батьком', () => {
+  const folders = [
+    { id: 'r', name: 'Ferum Vox', parent: null },
+    { id: 'a', name: 'Ivanus', parent: 'r', key: 'user:u1' },
+    { id: 'b', name: 'Ivanus', parent: 'r' },
+    { id: 'c', name: 'Blacksmith', parent: 'x', key: 'pilot:p1' },
+  ];
+  assert.equal(findFolder(folders, null, { key: 'root', name: ROOT_FOLDER }).id, 'r');
+  assert.equal(findFolder(folders, 'r', { key: 'user:u1', name: 'нове ім\'я' }).id, 'a');
+  assert.equal(findFolder(folders, 'r', { key: 'user:u2', name: 'ivanus' }).id, 'b');
+  assert.equal(findFolder(folders, 'r', { key: 'pilot:p1', name: 'Blacksmith' }), null);
 });
 
 console.log(`\n${n} тестів пройдено`);
