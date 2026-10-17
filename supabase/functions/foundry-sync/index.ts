@@ -7,8 +7,8 @@
 //
 //   POST { action: 'pull' }
 //     → { pilots: [...], fingerprint } — усі пілоти з полями, які синхронізуються (див.
-//       toSyncPilot; mana, pr, prCap, policies — лише для показу), і відбиток усіх даних,
-//       які віддає pull.
+//       toSyncPilot; mana, pr, prCap, policies — лише для показу; shopUrl — магазин пілота
+//       в апці, з секрету APP_URL), і відбиток усіх даних, які віддає pull.
 //
 //   POST { action: 'ping' }
 //     → { fingerprint } — той самий відбиток без читання state пілотів. Збігся з відбитком
@@ -106,6 +106,9 @@ function toSyncMech(m: any, art: Art, pilotId: string, profiles: Set<string>) {
   };
 }
 
+// Адреса апки (той самий секрет, що й для кнопок у Discord) — для кнопки МАГАЗИН у Foundry.
+const APP_URL = (Deno.env.get('APP_URL') || '').replace(/\/+$/, '');
+
 // Каталог магазину (shop_items, shop_settings) — для капу PR і назв страхових полісів.
 type Shop = { items: Map<string, any>; capBase: number };
 
@@ -157,6 +160,7 @@ function toSyncPilot(p: any, nicks: Map<string, string>, art: Art, profiles: Set
     // Поліси показуються лише зі «Страховим фондом» (insure) — без нього вкладки страховки немає.
     insured: num(s.hangar?.owned?.insure) >= 1,
     policies: policiesOf(s, shop),
+    shopUrl: APP_URL ? `${APP_URL}/pilots/${p.id}?shop=repair` : null,
     bondXp: num(s.bond?.xp),
     bondChecks: Array.from({ length: 5 }, (_, i) => !!s.bond?.checks?.[i]),
     bondPick: num(s.bond?.pick),

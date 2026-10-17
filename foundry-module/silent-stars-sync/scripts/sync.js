@@ -381,7 +381,7 @@ export function pilotIdentityUpdate(p, actor) {
 // Мана, PR і страхові поліси пілота — лише з апки в прапорець актора (у Lancer таких полів
 // немає); чаркуш пілота показує їх усім, хто бачить актора. Стара функція foundry-sync їх не
 // віддає — тоді прапорець не чіпаємо. Без полів insured / policies (функція до 0.12.0) —
-// лише мана й PR.
+// лише мана й PR. shopUrl — магазин пілота в апці (порожній, якщо у функції немає APP_URL).
 export function economyUpdate(p, actor) {
   if (p.mana == null || p.pr == null) return {};
   const next = { mana: int(p.mana), pr: int(p.pr), prCap: int(p.prCap) };
@@ -389,6 +389,7 @@ export function economyUpdate(p, actor) {
     next.insured = !!p.insured;
     next.policies = Array.isArray(p.policies) ? p.policies.map(String) : [];
   }
+  if (p.shopUrl !== undefined) next.shopUrl = p.shopUrl || '';
   // Порівнюємо лише ключі next: Foundry зливає об'єкт прапорця з наявним, тож зайві старі
   // ключі не зникають і повне порівняння оновлювало б актора щоцикл.
   const cur = get(actor, `flags.${MODULE}.economy`) || {};

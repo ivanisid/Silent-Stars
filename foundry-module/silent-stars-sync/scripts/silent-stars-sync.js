@@ -648,7 +648,7 @@ class LinksApp extends ApplicationV2 {
   }
 }
 
-// ----- Мана, PR і страховка в чаркуші пілота -----
+// ----- Мана, PR, страховка й магазин у чаркуші пілота -----
 //
 // Рядок угорі вікна будь-якого чаркуша пілота (системного Lancer, Alternative Sheets тощо):
 // значення бере з прапорця economy, який пише цикл синхронізації ГМа, тож гравцю не
@@ -661,6 +661,8 @@ const ECONOMY_CSS = `
 .ss-economy b:first-of-type { margin-right: 10px; }
 .ss-economy small { opacity: .75; margin-right: 10px; }
 .ss-economy .pol { font-weight: 600; }
+.ss-economy .shop { margin-left: auto; padding: 1px 8px; font-size: 11px; letter-spacing: 1.5px; color: inherit; text-decoration: none; border: 1px solid color-mix(in srgb, currentColor 40%, transparent); }
+.ss-economy .shop:hover { border-color: currentColor; }
 `;
 
 function renderEconomy(app, html) {
@@ -694,6 +696,17 @@ function renderEconomy(app, html) {
   if (e.insured) {
     add('span', 'k', 'ПОЛІСИ');
     add('b', 'pol', e.policies?.length ? e.policies.join(' · ') : '—');
+  }
+  // Магазин — у профілі пілота в апці (там і вся логіка покупок); результат повертається
+  // в актора наступним циклом синхронізації.
+  if (e.shopUrl) {
+    const a = document.createElement('a');
+    a.className = 'shop';
+    a.href = e.shopUrl;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = 'МАГАЗИН';
+    row.append(a);
   }
   content.prepend(row);
 }

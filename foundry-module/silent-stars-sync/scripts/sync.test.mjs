@@ -360,6 +360,12 @@ test('economyUpdate: мана й PR лягають у прапорець, без
   assert.deepEqual(economyUpdate({ name: 'Amon' }, { flags: {} }), {});
 });
 
+test('economyUpdate: адреса магазину', () => {
+  const p = { mana: 1, pr: 2, prCap: 100, shopUrl: 'https://a/pilots/x?shop=repair' };
+  assert.deepEqual(economyUpdate(p, { flags: {} }), { [`flags.${MODULE}.economy`]: { mana: 1, pr: 2, prCap: 100, shopUrl: p.shopUrl } });
+  assert.deepEqual(economyUpdate({ ...p, shopUrl: null }, { flags: {} }), { [`flags.${MODULE}.economy`]: { mana: 1, pr: 2, prCap: 100, shopUrl: '' } });
+});
+
 test('economyUpdate: поліси — лише з полем insured', () => {
   const p = { mana: 10, pr: 5, prCap: 100, insured: true, policies: ['Full recover'] };
   const flag = { mana: 10, pr: 5, prCap: 100, insured: true, policies: ['Full recover'] };
