@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { derivePilotView } from '../derive';
-import { compconStatus } from '../compconFile';
 import { parseAdventureLeagueCsv, summarizeAdventureLeagueLog } from '../csvImport';
 import { Menu, Panel } from '../../components/kit.jsx';
 import KkArch from '../../components/KkArch.jsx';
 import { useThemeState } from '../../theme';
 import ArtSlot from './ArtSlot.jsx';
+import CompconSync from './CompconSync.jsx';
 import PilotGames from './PilotGames.jsx';
 
 function mechsLine(mechs) {
@@ -21,7 +21,7 @@ const lastImport = new Map();
 // Профіль пілота: ім'я, позивний і мехи, бекграунд, ТІР/статус, меню «⋯» (імпорт і
 // правки), рядок ЛЛ з покупкою рівня, ігри пілота і портрет праворуч. Під панеллю —
 // кнопки імпорту зі статусом останнього завантаження.
-export default function Header({ pilot, state, dispatch, onSaveMeta, games, portrait, canEditArt, onUploadPortrait, onRemoveArt, compconFiles, importCompcon, importNote }) {
+export default function Header({ pilot, state, dispatch, onSaveMeta, games, portrait, canEditArt, onUploadPortrait, onRemoveArt, importCompcon, importNote }) {
   const view = derivePilotView(state);
   const { theme, house } = useThemeState();
   const [editingMeta, setEditingMeta] = useState(false);
@@ -80,9 +80,6 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
       setImportMsg({ ok: false, text: err.message });
     }
   }
-
-  const cc = compconStatus(state.mechs, compconFiles);
-  const ccTone = cc.kind === 'ok' ? 'ok' : cc.kind === 'partial' ? 'warn' : cc.kind === 'loading' ? '' : 'bad';
 
   function pickJson() {
     jsonRef.current?.click();
@@ -230,19 +227,10 @@ export default function Header({ pilot, state, dispatch, onSaveMeta, games, port
       </div>
     </Panel>
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: -8 }}>
+      <CompconSync state={state} dispatch={dispatch} importCompcon={importCompcon} onMessage={setImportMsg} />
       <button className="btn-ghost" type="button" title="Завантажити файл COMP/CON (Save Pilot): пілот, мехи й бонд. Мех лягає у свій слот ангару (стан HP, зарядів зберігається); кілька мехів у файлі — оберете, який у який слот. З файлу ГМ створює актора у Foundry" onClick={pickJson} style={{ fontSize: 11, padding: '6px 12px' }}>
         ОНОВИТИ З COMP/CON JSON
       </button>
-      {/* Чи лежить файл в апці (а не лише чи вантажили цієї сесії): без нього ГМ не створить актора. */}
-      <span
-        className={`ss-tag ${ccTone}`}
-        title={cc.kind === 'ok' || cc.kind === 'partial'
-          ? 'Файл COMP/CON збережено в апці — ГМ може створити з нього актора у Foundry'
-          : 'Файлу COMP/CON для мехів немає — завантажте його кнопкою ліворуч'}
-        style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}
-      >
-        {cc.kind === 'ok' ? '● ' : cc.kind === 'loading' ? '' : '○ '}{cc.text}
-      </span>
       <button className="btn-ghost" type="button" title="Завантажити дані з файлу Adventure League log" onClick={() => csvRef.current?.click()} style={{ fontSize: 11, padding: '6px 12px' }}>
         ADVENTURE LEAGUE LOG (CSV)
       </button>
