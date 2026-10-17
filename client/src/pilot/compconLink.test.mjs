@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict';
 import {
-  ccStatus, isShareCode, mechDiff, mechFoundryStatus, normalizeShareCode, pilotFoundryStatus, wrapCloudPilot,
+  buildPending, ccStatus, isShareCode, mechDiff, mechFoundryStatus, normalizeShareCode, pilotFoundryStatus, wrapCloudPilot,
   CC_ACTIVE, CC_INACTIVE, FV_NONE, FV_PARTIAL, FV_PENDING, FV_READY,
 } from './compconLink.js';
 
@@ -39,6 +39,14 @@ test('FOUNDRY меха: немає зв\'язку / потребує підтв�
   assert.equal(mechFoundryStatus(undefined, true).text, FV_NONE);
   assert.equal(mechFoundryStatus({ seenAt: 'x' }, true).text, FV_PENDING);
   assert.equal(mechFoundryStatus({ seenAt: 'x' }).text, FV_READY);
+});
+
+test('buildPending: файл новіший за версію актора; без версії — ні', () => {
+  assert.equal(buildPending({ build: Date.parse('2026-10-17T10:00:00Z') }, '2026-10-17T11:00:00Z'), true);
+  assert.equal(buildPending({ build: Date.parse('2026-10-17T11:00:00Z') }, '2026-10-17T11:00:00Z'), false);
+  assert.equal(buildPending({ build: null }, '2026-10-17T11:00:00Z'), false);
+  assert.equal(buildPending(null, '2026-10-17T11:00:00Z'), false);
+  assert.equal(buildPending({ build: 1 }, undefined), false);
 });
 
 test('FOUNDRY пілота: зміна > усі готові > частково > відсутня', () => {

@@ -295,18 +295,30 @@ export const api = {
   // Мехи пілота, зв'язані з акторами Foundry (звітує модуль, див. foundry-sync «links»):
   // { [mechId]: { actor, seenAt } }. Таблиці може ще не бути — тоді порожньо.
   listFoundryLinks: async (pilotId) => {
-    const { data, error } = await supabase.from('foundry_mech_links').select('mech_id, actor_name, seen_at').eq('pilot_id', pilotId);
-    if (error) return {};
-    return Object.fromEntries((data || []).map((r) => [String(r.mech_id), { actor: r.actor_name, seenAt: r.seen_at }]));
+    const all = await api.listFoundryLinksFor([pilotId]);
+    return all[pilotId] || {};
   },
 
   // Зв'язки мехів з акторами Foundry для кількох пілотів: { pilotId: { mechId: { actor, seenAt } } }.
+  // build — версія білду актора (мс; міграція 20261017c): без колонки читаємо без неї.
   listFoundryLinksFor: async (pilotIds) => {
     if (!pilotIds.length) return {};
-    const { data, error } = await supabase.from('foundry_mech_links').select('pilot_id, mech_id, actor_name, seen_at').in('pilot_id', pilotIds);
+    const q = (cols) => supabase.from('foundry_mech_links').select(cols).in('pilot_id', pilotIds);
+    let { data, error } = await q('pilot_id, mech_id, actor_name, seen_at, build');
+    if (error) ({ data, error } = await q('pilot_id, mech_id, actor_name, seen_at'));
     if (error) return {};
     const out = {};
-    for (const r of data || []) (out[r.pilot_id] ||= {})[String(r.mech_id)] = { actor: r.actor_name, seenAt: r.seen_at };
+    for (const r of data || []) (out[r.pilot_id] ||= {})[String(r.mech_id)] = { actor: r.actor_name, seenAt: r.seen_at, build: r.build ?? null };
+    return out;
+  },
+
+  // Час файлів COMP/CON мехів кількох пілотів: { pilotId: { mechId: updated_at } }.
+  listCompconFilesFor: async (pilotIds) => {
+    if (!pilotIds.length) return {};
+    const { data, error } = await supabase.from('pilot_compcon').select('pilot_id, mech_id, updated_at').in('pilot_id', pilotIds);
+    if (error) return {};
+    const out = {};
+    for (const r of data || []) (out[r.pilot_id] ||= {})[String(r.mech_id)] = r.updated_at;
     return out;
   },
 

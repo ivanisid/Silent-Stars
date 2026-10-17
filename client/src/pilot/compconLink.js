@@ -65,6 +65,13 @@ export function mechFoundryStatus(link, pending = false) {
   return { tone: 'ok', text: FV_READY };
 }
 
+// Актор має старішу версію білду, ніж файл меха в апці. link.build — версія актора (мс), яку
+// звітує модуль (null — модуль старий або колонки немає: невідомо, тож не «потребує»).
+export function buildPending(link, fileAt) {
+  if (!link || link.build == null || !fileAt) return false;
+  return Date.parse(fileAt) > Number(link.build);
+}
+
 // Зведений FOUNDRY пілота з усіх його мехів.
 export function pilotFoundryStatus(mechStatuses) {
   const list = mechStatuses || [];

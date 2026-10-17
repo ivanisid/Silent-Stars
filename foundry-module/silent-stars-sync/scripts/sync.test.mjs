@@ -6,6 +6,7 @@ import {
   matchGroup, suggestActors, resolveLinks, pendingMechs, mergeDestroyed, combineItemUpdates, MECH_FIELDS, PILOT_FIELDS, MODULE,
   idleDecision, MAX_IDLE_SKIPS, isFreshCreating, CREATING_TTL, syncOption, artSrc, artUpdate,
   linksKey, linksDecision, LINKS_REFRESH_MS, economyUpdate,
+  buildStatus, buildBaseline, hubModel, mechAction, takeSnapshot, snapshotItems, restoreItemUpdates, restoreUpdate, SNAPSHOT_MECH,
 } from './sync.js';
 
 let n = 0;
@@ -391,6 +392,59 @@ test('linksKey: порядок не важить', () => {
   const x = { pilotId: 'p', mechId: '1', actor: 'A' };
   const y = { pilotId: 'q', mechId: '2', actor: 'B' };
   assert.equal(linksKey([x, y]), linksKey([y, x]));
+});
+
+const withBuild = (b) => ({ flags: b == null ? {} : { [MODULE]: { build: b } } });
+
+test('buildStatus: немає актора / файл новіший / актуально', () => {
+  assert.equal(buildStatus({ build: 100 }, undefined), 'none');
+  assert.equal(buildStatus({ build: 100 }, withBuild(50)), 'pending');
+  assert.equal(buildStatus({ build: 100 }, withBuild(100)), 'ready');
+  assert.equal(buildStatus({ build: 0 }, withBuild(null)), 'ready');
+});
+
+test('buildBaseline: лише актору без версії, лише коли є файл', () => {
+  assert.deepEqual(buildBaseline({ build: 100 }, withBuild(null)), { [`flags.${MODULE}.build`]: 100 });
+  assert.equal(buildBaseline({ build: 100 }, withBuild(50)), null);
+  assert.equal(buildBaseline({ build: 0 }, withBuild(null)), null);
+  assert.equal(buildBaseline({ build: 100 }, undefined), null);
+});
+
+test('hubModel: гравці за алфавітом, без акаунту — в кінці; статус гравця — найгірший', () => {
+  const pilots = [
+    { id: 'p1', name: 'Bell', player: 'Ivanus', mechs: [{ id: 'a', build: 10, hasProfile: true }, { id: 'b', build: 10, hasProfile: true }] },
+    { id: 'p2', name: 'Emma', player: 'Ivanus', mechs: [{ id: 'c', build: 10 }] },
+    { id: 'p3', name: 'Zed', player: '', mechs: [] },
+    { id: 'p4', name: 'Ann', player: 'Alpha', mechs: [{ id: 'd', build: 10 }] },
+  ];
+  const actors = { 'p1:a': withBuild(5), 'p2:c': withBuild(10), 'p4:d': withBuild(10) };
+  const m = hubModel(pilots, (p, mm) => actors[`${p}:${mm}`]);
+  assert.deepEqual(m.map((u) => u.nick), ['Alpha', 'Ivanus', '']);
+  assert.equal(m[0].status, 'ready');
+  assert.equal(m[1].status, 'pending');
+  assert.deepEqual(m[1].pilots[0].mechs.map((x) => x.status), ['pending', 'none']);
+  assert.deepEqual(m[1].pilots[0].mechs.map(mechAction), ['sync', 'create']);
+  assert.equal(mechAction({ status: 'none', m: {} }), null);
+  assert.equal(mechAction(m[1].pilots[1].mechs[0]), null);
+});
+
+test('знімок стану меха й повернення після імпорту', () => {
+  const before = { system: { hp: { value: 4 }, structure: { value: 2 }, heat: { value: 3 }, repairs: { value: 1 } } };
+  const snap = takeSnapshot(before, SNAPSHOT_MECH);
+  assert.deepEqual(snap, { 'system.hp.value': 4, 'system.repairs.value': 1, 'system.structure.value': 2, 'system.heat.value': 3 });
+  const after = { system: { hp: { value: 12 }, structure: { value: 4 }, heat: { value: 0 }, repairs: { value: 1 } } };
+  assert.deepEqual(restoreUpdate(snap, after), { 'system.hp.value': 4, 'system.structure.value': 2, 'system.heat.value': 3 });
+});
+
+test('предмети: заряди й «знищено» за назвою і порядком, нові — як з імпорту', () => {
+  const it = (id, name, uses, destroyed) => ({ _id: id, name, system: { uses: uses == null ? undefined : { value: uses }, destroyed } });
+  const snap = snapshotItems([it('1', 'Pistol', null, true), it('2', 'Missile', 1, false), it('3', 'Missile', 0, false)]);
+  const items = [it('a', 'Pistol', null, false), it('b', 'Missile', 3, false), it('c', 'Missile', 3, false), it('d', 'Rifle', null, false)];
+  assert.deepEqual(restoreItemUpdates(snap, items), [
+    { _id: 'a', 'system.destroyed': true },
+    { _id: 'b', 'system.uses.value': 1 },
+    { _id: 'c', 'system.uses.value': 0 },
+  ]);
 });
 
 console.log(`\n${n} тестів пройдено`);
