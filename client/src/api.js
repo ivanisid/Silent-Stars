@@ -778,6 +778,17 @@ export const api = {
     return data;
   },
 
+  // Автозбереження профілю. Нову версію з COMP/CON можна прийняти й у модулі Foundry
+  // (state.compconSyncAt): збереження стану, що її ще не бачив, не записується — інакше
+  // воно затерло б прийняте. { stale: true } — спершу влити свіжий рядок (mergeFoundryState).
+  savePilotState: async (id, state) => {
+    let q = supabase.from('pilots').update({ state }).eq('id', id);
+    q = state?.compconSyncAt ? q.eq('state->>compconSyncAt', state.compconSyncAt) : q.is('state->>compconSyncAt', null);
+    const { data, error } = await q.select('id');
+    if (error) throw new Error(error.message);
+    return { stale: !data?.length };
+  },
+
   deletePilot: async (id) => {
     const { error } = await supabase.from('pilots').delete().eq('id', id);
     if (error) throw new Error(error.message);
