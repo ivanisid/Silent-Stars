@@ -45,6 +45,8 @@ function mechDiff(old, inc) {
 }
 
 // client/src/pilot/constants.js
+var MANA_BASE_COST = 1e3;
+var TIER_MANA_STEP = { 1: 100, 2: 200, 3: 500 };
 var MAX_LL = 12;
 function mechSlots(owned) {
   return 1 + ((owned?.parking || 0) >= 1 ? 1 : 0);
@@ -69,6 +71,20 @@ function nowTs() {
 }
 function clamp(n, lo, hi) {
   return Math.min(hi, Math.max(lo, n));
+}
+function llTier(ll) {
+  if (ll <= 1) return "0";
+  if (ll <= 5) return "1";
+  if (ll <= 10) return "2";
+  return "3";
+}
+function manaLevelCost(ll) {
+  if (!Number.isInteger(ll) || ll < 2 || ll >= MAX_LL) return null;
+  let cost = MANA_BASE_COST;
+  for (let target = 3; target <= ll; target++) {
+    cost += TIER_MANA_STEP[llTier(target)];
+  }
+  return cost;
 }
 function skillCapMax(ll, skillCapBonus) {
   return 6 + Math.max(0, ll - 2) + (skillCapBonus || 0);
@@ -582,6 +598,7 @@ export {
   changesText,
   defaultAssignment,
   isObvious,
+  manaLevelCost,
   mapCompconPilot,
   mechDiff,
   mechSlots,
