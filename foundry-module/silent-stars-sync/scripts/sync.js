@@ -385,12 +385,14 @@ export function pilotIdentityUpdate(p, actor) {
 export function economyUpdate(p, actor) {
   if (p.mana == null || p.pr == null) return {};
   const next = { mana: int(p.mana), pr: int(p.pr), prCap: int(p.prCap) };
+  // ЛЛ апки — шкала мани до наступного рівня (manaLevelCost з коду апки).
+  if (p.ll != null) next.ll = int(p.ll);
   if (p.insured != null) {
     next.insured = !!p.insured;
     next.policies = Array.isArray(p.policies) ? p.policies.map(String) : [];
   }
   if (p.shopUrl !== undefined) next.shopUrl = p.shopUrl || '';
-  // Є share code — у вкладці STATUS кнопка синхронізації з COMP/CON.
+  // Є share code — у рядку чаркуша кнопка синхронізації з COMP/CON.
   if (p.ccLinked !== undefined) next.ccLinked = !!p.ccLinked;
   // Порівнюємо лише ключі next: Foundry зливає об'єкт прапорця з наявним, тож зайві старі
   // ключі не зникають і повне порівняння оновлювало б актора щоцикл.

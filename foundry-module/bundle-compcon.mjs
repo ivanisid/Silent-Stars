@@ -23,6 +23,7 @@ export { mapCompconPilot } from './compconImport.js';
 export { defaultAssignment, isObvious, applyAssignment, profilesFor, changesText, slotCount } from './slotImport.js';
 export { mechSlots } from './constants.js';
 export { mechDiff, wrapCloudPilot } from './compconLink.js';
+export { manaLevelCost } from './logic.js';
 `;
 
 const stub = {

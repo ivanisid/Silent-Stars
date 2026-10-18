@@ -22,7 +22,7 @@ import {
 } from './sync.js';
 import {
   mapCompconPilot, defaultAssignment, isObvious, applyAssignment, profilesFor, changesText, slotCount, mechSlots, mechDiff,
-  wrapCloudPilot,
+  wrapCloudPilot, manaLevelCost,
 } from './compcon-core.js';
 
 const DEFAULT_URL = 'https://dmqkxxedabawnhznzlmx.supabase.co/functions/v1/foundry-sync';
@@ -1064,31 +1064,34 @@ async function rebuildFromApp(p, m) {
 // для відмічених. Вигляд гравця: вхід ніком і паролем апки, далі лише його пілоти з тими самими
 // діями — без списку гравців.
 
+// Хаб — у стилі чаркуша системи Lancer (рішення користувача 18.10.2026: «не сильно виділялось»,
+// як Lancer Comp/Con Sync): вікно з класами lancer sheet бере фон, текст і кнопки системи, а
+// кольори нижче — змінні теми Lancer (--primary-color тощо, задає body.theme-*).
 const HUB_CSS = `
 .ssh { display: flex; flex-direction: column; gap: 8px; flex: 1; height: 100%; min-height: 0; box-sizing: border-box; padding: 8px; font-size: 14px; }
 .ssh-bar { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
 .ssh-bar input[type=search] { flex: 1 1 160px; min-width: 100px; height: 30px; }
 .ssh-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; width: auto; height: 30px; padding: 0 8px; margin: 0; font-size: 12px; font-weight: 700; white-space: nowrap; line-height: 1; }
-.ssh-chip.on { outline: 2px solid #c23a48; }
+.ssh-chip.on { outline: 2px solid var(--primary-color, #991e2a); }
 .ssh-dot { width: 7px; height: 7px; transform: rotate(45deg); flex: none; display: inline-block; }
 .ssh-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 10px; }
 .ssh-users { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; padding-right: 2px; }
 .ssh-user { flex: none; display: flex; flex-direction: column; gap: 5px; align-items: stretch; justify-content: flex-start; width: 100%; height: auto !important; min-height: 0; max-height: none; margin: 0; padding: 8px 10px; text-align: left; line-height: 1.2; border-left-width: 4px; }
-.ssh-user.on { border-color: #c23a48; }
+.ssh-user.on { outline: 2px solid var(--primary-color, #991e2a); }
 .ssh-user b { font-size: 15px; }
 .ssh-pills { display: flex; flex-wrap: wrap; gap: 4px; }
-.ssh-pill { display: inline-flex; align-items: center; gap: 5px; padding: 1px 6px; font-size: 12px; border: 1px solid rgba(127,127,127,.4); }
-.ssh-main { display: flex; flex-direction: column; min-height: 0; border: 1px solid rgba(194,58,72,.6); }
-.ssh-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px; display: flex; flex-direction: column; gap: 12px; }
+.ssh-pill { display: inline-flex; align-items: center; gap: 5px; padding: 1px 6px; font-size: 12px; border: 1px solid var(--light-gray-color, rgba(127,127,127,.4)); }
+.ssh-main { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--primary-color, #991e2a); }
+.ssh-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 12px; }
 .ssh-list > div { flex: none; }
-.ssh-pilot-head { display: flex; align-items: center; gap: 8px; padding: 2px 0 4px; border-bottom: 1px solid rgba(127,127,127,.35); }
-.ssh-pilot-head b { font-size: 15px; }
-.ssh-pilot-head img { flex: none; width: 28px; height: 28px; object-fit: cover; border: 1px solid rgba(127,127,127,.4); }
-.ssh-pilot-head .cc { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
-.ssh-mech { flex: none; display: flex; align-items: center; gap: 10px; padding: 5px 8px 5px 4px; margin-top: 4px; border-left: 3px solid; background: rgba(0,0,0,.18); }
+.ssh-pilot-head { display: flex; align-items: center; gap: 8px; padding: 3px 8px 3px 3px; background: var(--primary-color, #991e2a); color: var(--light-text, #efefef); font-family: var(--header-font-family, inherit); text-transform: uppercase; }
+.ssh-pilot-head b { font-size: 14px; letter-spacing: 1px; }
+.ssh-pilot-head img { flex: none; width: 28px; height: 28px; object-fit: cover; border: 1px solid var(--light-text, #efefef); }
+.ssh-pilot-head .cc { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: 1px; }
+.ssh-mech { flex: none; display: flex; align-items: center; gap: 10px; padding: 5px 8px 5px 4px; margin-top: 4px; border-left: 3px solid; background: var(--darken-1, rgba(0,0,0,.1)); }
 .ssh-mech input[type=checkbox] { flex: none; width: 18px; height: 18px; margin: 0 4px; }
 .ssh-mech .nocheck { flex: none; width: 26px; }
-.ssh-mech img { flex: none; width: 40px; height: 40px; object-fit: cover; border: 1px solid rgba(127,127,127,.4); }
+.ssh-mech img { flex: none; width: 40px; height: 40px; object-fit: cover; border: 1px solid var(--light-gray-color, rgba(127,127,127,.4)); }
 .ssh-mech .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .ssh-mech .l1 { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
 .ssh-mech .slot { flex: none; font-size: 11px; opacity: .7; letter-spacing: 1px; }
@@ -1096,9 +1099,10 @@ const HUB_CSS = `
 .ssh-mech .l2 { display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: center; font-size: 12px; }
 .ssh-mech .st { display: inline-flex; gap: 6px; align-items: center; font-weight: 700; letter-spacing: 1px; white-space: nowrap; }
 .ssh-mech .ac { opacity: .75; white-space: nowrap; }
-.ssh-foot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px 12px 10px; border-top: 1px solid rgba(127,127,127,.35); }
+.ssh-foot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px 10px 10px; border-top: 1px solid var(--light-gray-color, rgba(127,127,127,.35)); }
 .ssh-foot.one { grid-template-columns: minmax(0, 1fr); }
 .ssh-foot button { height: 36px; margin: 0; font-weight: 700; }
+.ssh-foot button[data-action=apply]:not(:disabled) { background: var(--primary-color, #991e2a); color: var(--light-text, #efefef); }
 .ssh-status { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .ssh-status span { flex: 1; min-width: 0; opacity: .75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ssh-cols.solo { grid-template-columns: minmax(0, 1fr); }
@@ -1106,7 +1110,7 @@ const HUB_CSS = `
 .ssh-login label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; letter-spacing: 1px; }
 .ssh-login input { height: 32px; }
 .ssh-login button { height: 36px; margin: 0; font-weight: 700; }
-.ssh-err { color: var(--color-level-error, #e05a5a); }
+.ssh-err { color: var(--error-color, #b4800e); }
 `;
 
 const HUB_INK = { pending: '#e0a43a', ready: '#5cb87a', none: '#8a8a8a' };
@@ -1139,6 +1143,7 @@ async function applyActors(pilots, want) {
 class HubApp extends ApplicationV2 {
   static DEFAULT_OPTIONS = {
     id: `${MODULE}-hub`,
+    classes: ['lancer', 'sheet'],
     window: { title: 'SILENT STARS', resizable: true, icon: 'fas fa-satellite-dish' },
     position: { width: 1000, height: 720 },
     actions: {
@@ -1272,13 +1277,13 @@ class HubApp extends ApplicationV2 {
           : '<span class="nocheck"></span>';
         return `<div class="ssh-mech" style="border-left-color:${HUB_INK[r.status]}">${box}${thumb(r)}` +
           `<div class="tx"><div class="l1"><span class="slot">СЛОТ ${r.slot + 1}</span><span class="nm">${esc(r.m.name)}${r.m.frame ? ` · ${esc(r.m.frame.toUpperCase())}` : ''}</span></div>` +
-          `<div class="l2"><span class="st" style="color:${HUB_INK[r.status]}"><span class="ssh-dot" style="background:${HUB_INK[r.status]}"></span>${STATUS_TEXT[r.status]}</span>` +
+          `<div class="l2"><span class="st"><span class="ssh-dot" style="background:${HUB_INK[r.status]}"></span>${STATUS_TEXT[r.status]}</span>` +
           `${r.actor ? `<span class="ac">→ ${esc(r.actor.name)}</span>` : ''}</div></div></div>`;
       }).join('');
       const portrait = art(p.portrait, p.portraitId) ||
         pilotActors().find((a) => flag(a, 'pilotId') === p.id)?.img || 'icons/svg/mystery-man.svg';
       return `<div><div class="ssh-pilot-head"><img src="${esc(portrait)}" alt="" onerror="this.onerror=null;this.src='icons/svg/mystery-man.svg'"><b>${esc(p.name || p.callsign)}</b>` +
-        `<span style="opacity:.7">LL${esc(p.ll)}</span><span class="cc" style="color:${p.ccActive ? HUB_INK.ready : '#e05a5a'}">COMP/CON · ${cc}</span>` +
+        `<span style="opacity:.7">LL${esc(p.ll)}</span><span class="cc"><span class="ssh-dot" style="background:${p.ccActive ? HUB_INK.ready : HUB_INK.none}"></span>COMP/CON · ${cc}</span>` +
         `</div>${mechRows}</div>`;
     }).join('');
 
@@ -1447,7 +1452,7 @@ Hooks.on('renderActorDirectory', (_app, html) => {
   }
 });
 
-// Кнопка синхронізації з COMP/CON у вкладці STATUS — те саме, що кнопка хабу, для одного пілота:
+// Кнопка синхронізації з COMP/CON у рядку чаркуша пілота — те саме, що кнопка хабу, для одного пілота:
 // нова версія з COMP/CON, потім актори його мехів. Гравцю без сесії апки — хаб із входом.
 let sheetBusy = false;
 async function syncFromSheet(actor, button) {
@@ -1489,34 +1494,28 @@ function compconButton(actor, cls) {
   return b;
 }
 
-// ----- Вкладка <FERUM-VOX//STATUS> у чаркуші пілота -----
+// ----- Рядок SILENT STARS угорі чаркуша пілота -----
 //
-// Мана, PR, страхові поліси й посилання на магазин апки. Значення бере з прапорця economy,
-// який пише цикл синхронізації ГМа, тож гравцю не потрібні ні ключ, ні запити до апки. Зміна
-// прапорця оновлює актора — чаркуш перемальовується сам. Без прапорця (актор не зв'язаний,
-// стара функція foundry-sync) вкладки немає.
-// Кнопка синхронізації з COMP/CON (пілот із share code, власник актора) ходить в апку — ГМ
-// ключем синхронізації, гравець сесією хабу.
-//
-// Системний чаркуш Lancer (nav.lancer-tabs + .sheet-body): вкладка додається сьомою, розмітка —
-// класами самої системи (stat-card, lancer-header, lancer-button). Чаркуш без таких вкладок
-// (Alternative Sheets тощо) отримує той самий вміст рядком угорі вікна.
-
-const STATUS_TAB = 'ss-status';
+// Мана (шкала до наступного ЛЛ, як в апці), PR, страхові поліси, посилання на апку і кнопка
+// синхронізації з COMP/CON — одним рядком над чаркушем (рішення користувача 18.10.2026: замість
+// вкладки <FERUM-VOX//STATUS>, як у першому варіанті). Значення бере з прапорця economy, який
+// пише цикл синхронізації ГМа або хаб гравця. Зміна прапорця оновлює актора — чаркуш
+// перемальовується сам. Без прапорця (актор не зв'язаний, стара функція foundry-sync) рядка
+// немає. Кнопка синхронізації з COMP/CON (пілот із share code, власник актора) ходить в апку —
+// ГМ ключем синхронізації, гравець сесією хабу. Кольори — змінні теми Lancer.
 
 const ECONOMY_CSS = `
-.ss-status-body { gap: 8px; padding: 4px; }
-.ss-status-body .ss-policy { padding: 4px 8px; }
-.ss-status-body .ss-shop { justify-content: center; text-decoration: none; padding: 6px; }
-.ss-economy { flex: 0 0 auto; display: flex; align-items: baseline; gap: 6px; padding: 4px 10px; border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent); font-size: 13px; line-height: 1.4; }
-.ss-economy .k { font-size: 11px; letter-spacing: 1.5px; opacity: .75; }
-.ss-economy b:first-of-type { margin-right: 10px; }
-.ss-economy small { opacity: .75; margin-right: 10px; }
+.ss-economy { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 4px 10px; background: var(--darken-1, rgba(0,0,0,.1)); border-bottom: 2px solid var(--primary-color, #991e2a); font-size: 13px; line-height: 1.4; }
+.ss-economy .k { font-family: var(--header-font-family, inherit); font-size: 11px; letter-spacing: 1.5px; opacity: .8; }
+.ss-economy .grp { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; }
+.ss-economy .mana { flex: 1 1 160px; min-width: 160px; max-width: 260px; }
+.ss-economy .meter { flex: 1; min-width: 60px; height: 8px; background: var(--darken-2, rgba(0,0,0,.2)); border: 1px solid var(--primary-color, #991e2a); }
+.ss-economy .meter > div { height: 100%; background: var(--primary-color, #991e2a); }
+.ss-economy small { opacity: .8; white-space: nowrap; }
 .ss-economy .pol { font-weight: 600; }
-.ss-economy .shop { margin-left: auto; padding: 1px 8px; font-size: 11px; letter-spacing: 1.5px; color: inherit; text-decoration: none; border: 1px solid color-mix(in srgb, currentColor 40%, transparent); }
-.ss-economy .shop:hover { border-color: currentColor; }
-.ss-economy button.shop { width: auto; height: auto; line-height: inherit; background: none; cursor: pointer; }
-.ss-economy .shop + .shop { margin-left: 0; }
+.ss-economy .btns { display: inline-flex; gap: 6px; margin-left: auto; }
+.ss-economy .ssb { width: auto; height: auto; margin: 0; padding: 1px 8px; font-family: var(--header-font-family, inherit); font-size: 11px; letter-spacing: 1px; line-height: 1.6; white-space: nowrap; color: inherit; text-decoration: none; background: none; border: 1px solid var(--primary-color, #991e2a); border-radius: 0; box-shadow: none; cursor: pointer; }
+.ss-economy .ssb:hover:not(:disabled) { background: var(--primary-color, #991e2a); color: var(--light-text, #efefef); }
 `;
 
 function node(tag, cls, text) {
@@ -1526,57 +1525,46 @@ function node(tag, cls, text) {
   return n;
 }
 
-function shopLink(url, cls) {
-  const a = node('a', cls, 'МАГАЗИН');
+function appLink(url) {
+  const a = node('a', 'ssb', 'FERUM VOX APP');
   a.href = url;
   a.target = '_blank';
   a.rel = 'noopener';
   return a;
 }
 
-// Картка як stat-card системи: заголовок і значення.
-function statCard(title, value) {
-  const card = node('div', 'stat-card card clipped');
-  const head = node('div', 'lancer-header lancer-primary');
-  head.append(node('span', 'major', title));
-  const row = node('div', 'flexrow flex-center');
-  row.append(node('span', 'lancer-stat major', value));
-  card.append(head, row);
-  return card;
-}
-
-function statusTab(e, actor) {
-  const tab = node('div', 'tab flexcol ss-status-body');
-  tab.dataset.group = 'primary';
-  tab.dataset.tab = STATUS_TAB;
-  const stats = node('div', 'card clipped');
-  const row = node('div', 'flexrow');
-  row.append(statCard('МАНА', String(Number(e.mana) || 0)), statCard('PR', `${Number(e.pr) || 0} / ${Number(e.prCap) || 0}`));
-  stats.append(row);
-  tab.append(stats);
-  if (e.insured) {
-    const card = node('div', 'card clipped');
-    const head = node('div', 'lancer-header lancer-primary');
-    head.append(node('span', 'major', 'ПОЛІСИ'));
-    card.append(head);
-    const list = e.policies?.length ? e.policies : ['—'];
-    list.forEach((t) => card.append(node('div', 'ss-policy', t)));
-    tab.append(card);
-  }
-  // Магазин — у профілі пілота в апці (там і вся логіка покупок); результат повертається
-  // в актора наступним циклом синхронізації.
-  if (e.shopUrl) tab.append(shopLink(e.shopUrl, 'lancer-button lancer-tech flexrow ss-shop'));
-  if (e.ccLinked && actor.isOwner) tab.append(compconButton(actor, 'lancer-button lancer-tech flexrow ss-shop'));
-  return tab;
+// Мана відносно ціни наступного ЛЛ — як смуга під профілем пілота в апці (derivePilotView).
+function manaGroup(e) {
+  const grp = node('span', 'grp mana');
+  const mana = Number(e.mana) || 0;
+  const cost = e.ll != null ? manaLevelCost(Number(e.ll)) : null;
+  const pct = cost == null ? 100 : Math.min(100, Math.round((mana / cost) * 100));
+  const meter = node('span', 'meter');
+  const fill = node('div');
+  fill.style.width = `${pct}%`;
+  meter.append(fill);
+  grp.append(node('span', 'k', 'МАНА'), meter);
+  if (e.ll == null) grp.append(node('b', '', String(mana)));
+  else if (cost == null) grp.append(node('b', '', String(mana)), node('small', '', 'МАКСИМАЛЬНИЙ ЛЛ'));
+  else grp.append(node('small', '', `${mana} / ${cost} М`));
+  return grp;
 }
 
 function statusRow(e, actor) {
   const row = node('div', 'ss-economy');
-  row.append(node('span', 'k', 'МАНА'), node('b', '', String(Number(e.mana) || 0)));
-  row.append(node('span', 'k', 'PR'), node('b', '', String(Number(e.pr) || 0)), node('small', '', `/${Number(e.prCap) || 0}`));
-  if (e.insured) row.append(node('span', 'k', 'ПОЛІСИ'), node('b', 'pol', e.policies?.length ? e.policies.join(' · ') : '—'));
-  if (e.shopUrl) row.append(shopLink(e.shopUrl, 'shop'));
-  if (e.ccLinked && actor.isOwner) row.append(compconButton(actor, 'shop'));
+  row.append(manaGroup(e));
+  const pr = node('span', 'grp');
+  pr.append(node('span', 'k', 'PR'), node('b', '', String(Number(e.pr) || 0)), node('small', '', `/ ${Number(e.prCap) || 0}`));
+  row.append(pr);
+  if (e.insured) {
+    const pol = node('span', 'grp');
+    pol.append(node('span', 'k', 'ПОЛІСИ'), node('b', 'pol', e.policies?.length ? e.policies.join(' · ') : '—'));
+    row.append(pol);
+  }
+  const btns = node('span', 'btns');
+  if (e.shopUrl) btns.append(appLink(e.shopUrl));
+  if (e.ccLinked && actor.isOwner) btns.append(compconButton(actor, 'ssb'));
+  if (btns.childElementCount) row.append(btns);
   return row;
 }
 
@@ -1593,27 +1581,6 @@ function renderEconomy(app, html) {
     style.textContent = ECONOMY_CSS;
     document.head.append(style);
   }
-
-  const nav = root.querySelector('nav.lancer-tabs');
-  const body = root.querySelector('.sheet-body');
-  if (nav && body) {
-    nav.querySelector(`[data-tab="${STATUS_TAB}"]`)?.remove();
-    body.querySelector(`:scope > [data-tab="${STATUS_TAB}"]`)?.remove();
-    const link = node('a', 'item lancer-tab medium', '<FERUM-VOX//STATUS>');
-    link.dataset.tab = STATUS_TAB;
-    nav.append(link);
-    const tab = statusTab(e, actor);
-    body.append(tab);
-    // Перемикає вкладки контролер Tabs самого чаркуша (делегування кліку в nav). Після
-    // перемальовування він відновлює активну вкладку ще до цього хука, коли нашої ще немає, —
-    // тож позначаємо її активною самі.
-    if (app._tabs?.[0]?.active === STATUS_TAB) {
-      link.classList.add('active');
-      tab.classList.add('active');
-    }
-    return;
-  }
-
   const content = root.querySelector('.window-content') ?? root;
   content.querySelector(':scope > .ss-economy')?.remove();
   content.prepend(statusRow(e, actor));

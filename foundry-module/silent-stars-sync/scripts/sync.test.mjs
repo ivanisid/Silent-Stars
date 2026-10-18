@@ -377,6 +377,11 @@ test('economyUpdate: прив\'язка до COMP/CON', () => {
     { [`flags.${MODULE}.economy`]: { mana: 1, pr: 2, prCap: 100, ccLinked: false } });
 });
 
+test('economyUpdate: ЛЛ для шкали мани', () => {
+  assert.deepEqual(economyUpdate({ mana: 450, pr: 2, prCap: 100, ll: 3 }, { flags: {} }),
+    { [`flags.${MODULE}.economy`]: { mana: 450, pr: 2, prCap: 100, ll: 3 } });
+});
+
 test('economyUpdate: поліси — лише з полем insured', () => {
   const p = { mana: 10, pr: 5, prCap: 100, insured: true, policies: ['Full recover'] };
   const flag = { mana: 10, pr: 5, prCap: 100, insured: true, policies: ['Full recover'] };
