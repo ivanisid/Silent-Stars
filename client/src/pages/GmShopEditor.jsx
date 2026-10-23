@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { Menu, Msg, Panel } from '../components/kit.jsx';
-import { SHOP_KINDS, catalogItems, itemTitle, loadShopCatalog, shopSettings, upgradeByKey, upgradeGroups, useShopCatalog } from '../pilot/shopCatalog';
+import { SHOP_KINDS, catalogItems, costOfItem, costText, itemTitle, loadShopCatalog, shopSettings, upgradeByKey, upgradeGroups, useShopCatalog } from '../pilot/shopCatalog';
 
-// ГМ-панель, розділ «МАГАЗИН»: вкладки магазину (PRINTER / SHOP / INSURANCE) і особисті
-// покращення. Ціни, тексти й параметри, нові позиції, порядок, приховування. Після кожного
-// збереження каталог перечитується — його бачать редюсер і всі відкриті екрани.
-
-const TABS = [...SHOP_KINDS, { key: 'upgrade', title: 'ОСОБИСТІ ПОКРАЩЕННЯ', currency: ['mana', 'pr'] }];
+// ГМ-панель, розділ «МАГАЗИН»: одна сторінка з категоріями PRINTER / SHOP / INSURANCE /
+// ОСОБИСТІ ПОКРАЩЕННЯ. Ціни (PR і мана — у будь-якої позиції), тексти й параметри, нові
+// позиції, порядок, приховування. Після кожного збереження каталог перечитується — його
+// бачать редюсер і всі відкриті екрани.
 
 function Field({ label, children, style }) {
   return (
@@ -21,8 +20,8 @@ function Field({ label, children, style }) {
 const isCount = (v) => v !== '' && Number.isInteger(Number(v)) && Number(v) >= 0;
 const priceText = (it) =>
   it.key === 'refill'
-    ? Object.values(it.tiers || {}).join(' / ') + ' PR'
-    : [it.mana ? `${it.mana} М` : '', it.pr ? `${it.pr} PR` : ''].filter(Boolean).join(' + ') || '0';
+    ? Object.values(it.tiers || {}).join(' / ') + ' PR' + (it.mana ? ` + ${it.mana} М` : '')
+    : costText(costOfItem(it));
 
 // Список рядків тексту («ЕФЕКТ», «УТОЧНЕННЯ»): кожен рядок — окреме поле.
 function LinesField({ label, value, onChange }) {
@@ -67,16 +66,16 @@ function ShopItemEditor({ item, kind, onClose }) {
   const [error, setError] = useState('');
   const set = (k) => (e) => setF((cur) => ({ ...cur, [k]: e.target.value }));
   const key = item?.key || null;
-  const tab = TABS.find((t) => t.key === kind);
-  const withPr = tab.currency.includes('pr') && key !== 'refill';
-  const withMana = tab.currency.includes('mana');
+  const tab = SHOP_KINDS.find((t) => t.key === kind);
+  // PR поповнення зарядів задають щаблі, тож окремої ціни в PR у refill немає.
+  const withPr = key !== 'refill';
   const others = catalogItems('upgrade').filter((u) => u.key !== key);
   const insure2 = upgradeByKey('insure2');
 
   async function save(e) {
     e.preventDefault();
     if (!f.title.trim()) return setError('Вкажіть назву.');
-    if ((withPr && !isCount(f.pr)) || (withMana && !isCount(f.mana))) return setError('Ціна — ціле число від 0.');
+    if ((withPr && !isCount(f.pr)) || !isCount(f.mana)) return setError('Ціна — ціле число від 0.');
     let params = {};
     if (kind === 'insurance') {
       params = { desc: f.desc.trim() };
@@ -111,7 +110,7 @@ function ShopItemEditor({ item, kind, onClose }) {
         group: kind === 'upgrade' ? f.group : '',
         title: f.title,
         pr: withPr ? Number(f.pr) : 0,
-        mana: withMana ? Number(f.mana) : 0,
+        mana: Number(f.mana),
         params,
       });
       await loadShopCatalog(true);
@@ -142,11 +141,9 @@ function ShopItemEditor({ item, kind, onClose }) {
             <Field label="НАЗВА" style={{ flex: 1, minWidth: 220 }}>
               <input className="ss-input" type="text" value={f.title} onChange={set('title')} autoFocus />
             </Field>
-            {withMana && (
-              <Field label="ЦІНА, М">
-                <input className="ss-input" type="number" min={0} step={1} value={f.mana} onChange={set('mana')} style={{ width: 90 }} />
-              </Field>
-            )}
+            <Field label="ЦІНА, М">
+              <input className="ss-input" type="number" min={0} step={1} value={f.mana} onChange={set('mana')} style={{ width: 90 }} />
+            </Field>
             {withPr && (
               <Field label="ЦІНА, PR">
                 <input className="ss-input" type="number" min={0} step={1} value={f.pr} onChange={set('pr')} style={{ width: 90 }} />
@@ -269,15 +266,61 @@ function PrSettings() {
   );
 }
 
+// Одна категорія: панель зі списком позицій, порядком, меню й кнопкою додавання.
+function KindPanel({ kind, busy, run, onEdit }) {
+  const list = catalogItems(kind.key);
+  const move = (i, d) => {
+    const keys = list.map((it) => it.key);
+    [keys[i], keys[i + d]] = [keys[i + d], keys[i]];
+    return run(() => api.gmReorderShopItems(kind.key, keys));
+  };
+  return (
+    <Panel
+      tone="gm"
+      title={kind.title}
+      sub={`${list.length}`}
+      right={
+        <button className="btn-gm sm" type="button" onClick={() => onEdit(null, kind.key)}>
+          {kind.key === 'upgrade' ? '+ ДОДАТИ ПОКРАЩЕННЯ' : '+ ДОДАТИ ПОЗИЦІЮ'}
+        </button>
+      }
+    >
+      {list.map((it, i) => (
+        <div
+          key={it.key}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 14px', borderTop: i ? '1px solid var(--panel-border)' : 'none', opacity: it.archived ? 0.6 : 1 }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: '1 1 200px', minWidth: 0 }}>
+            <span style={{ fontSize: 13, color: 'var(--text-bright)' }}>{kind.key === 'shop' ? itemTitle(it) : it.title}</span>
+            <span style={{ fontSize: 10, letterSpacing: 1, color: 'var(--text-dimmer)' }}>
+              {[kind.key === 'upgrade' ? it.group : '', it.archived ? 'ПРИХОВАНО' : ''].filter(Boolean).join(' · ')}
+            </span>
+          </div>
+          <span className="num" style={{ fontSize: 12, color: 'var(--text)', whiteSpace: 'nowrap' }}>{priceText(it)}</span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button type="button" className="btn-ghost sm" disabled={busy || i === 0} onClick={() => move(i, -1)}>↑</button>
+            <button type="button" className="btn-ghost sm" disabled={busy || i === list.length - 1} onClick={() => move(i, 1)}>↓</button>
+            <Menu
+              small
+              items={[
+                { label: 'РЕДАГУВАТИ…', onClick: () => onEdit(it, kind.key) },
+                it.archived
+                  ? { label: 'ПОВЕРНУТИ В КАТАЛОГ', onClick: () => run(() => api.gmSetShopItemArchived(it.key, false)) }
+                  : { label: 'ПРИХОВАТИ', danger: true, onClick: () => run(() => api.gmSetShopItemArchived(it.key, true)) },
+              ]}
+            />
+          </div>
+        </div>
+      ))}
+    </Panel>
+  );
+}
+
 export default function GmShopSection() {
   const { loaded, error: loadError } = useShopCatalog();
-  const [kind, setKind] = useState('printer');
-  const [editing, setEditing] = useState(undefined); // undefined — закрито, null — нова позиція, обʼєкт — правка
+  const [editing, setEditing] = useState(null); // null — закрито, { item, kind } — правка (item null — нова позиція)
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-
-  const list = catalogItems(kind);
-  const tab = TABS.find((t) => t.key === kind);
 
   async function run(fn) {
     setBusy(true);
@@ -292,79 +335,16 @@ export default function GmShopSection() {
     }
   }
 
-  const move = (i, d) => {
-    const keys = list.map((it) => it.key);
-    [keys[i], keys[i + d]] = [keys[i + d], keys[i]];
-    return run(() => api.gmReorderShopItems(kind, keys));
-  };
-
   return (
     <>
-      <div className="ss-seg sm" style={{ alignSelf: 'flex-start', flexWrap: 'wrap' }}>
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            className={kind === t.key ? 'on' : ''}
-            onClick={() => {
-              setKind(t.key);
-              setError('');
-            }}
-          >
-            {t.title} · {catalogItems(t.key).length}
-          </button>
-        ))}
-      </div>
-
       {loadError && <Msg kind="err">Каталог не завантажився: {loadError}</Msg>}
       {error && <Msg kind="err">{error}</Msg>}
       {!loaded && !loadError && <div className="ss-note"><span className="pre">&gt; </span>Завантаження каталогу…</div>}
 
-      {loaded && kind === 'printer' && <PrSettings />}
+      {loaded && <PrSettings />}
+      {loaded && SHOP_KINDS.map((k) => <KindPanel key={k.key} kind={k} busy={busy} run={run} onEdit={(item, kind) => setEditing({ item, kind })} />)}
 
-      {loaded && (
-        <Panel
-          tone="gm"
-          title={tab.title}
-          sub={`${list.length}`}
-          right={
-            <button className="btn-gm sm" type="button" onClick={() => setEditing(null)}>
-              {kind === 'upgrade' ? '+ ДОДАТИ ПОКРАЩЕННЯ' : '+ ДОДАТИ ПОЗИЦІЮ'}
-            </button>
-          }
-        >
-          {list.map((it, i) => (
-            <div
-              key={it.key}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 14px', borderTop: i ? '1px solid var(--panel-border)' : 'none', opacity: it.archived ? 0.6 : 1 }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: '1 1 200px', minWidth: 0 }}>
-                <span style={{ fontSize: 13, color: 'var(--text-bright)' }}>{kind === 'shop' ? itemTitle(it) : it.title}</span>
-                <span style={{ fontSize: 10, letterSpacing: 1, color: 'var(--text-dimmer)' }}>
-                  {[kind === 'upgrade' ? it.group : '', it.archived ? 'ПРИХОВАНО' : ''].filter(Boolean).join(' · ')}
-                </span>
-              </div>
-              <span className="num" style={{ fontSize: 12, color: 'var(--text)', whiteSpace: 'nowrap' }}>{priceText(it)}</span>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <button type="button" className="btn-ghost sm" disabled={busy || i === 0} onClick={() => move(i, -1)}>↑</button>
-                <button type="button" className="btn-ghost sm" disabled={busy || i === list.length - 1} onClick={() => move(i, 1)}>↓</button>
-                <Menu
-                  small
-                  items={[
-                    { label: 'РЕДАГУВАТИ…', onClick: () => setEditing(it) },
-                    it.archived
-                      ? { label: 'ПОВЕРНУТИ В КАТАЛОГ', onClick: () => run(() => api.gmSetShopItemArchived(it.key, false)) }
-                      : { label: 'ПРИХОВАТИ', danger: true, onClick: () => run(() => api.gmSetShopItemArchived(it.key, true)) },
-                  ]}
-                />
-              </div>
-            </div>
-          ))}
-        </Panel>
-      )}
-
-      {editing !== undefined && <ShopItemEditor item={editing} kind={kind} onClose={() => setEditing(undefined)} />}
+      {editing && <ShopItemEditor item={editing.item} kind={editing.kind} onClose={() => setEditing(null)} />}
     </>
   );
 }
-

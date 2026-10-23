@@ -1,9 +1,10 @@
-import { kitPr, limitedRefillPr } from './shopCatalog';
+import { costOf, costText, refillCost, txText } from './shopCatalog';
 
 // Правила ремонту меха (інтерфейс 2a, «Interactions & Behavior»).
 //
-// Ремкомплект коштує kitPr() PR (усталено 10; ціну задає ГМ у каталозі). Ремонт спершу
-// списує ремкомплекти самого меха; яких бракує — докуповуються за тією ж ціною. Не вистачає PR і на це — ремонт неможливий.
+// Ремкомплект коштує ціну позиції kit (усталено 10 PR; ціну в PR і мані задає ГМ у
+// каталозі). Ремонт спершу списує ремкомплекти самого меха; яких бракує — докуповуються за
+// тією ж ціною. Не вистачає PR чи мани і на це — ремонт неможливий.
 //
 //   HP «ВІДНОВИТИ МАКС»     1 ремкомплект (BALOR — безкоштовно, без вікна)
 //   Структура +1            2 ремкомплекти (Chomolungma / Everest / Sagarmatha — 1)
@@ -37,8 +38,8 @@ export const reactorLeft = (m) => MECH_REACTOR - (m.reactorFilled || 0);
 
 export const isLimited = (it) => it && it.max != null;
 
-export function itemRefillPr(it) {
-  return limitedRefillPr(it.base ?? it.max);
+export function itemRefillCost(it) {
+  return refillCost(it.base ?? it.max);
 }
 
 // Що робить ремонт: скільки комплектів потрібно і як змінюється мех.
@@ -108,35 +109,37 @@ export function repairPlan(mech, what, idx) {
   }
 }
 
-// Скільки комплектів спишеться з меха, скільки докупиться і за скільки PR.
-export function repairCost(mech, pr, kits) {
+// Скільки комплектів спишеться з меха, скільки докупиться і за скільки. wallet — { pr, mana }.
+export function repairCost(mech, wallet, kits) {
   const use = Math.min(mech.repairCurrent, kits);
   const buy = kits - use;
-  const prCost = buy * kitPr();
-  return { use, buy, prCost, ok: pr >= prCost };
+  const kit = costOf('kit');
+  const cost = { pr: buy * kit.pr, mana: buy * kit.mana };
+  return { use, buy, cost, prCost: cost.pr, ok: wallet.pr >= cost.pr && wallet.mana >= cost.mana };
 }
 
 // Рядки для вікна підтвердження ремонту.
-export function repairQuoteLines(mech, pr, plan) {
-  const c = repairCost(mech, pr, plan.kits);
+export function repairQuoteLines(mech, wallet, plan) {
+  const c = repairCost(mech, wallet, plan.kits);
   const lines = [
     ...plan.lines.map((t) => ({ t, ink: 'var(--text)' })),
     { t: `Ремкомплекти: ${mech.repairCurrent} → ${mech.repairCurrent - c.use}`, ink: 'var(--text)' },
   ];
   if (c.buy) {
     lines.push({
-      t: `Бракує ${c.buy} рем. — буде куплено за ${c.prCost} PR (PR ${pr} → ${pr - c.prCost})`,
+      t: `Бракує ${c.buy} рем. — буде куплено за ${costText(c.cost)} (${txText(wallet, c.cost)})`,
       ink: 'var(--warn)',
     });
   }
-  if (!c.ok) lines.push({ t: '!! Недостатньо PR для докупівлі.', ink: 'var(--danger)' });
+  if (!c.ok) lines.push({ t: wallet.pr < c.cost.pr ? '!! Недостатньо PR для докупівлі.' : '!! Недостатньо мани для докупівлі.', ink: 'var(--danger)' });
   return { lines, ...c };
 }
 
-export function spentText(use, prCost) {
+export function spentText(use, cost) {
   const parts = [];
   if (use) parts.push(`${use} рем.`);
-  if (prCost) parts.push(`${prCost} PR`);
+  if (cost.pr) parts.push(`${cost.pr} PR`);
+  if (cost.mana) parts.push(`${cost.mana} М`);
   return parts.length ? `Списано ${parts.join(' + ')}.` : 'Без витрат.';
 }
 
