@@ -24,18 +24,20 @@ import {
 } from './logic';
 import { isMechNameTaken } from './compconImport';
 import { pruneRetainedState } from './mechMerge';
-import { repairPlan, repairCost, spentText, isLimited, itemRefillPr, MECH_STRUCTURE, MECH_REACTOR } from './repair';
+import { repairPlan, repairCost, spentText, isLimited, itemRefillCost, MECH_STRUCTURE, MECH_REACTOR } from './repair';
 import {
   BUILTIN_KEYS,
+  canAfford,
+  costOf,
+  costOfItem,
+  costText,
   insurancePack,
   itemTitle,
-  kitPr,
-  kitsFullPr,
   onSale,
   prCapFor,
-  prFullRepairPr,
   prPackSize,
   shopItem,
+  txText,
   upgradeByKey,
 } from './shopCatalog';
 import { RESERVE_RANK_PR, reserveByKey, reserveGamesLeft } from './reserves';
@@ -101,6 +103,21 @@ function upgradeDeposit(state, key) {
 
 function pushManaHistory(mana, label) {
   return { ...mana, history: [{ label }, ...mana.history].slice(0, 4) };
+}
+
+const wallet = (state) => ({ pr: state.pr, mana: state.mana.balance });
+
+// Списати ціну позиції магазину — PR і ману разом; label — підпис в історії мани.
+function pay(state, c, label) {
+  let next = c.pr ? { ...state, pr: state.pr - c.pr } : state;
+  if (c.mana) next = { ...next, mana: pushManaHistory({ ...next.mana, balance: next.mana.balance - c.mana }, `−${c.mana} · ${label}`) };
+  return next;
+}
+
+// «за 10 PR + 5 М (PR 70 → 60 · М 100 → 95)» — для журналу; state — до списання.
+function paidText(state, c) {
+  const tx = txText(wallet(state), c);
+  return `за ${costText(c)}${tx ? ` (${tx})` : ''}`;
 }
 
 // Залишені після повторного імпорту системи (зламані / з витраченими зарядами, яких немає в новому
@@ -823,24 +840,20 @@ function reduce(state, action) {
     case 'PR_FULL_REPAIR': {
       const m = findMech(state, action.id);
       const svc = shopItem('prfull');
-      const cost = prFullRepairPr();
-      if (!m || !svc || svc.archived || cost > state.pr) return state;
-      const before = state.pr;
+      const cost = costOf('prfull');
+      if (!m || !svc || svc.archived || !canAfford(state, cost)) return state;
       return log(
-        { ...updateMech(state, m.id, fullyRepaired), pr: before - cost },
-        `${m.name}: «${svc.title}» за ${cost} PR (PR ${before} → ${before - cost})`,
+        pay(updateMech(state, m.id, fullyRepaired), cost, svc.title),
+        `${m.name}: «${svc.title}» ${paidText(state, cost)}`,
       );
     }
 
     // Позиція PRINTER, додана ГМом: механіки немає — списується ціна, пишеться журнал.
     case 'PRINTER_BUY': {
       const it = shopItem(action.key);
-      if (!it || it.kind !== 'printer' || it.archived || BUILTIN_KEYS.includes(it.key) || it.pr > state.pr) return state;
-      return log(
-        { ...state, pr: state.pr - it.pr },
-        `Магазин: придбано «${it.title}» за ${it.pr} PR (PR ${state.pr} → ${state.pr - it.pr})`,
-        true,
-      );
+      const cost = costOfItem(it);
+      if (!it || it.kind !== 'printer' || it.archived || BUILTIN_KEYS.includes(it.key) || !canAfford(state, cost)) return state;
+      return log(pay(state, cost, it.title), `Магазин: придбано «${it.title}» ${paidText(state, cost)}`, true);
     }
 
     // ---------- Get Creative ----------
@@ -1021,14 +1034,14 @@ function reduce(state, action) {
     case 'SHOP_BUY': {
       const item = shopItem(action.key);
       if (!item || item.kind !== 'shop' || item.archived) return state;
-      const price = item.mana;
-      if (price > state.mana.balance) return state;
+      const cost = costOfItem(item);
+      if (!canAfford(state, cost)) return state;
       const title = itemTitle(item);
+      const price = [cost.mana ? `${cost.mana} мани` : '', cost.pr ? `${cost.pr} PR` : ''].filter(Boolean).join(' + ') || '0 мани';
 
-      const spend = (st, note) => {
-        const mana = pushManaHistory({ ...st.mana, balance: st.mana.balance - price }, `−${price} · ${title}`);
-        return log({ ...st, mana }, `Магазин: придбано «${title}» за ${price} мани${note ? ` (${note})` : ''}`);
-      };
+      // st — стан після механіки позиції; PR списуються з нього, тож пачка PR рахується
+      // від гаманця після оплати.
+      const spend = (st, note) => log(pay(st, cost, title), `Магазин: придбано «${title}» за ${price}${note ? ` (${note})` : ''}`);
 
       if (!BUILTIN_KEYS.includes(item.key)) return spend(state, '');
 
@@ -1036,11 +1049,13 @@ function reduce(state, action) {
       if (item.key === 'prpack') {
         const cap = prCap(state);
         const size = prPackSize();
-        if (state.pr >= cap) return state;
-        const next = Math.min(state.pr + size, cap);
-        const gained = next - state.pr;
+        const after = state.pr - cost.pr;
+        if (after >= cap) return state;
+        const next = Math.min(after + size, cap);
+        const gained = next - after;
+        // pay() ще зніме cost.pr, тож сюди кладемо PR до оплати плюс пачку.
         return spend(
-          { ...state, pr: next },
+          { ...state, pr: next + cost.pr },
           gained < size ? `+${gained} PR — решта не влізла в кап ${cap}` : `PR ${state.pr} → ${next}`,
         );
       }
@@ -1166,32 +1181,30 @@ function reduce(state, action) {
         `${m.name}: реактор ${MECH_REACTOR - (m.reactorFilled || 0)} → ${MECH_REACTOR - next}`,
       );
     }
-    // Спершу списуються ремкомплекти меха, яких бракує — докуповуються по 10 PR.
+    // Спершу списуються ремкомплекти меха, яких бракує — докуповуються за ціною kit.
     case 'MECH_REPAIR': {
       const m = findMech(state, action.id);
       if (!m) return state;
       const plan = repairPlan(m, action.what, action.idx);
       if (!plan) return state;
-      const c = repairCost(m, state.pr, plan.kits);
+      const c = repairCost(m, wallet(state), plan.kits);
       if (!c.ok) return state;
       const next = updateMech(state, m.id, (mm) => ({ ...plan.apply(mm), repairCurrent: mm.repairCurrent - c.use }));
-      return log(
-        { ...next, pr: state.pr - c.prCost },
-        `${m.name}: ${plan.done} ${spentText(c.use, c.prCost)}` + (c.prCost ? ` (PR ${state.pr} → ${state.pr - c.prCost})` : ''),
-        true,
-      );
+      const tx = txText(wallet(state), c.cost);
+      return log(pay(next, c.cost, 'ремкомплекти'), `${m.name}: ${plan.done} ${spentText(c.use, c.cost)}` + (tx ? ` (${tx})` : ''), true);
     }
     // Купівля ремкомплектів: один (kit) або до максимуму (kitsfull) — ціни з каталогу.
     case 'BUY_KITS': {
       const m = findMech(state, action.id);
       if (!m || m.repairCurrent >= m.repairMax) return state;
       const full = action.mode === 'full';
-      const cost = full ? kitsFullPr() : kitPr();
-      if (!onSale(full ? 'kitsfull' : 'kit') || cost > state.pr) return state;
+      const key = full ? 'kitsfull' : 'kit';
+      const cost = costOf(key);
+      if (!onSale(key) || !canAfford(state, cost)) return state;
       const kits = full ? m.repairMax : m.repairCurrent + 1;
       return log(
-        { ...updateMech(state, m.id, (mm) => ({ ...mm, repairCurrent: kits })), pr: state.pr - cost },
-        `${m.name}: ${full ? 'ремкомплекти поповнено до максимуму' : 'куплено 1 ремкомплект'} (${m.repairCurrent} → ${kits}) за ${cost} PR (PR ${state.pr} → ${state.pr - cost})`,
+        pay(updateMech(state, m.id, (mm) => ({ ...mm, repairCurrent: kits })), cost, shopItem(key)?.title || 'ремкомплекти'),
+        `${m.name}: ${full ? 'ремкомплекти поповнено до максимуму' : 'куплено 1 ремкомплект'} (${m.repairCurrent} → ${kits}) ${paidText(state, cost)}`,
         true,
       );
     }
@@ -1200,11 +1213,11 @@ function reduce(state, action) {
       const m = findMech(state, action.id);
       const it = m?.items?.[action.idx];
       if (!isLimited(it) || it.current >= it.max || !onSale('refill')) return state;
-      const cost = itemRefillPr(it);
-      if (cost > state.pr) return state;
+      const cost = itemRefillCost(it);
+      if (!canAfford(state, cost)) return state;
       return log(
-        { ...updateItem(state, m.id, action.idx, (x) => ({ ...x, current: x.max })), pr: state.pr - cost },
-        `${m.name} · ${it.name}: заряди ${it.current} → ${it.max} за ${cost} PR (PR ${state.pr} → ${state.pr - cost})`,
+        pay(updateItem(state, m.id, action.idx, (x) => ({ ...x, current: x.max })), cost, `заряди «${it.name}»`),
+        `${m.name} · ${it.name}: заряди ${it.current} → ${it.max} ${paidText(state, cost)}`,
         true,
       );
     }

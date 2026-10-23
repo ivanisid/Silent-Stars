@@ -34,10 +34,12 @@ import {
 } from './constants';
 import { api } from '../api';
 
+// Категорії каталогу в порядку показу. Ціна будь-якої позиції — PR і мана разом.
 export const SHOP_KINDS = [
-  { key: 'printer', title: 'PRINTER', currency: ['pr'] },
-  { key: 'shop', title: 'SHOP', currency: ['mana'] },
-  { key: 'insurance', title: 'INSURANCE', currency: ['pr', 'mana'] },
+  { key: 'printer', title: 'PRINTER' },
+  { key: 'shop', title: 'SHOP' },
+  { key: 'insurance', title: 'INSURANCE' },
+  { key: 'upgrade', title: 'ОСОБИСТІ ПОКРАЩЕННЯ' },
 ];
 
 // Вбудовані ключі з механікою — у редакторі їм не можна змінити вкладку.
@@ -180,12 +182,33 @@ const fallback = (key) => DEFAULT.items.find((it) => it.key === key);
 export const builtinItem = (key) => shopItem(key) || fallback(key);
 const item = builtinItem;
 
-export const kitPr = () => item('kit').pr;
-export const kitsFullPr = () => item('kitsfull').pr;
-export const prFullRepairPr = () => item('prfull').pr;
-export const manaFullRepairPrice = () => item('mfull').mana;
-export const corePrice = () => item('core').mana;
-export const prPackPrice = () => item('prpack').mana;
+// Ціна — { pr, mana }: покупка списує обидві суми.
+export const costOfItem = (it) => ({ pr: it?.pr || 0, mana: it?.mana || 0 });
+export const costOf = (key) => costOfItem(item(key));
+
+export function costText(c) {
+  return [c.pr ? `${c.pr} PR` : '', c.mana ? `${c.mana} М` : ''].filter(Boolean).join(' + ') || '0 PR';
+}
+
+export function canAfford(state, c) {
+  return c.pr <= state.pr && c.mana <= state.mana.balance;
+}
+
+// Як зміниться гаманець: «PR 70 → 60 · М 500 → 450» — лише валюти, які списуються.
+// wallet — { pr, mana }.
+export function txText(wallet, c) {
+  return [c.pr ? `PR ${wallet.pr} → ${wallet.pr - c.pr}` : '', c.mana ? `М ${wallet.mana} → ${wallet.mana - c.mana}` : '']
+    .filter(Boolean)
+    .join(' · ');
+}
+
+// Чого бракує на покупку — текст для неактивної кнопки, або ''.
+export function lackText(state, c) {
+  if (c.pr > state.pr) return 'Недостатньо PR';
+  if (c.mana > state.mana.balance) return 'Недостатньо мани';
+  return '';
+}
+
 export const prPackSize = () => item('prpack').size ?? PR_PACK_SIZE;
 export const prStart = () => catalog.settings.prStart;
 
@@ -198,6 +221,11 @@ export function refillTiers() {
 export function limitedRefillPr(baseMax) {
   const n = Math.max(1, Math.min(3, Number(baseMax) || 1));
   return Number(refillTiers()[n]) || 0;
+}
+
+// Повна ціна поповнення: PR за щаблем і мана позиції refill (однакова для всіх щаблів).
+export function refillCost(baseMax) {
+  return { pr: limitedRefillPr(baseMax), mana: item('refill').mana || 0 };
 }
 
 // Назва позиції так, як її бачить гравець: у пачки PR — з розміром.

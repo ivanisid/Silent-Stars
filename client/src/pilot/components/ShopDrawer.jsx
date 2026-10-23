@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { isLimited, itemRefillPr } from '../repair';
+import { isLimited, itemRefillCost } from '../repair';
 import {
   BUILTIN_KEYS,
   builtinItem,
   catalogItems,
   insurancePacks,
+  costOf,
+  costOfItem,
+  costText,
   itemTitle,
-  kitPr,
-  kitsFullPr,
+  lackText,
   onSale,
   prPackSize,
   refillTiers,
@@ -97,49 +99,36 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
   const one = mechs.length === 1;
 
   // ---------- Підтвердження й виконання ----------
-  async function confirmPr({ title, question, price, lines, action, done }) {
-    const ok = pr >= price;
+  // cost — { pr, mana }: списуються обидві суми. prDelta — на скільки зміниться PR (у пачки
+  // PR це ще й нараховане), за замовчуванням −cost.pr.
+  async function confirmPay({ title, question, cost, prDelta = -cost.pr, lines, action, done }) {
+    const okPr = pr >= cost.pr;
+    const okMana = mana >= cost.mana;
     const yes = await ask({
       title,
       question,
       lines: [
         ...lines.map((t) => (typeof t === 'string' ? { t, ink: 'var(--text)' } : t)),
-        { t: `PR: ${pr} → ${pr - price}`, ink: 'var(--text)' },
-        !ok && { t: '!! Недостатньо PR.', ink: 'var(--danger)' },
+        (cost.pr > 0 || prDelta !== 0) && { t: `PR: ${pr} → ${pr + prDelta}`, ink: 'var(--text)' },
+        cost.mana > 0 && { t: `Мана: ${mana} → ${mana - cost.mana} М`, ink: 'var(--text)' },
+        !okPr && { t: '!! Недостатньо PR.', ink: 'var(--danger)' },
+        !okMana && { t: '!! Недостатньо мани.', ink: 'var(--danger)' },
       ],
-      canYes: ok,
+      canYes: okPr && okMana,
     });
     if (!yes) return;
     dispatch(action);
-    setMsg(`>> ${done} Списано ${price} PR.`);
-  }
-
-  async function confirmMana({ title, question, price, lines, action, done }) {
-    const ok = mana >= price;
-    const yes = await ask({
-      title,
-      question,
-      lines: [
-        ...lines.map((t) => (typeof t === 'string' ? { t, ink: 'var(--text)' } : t)),
-        { t: `Мана: ${mana} → ${mana - price} М`, ink: 'var(--text)' },
-        !ok && { t: '!! Недостатньо мани.', ink: 'var(--danger)' },
-      ],
-      canYes: ok,
-    });
-    if (!yes) return;
-    dispatch(action);
-    setMsg(`>> ${done} Списано ${price} М.`);
+    setMsg(`>> ${done} Списано ${costText(cost)}.`);
   }
 
   // ---------- Позиції ----------
   // row: { key, title, price, note, block, targets?, run? }
   // target: { key, title, note, price, block, run }
   const noMech = mechs.length === 0 ? 'Немає жодного меха' : '';
-  const lackPr = (cost) => (pr < cost ? 'Недостатньо PR' : '');
-  const lackMana = (cost) => (mana < cost ? 'Недостатньо мани' : '');
+  const lack = (cost) => lackText(state, cost);
 
-  const KIT_PR = kitPr();
-  const KITS_FULL_PR = kitsFullPr();
+  const KIT = costOf('kit');
+  const KITS_FULL = costOf('kitsfull');
   const PR_PACK_SIZE = prPackSize();
 
   const kitTargets = (full) =>
@@ -149,13 +138,13 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
         key: m.id,
         title: m.name,
         note: `${m.repairCurrent} / ${m.repairMax}${full ? ` → ${m.repairMax}` : ''}`,
-        price: `${full ? KITS_FULL_PR : KIT_PR} PR`,
-        block: lackPr(full ? KITS_FULL_PR : KIT_PR),
+        price: costText(full ? KITS_FULL : KIT),
+        block: lack(full ? KITS_FULL : KIT),
         run: () =>
-          confirmPr({
+          confirmPay({
             title: 'PRINTER',
             question: full ? `Поповнити всі ремкомплекти «${m.name}»?` : `Купити 1 ремкомплект для «${m.name}»?`,
-            price: full ? KITS_FULL_PR : KIT_PR,
+            cost: full ? KITS_FULL : KIT,
             lines: [`Ремкомплекти: ${m.repairCurrent} → ${full ? m.repairMax : m.repairCurrent + 1}`],
             action: { type: 'BUY_KITS', id: m.id, mode: full ? 'full' : 'one' },
             done: full ? `«${m.name}»: ремкомплекти поповнено.` : `«${m.name}»: куплено 1 ремкомплект.`,
@@ -174,21 +163,22 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
       .map((it, idx) => ({ it, idx }))
       .filter(({ it }) => isLimited(it) && it.current < it.max)
       .map(({ it, idx }) => {
-        const price = itemRefillPr(it);
+        const cost = itemRefillCost(it);
         return {
           key: `${m.id}:${idx}`,
           title: it.name,
           note: `${one ? '' : `${m.name} · `}${it.current} / ${it.max}${it.destroyed ? ' · знищено' : ''}`,
-          price: `${price} PR`,
-          block: lackPr(price),
+          price: costText(cost),
+          cost,
+          block: lack(cost),
           run: () =>
-            confirmPr({
+            confirmPay({
               title: 'ПОПОВНЕННЯ ЗАРЯДІВ',
               question: `Поповнити заряди «${it.name}»?`,
-              price,
+              cost,
               lines: [
                 `${m.name} · ${it.name}: ${it.current} → ${it.max}`,
-                { t: `Базовий запас ${it.base ?? it.max} → ${price} PR`, ink: 'var(--text-dimmer)' },
+                { t: `Базовий запас ${it.base ?? it.max} → ${costText(cost)}`, ink: 'var(--text-dimmer)' },
               ],
               action: { type: 'REFILL_ITEM', id: m.id, idx },
               done: `«${it.name}»: заряди поповнено.`,
@@ -196,26 +186,32 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
         };
       }),
   );
-  const refillMin = Math.min(...refillTargets.map((t) => parseInt(t.price, 10)));
+  // Найдешевша з неповних систем — щоб рядок не блокувався, поки хоч одну можна поповнити.
+  const refillCheapest = refillTargets.reduce((a, t) => (!a || t.cost.pr < a.pr ? t.cost : a), null);
   const refillRange = Object.values(refillTiers()).map(Number);
+  const refillMana = builtinItem('refill').mana || 0;
 
   const prRepair = builtinItem('prfull');
   const lux = { fullrepair: builtinItem('mfull'), core: builtinItem('core'), prpack: builtinItem('prpack') };
+  const PR_FULL = costOfItem(prRepair);
+  const MANA_FULL = costOfItem(lux.fullrepair);
+  const CORE = costOfItem(lux.core);
+  const PACK = costOfItem(lux.prpack);
 
   const fullRepairTargets = (byMana) =>
     mechs.map((m) => {
-      const price = byMana ? lux.fullrepair.mana : prRepair.pr;
+      const cost = byMana ? MANA_FULL : PR_FULL;
       return {
         key: m.id,
         title: m.name,
         note: frameOf(m) || '—',
-        price: `${price} ${byMana ? 'М' : 'PR'}`,
-        block: byMana ? lackMana(price) : lackPr(price),
+        price: costText(cost),
+        block: lack(cost),
         run: () =>
-          (byMana ? confirmMana : confirmPr)({
+          confirmPay({
             title: byMana ? 'LUXURY' : 'PRINTER',
             question: `Повний ремонт / передрук «${m.name}»?`,
-            price,
+            cost,
             lines: [],
             action: byMana ? { type: 'SHOP_BUY', key: 'mfull', mechId: m.id } : { type: 'PR_FULL_REPAIR', id: m.id },
             done: `«${m.name}» передруковано.`,
@@ -229,36 +225,38 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
       key: m.id,
       title: m.name,
       note: frameOf(m) || 'Core Power витрачено',
-      price: `${lux.core.mana} М`,
-      block: lackMana(lux.core.mana),
+      price: costText(CORE),
+      block: lack(CORE),
       run: () =>
-        confirmMana({
+        confirmPay({
           title: 'LUXURY',
           question: `Зарядити Core Power «${m.name}»?`,
-          price: lux.core.mana,
+          cost: CORE,
           lines: [],
           action: { type: 'SHOP_BUY', key: 'core', mechId: m.id },
           done: `«${m.name}»: Core Power заряджено.`,
         }),
     }));
 
-  const packGain = Math.max(0, Math.min(PR_PACK_SIZE, prCap - pr));
+  // Пачка PR рахується від гаманця після оплати (якщо пачка коштує ще й PR).
+  const prAfterPack = pr - PACK.pr;
+  const packGain = Math.max(0, Math.min(PR_PACK_SIZE, prCap - prAfterPack));
 
   // Позиція, додана ГМом: без механіки — лише списання й запис у журнал.
   const customRow = (it) => {
     const byMana = it.kind === 'shop';
-    const price = byMana ? it.mana : it.pr;
+    const cost = costOfItem(it);
     return {
       key: it.key,
       title: it.title,
-      price: `${price} ${byMana ? 'М' : 'PR'}`,
+      price: costText(cost),
       note: '',
-      block: byMana ? lackMana(price) : lackPr(price),
+      block: lack(cost),
       run: () =>
-        (byMana ? confirmMana : confirmPr)({
+        confirmPay({
           title: byMana ? 'LUXURY' : 'PRINTER',
           question: `Придбати «${it.title}»?`,
-          price,
+          cost,
           lines: [],
           action: byMana ? { type: 'SHOP_BUY', key: it.key } : { type: 'PRINTER_BUY', key: it.key },
           done: `«${it.title}» придбано.`,
@@ -271,34 +269,34 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
       {
         key: 'kit',
         title: builtinItem('kit').title,
-        price: `${KIT_PR} PR`,
+        price: costText(KIT),
         note: noMech ? '' : kitsNote(false),
-        block: noMech || (kitTargets(false).length ? lackPr(KIT_PR) : 'Ремкомплекти вже повні'),
+        block: noMech || (kitTargets(false).length ? lack(KIT) : 'Ремкомплекти вже повні'),
         targets: kitTargets(false),
       },
       {
         key: 'kitsfull',
         title: builtinItem('kitsfull').title,
-        price: `${KITS_FULL_PR} PR`,
+        price: costText(KITS_FULL),
         note: noMech ? '' : kitsNote(true),
-        block: noMech || (kitTargets(true).length ? lackPr(KITS_FULL_PR) : 'Ремкомплекти вже повні'),
+        block: noMech || (kitTargets(true).length ? lack(KITS_FULL) : 'Ремкомплекти вже повні'),
         targets: kitTargets(true),
       },
       {
         key: 'refill',
         title: builtinItem('refill').title,
-        price: `${Math.min(...refillRange)}–${Math.max(...refillRange)} PR`,
+        price: `${Math.min(...refillRange)}–${Math.max(...refillRange)} PR${refillMana ? ` + ${refillMana} М` : ''}`,
         note: refillTargets.length ? `неповних: ${refillTargets.length}` : '',
-        block: noMech || (refillTargets.length ? lackPr(refillMin) : 'Усі лімітні заряди повні'),
+        block: noMech || (refillTargets.length ? lack(refillCheapest) : 'Усі лімітні заряди повні'),
         targets: refillTargets,
         list: true,
       },
       {
         key: 'prfull',
         title: prRepair.title,
-        price: `${prRepair.pr} PR`,
-        note: [one ? frameOf(mechs[0]) || mechs[0].name : '', onSale('mfull') ? `або ${lux.fullrepair.mana} М у LUXURY` : ''].filter(Boolean).join(' · '),
-        block: noMech || lackPr(prRepair.pr),
+        price: costText(PR_FULL),
+        note: [one ? frameOf(mechs[0]) || mechs[0].name : '', onSale('mfull') ? `або ${costText(MANA_FULL)} у LUXURY` : ''].filter(Boolean).join(' · '),
+        block: noMech || lack(PR_FULL),
         targets: fullRepairTargets(false),
       },
     ],
@@ -306,34 +304,32 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
       {
         key: 'mfull',
         title: lux.fullrepair.title,
-        price: `${lux.fullrepair.mana} М`,
+        price: costText(MANA_FULL),
         note: one ? frameOf(mechs[0]) || mechs[0].name : '',
-        block: noMech || lackMana(lux.fullrepair.mana),
+        block: noMech || lack(MANA_FULL),
         targets: fullRepairTargets(true),
       },
       {
         key: 'core',
         title: lux.core.title,
-        price: `${lux.core.mana} М`,
+        price: costText(CORE),
         note: one ? frameOf(mechs[0]) || mechs[0].name : '',
-        block: noMech || (coreTargets.length ? lackMana(lux.core.mana) : 'Core Power уже заряджено'),
+        block: noMech || (coreTargets.length ? lack(CORE) : 'Core Power уже заряджено'),
         targets: coreTargets,
       },
       {
         key: 'prpack',
         title: itemTitle(lux.prpack),
-        price: `${lux.prpack.mana} М`,
+        price: costText(PACK),
         note: packGain < PR_PACK_SIZE && packGain > 0 ? `пілоту · влізе лише +${packGain} PR (кап ${prCap})` : 'пілоту',
-        block: pr >= prCap ? `PR уже на капі (${prCap})` : lackMana(lux.prpack.mana),
+        block: prAfterPack >= prCap ? `PR уже на капі (${prCap})` : lack(PACK),
         run: () =>
-          confirmMana({
+          confirmPay({
             title: 'LUXURY',
             question: `Купити ${PR_PACK_SIZE} PR?`,
-            price: lux.prpack.mana,
-            lines: [
-              `PR: ${pr} → ${pr + packGain}`,
-              packGain < PR_PACK_SIZE && { t: `Кап ${prCap}: решта ${PR_PACK_SIZE - packGain} PR не нарахується.`, ink: 'var(--warn)' },
-            ].filter(Boolean),
+            cost: PACK,
+            prDelta: packGain - PACK.pr,
+            lines: [packGain < PR_PACK_SIZE && { t: `Кап ${prCap}: решта ${PR_PACK_SIZE - packGain} PR не нарахується.`, ink: 'var(--warn)' }].filter(Boolean),
             action: { type: 'SHOP_BUY', key: 'prpack' },
             done: `Додано ${packGain} PR.`,
           }),
@@ -359,7 +355,7 @@ export default function ShopDrawer({ state, dispatch, mobile = false }) {
           title: p.title,
           price: cost,
           note: p.desc,
-          block: lackPr(p.pr) || lackMana(p.mana),
+          block: lack(costOfItem(p)),
           run: () => buyPolicy(p, cost),
         };
       }

@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { OC_STEPS, mechSlots } from '../constants';
-import { kitPr, kitsFullPr, manaFullRepairPrice, onSale, prFullRepairPr } from '../shopCatalog';
+import { canAfford, costOf, costText, onSale, txText } from '../shopCatalog';
 import { showUpgrade } from '../../components/overlayBus';
 import {
   MECH_REACTOR,
   MECH_STRUCTURE,
   isBalor,
   isLimited,
-  itemRefillPr,
+  itemRefillCost,
   reactorLeft,
   fullRepairSummary,
   repairPlan,
@@ -242,7 +242,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
     ? !!items[undo.idx]?.destroyed && items[undo.idx]?.name === undo.name
     : (m[undo.field] || 0) === undo.after);
 
-  // Ремонт: вікно з розкладом «ремкомплекти / докупівля за PR», «ТАК» неактивна, коли PR бракує.
+  // Ремонт: вікно з розкладом «ремкомплекти / докупівля», «ТАК» неактивна, коли PR чи мани бракує.
   async function repair(what, idx) {
     const plan = repairPlan(m, what, idx);
     if (!plan) {
@@ -254,28 +254,33 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
       setMsg(`>> ${plan.done}`);
       return;
     }
-    const q = repairQuoteLines(m, pr, plan);
+    const q = repairQuoteLines(m, { pr, mana: state.mana.balance }, plan);
     const ok = await ask({ title: plan.title, question: 'Витратити ремонтний комплект?', lines: q.lines, canYes: q.ok });
     if (!ok) return;
     dispatch({ type: 'MECH_REPAIR', id: m.id, what, idx });
-    setMsg(`>> ${plan.done} ${spentText(q.use, q.prCost)}`);
+    setMsg(`>> ${plan.done} ${spentText(q.use, q.cost)}`);
   }
 
-  async function spendPr({ title, question, price, lines, action, done }) {
-    const okPr = pr >= price;
+  // Покупка за ціною позиції магазину: cost — { pr, mana }, списуються обидві суми.
+  async function spendCost({ title, question, cost, lines, action, done }) {
+    const mana = state.mana.balance;
+    const okPr = pr >= cost.pr;
+    const okMana = mana >= cost.mana;
     const ok = await ask({
       title,
       question,
       lines: [
         ...lines.map((t) => (typeof t === 'string' ? { t, ink: 'var(--text)' } : t)),
-        { t: `PR: ${pr} → ${pr - price}`, ink: 'var(--text)' },
+        cost.pr > 0 && { t: `PR: ${pr} → ${pr - cost.pr}`, ink: 'var(--text)' },
+        cost.mana > 0 && { t: `Мана: ${mana} → ${mana - cost.mana} М`, ink: 'var(--text)' },
         !okPr && { t: '!! Недостатньо PR.', ink: 'var(--danger)' },
+        !okMana && { t: '!! Недостатньо мани.', ink: 'var(--danger)' },
       ],
-      canYes: okPr,
+      canYes: okPr && okMana,
     });
     if (!ok) return;
     dispatch(action);
-    setMsg(`>> ${done} Списано ${price} PR.`);
+    setMsg(`>> ${done} Списано ${costText(cost)}.`);
   }
 
   async function removeItem(idx) {
@@ -302,7 +307,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
     if (ok) dispatch({ type: 'REMOVE_MECH', id: m.id });
   }
 
-  // Повний ремонт / передрук — та сама послуга, що в магазині: 100 PR або 500 М.
+  // Повний ремонт / передрук — та сама послуга, що в магазині: ціна prfull або ціна mfull.
   // Вікно показує, що саме зламано, і скільки коштував би ремонт частинами.
   async function fullRepair() {
     const { damage } = fullRepairSummary(m);
@@ -310,29 +315,31 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
       setMsg('>> Мех цілий — ремонтувати нічого.');
       return;
     }
-    const prCost = prFullRepairPr();
-    const manaCost = manaFullRepairPrice();
+    const prCost = costOf('prfull');
+    const manaCost = costOf('mfull');
     const prOn = onSale('prfull');
     const manaOn = onSale('mfull');
-    const mana = state.mana.balance;
+    const wallet = { pr, mana: state.mana.balance };
+    // Кожен варіант: що спишеться, або «бракує».
+    const variant = (c) => `${costText(c)}: ${canAfford(state, c) ? txText(wallet, c) || 'без витрат' : 'бракує'}`;
     const res = await ask({
       title: 'ПОВНИЙ РЕМОНТ / ПЕРЕДРУК',
-      question: `Відновити «${m.name}» повністю за ${prCost} PR або ${manaCost} М?`,
+      question: `Відновити «${m.name}» повністю за ${costText(prCost)} або ${costText(manaCost)}?`,
       lines: [
         ...damage.map((t) => ({ t: `> ${t}`, ink: 'var(--text)' })),
-        { t: `PR: ${pr}${pr >= prCost ? ` → ${pr - prCost}` : ' — бракує'} · Мана: ${mana}${mana >= manaCost ? ` → ${mana - manaCost}` : ' — бракує'}`, ink: 'var(--text)' },
+        { t: [prOn && variant(prCost), manaOn && variant(manaCost)].filter(Boolean).join(' · '), ink: 'var(--text)' },
       ],
-      yesLabel: `${prCost} PR`,
-      canYes: prOn && pr >= prCost,
-      altLabel: `${manaCost} М`,
-      canAlt: manaOn && mana >= manaCost,
+      yesLabel: costText(prCost),
+      canYes: prOn && canAfford(state, prCost),
+      altLabel: costText(manaCost),
+      canAlt: manaOn && canAfford(state, manaCost),
     });
     if (res === true) {
       dispatch({ type: 'PR_FULL_REPAIR', id: m.id });
-      setMsg(`>> Повний ремонт. Списано ${prCost} PR.`);
+      setMsg(`>> Повний ремонт. Списано ${costText(prCost)}.`);
     } else if (res === 'alt') {
       dispatch({ type: 'SHOP_BUY', key: 'mfull', mechId: m.id });
-      setMsg(`>> Повний ремонт. Списано ${manaCost} М.`);
+      setMsg(`>> Повний ремонт. Списано ${costText(manaCost)}.`);
     }
   }
 
@@ -372,7 +379,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
           <div className="title-font" style={{ fontSize: 20, letterSpacing: 1, color: 'var(--text-bright)' }}>{m.name.toUpperCase()}</div>
           {frameLabel && <span className="ss-tag accent">{frameLabel}</span>}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button className="btn-ghost" type="button" title={`Повний ремонт / передрук за ${prFullRepairPr()} PR або ${manaFullRepairPrice()} М: усе до максимуму. Перед оплатою вікно покаже, що зламано`} onClick={fullRepair}>ПОВНИЙ РЕМОНТ</button>
+            <button className="btn-ghost" type="button" title={`Повний ремонт / передрук за ${costText(costOf('prfull'))} або ${costText(costOf('mfull'))}: усе до максимуму. Перед оплатою вікно покаже, що зламано`} onClick={fullRepair}>ПОВНИЙ РЕМОНТ</button>
             <Menu
               items={[
                 { label: editing ? 'ЗАКРИТИ РЕДАГУВАННЯ' : 'РЕДАГУВАТИ', onClick: () => dispatch({ type: 'TOGGLE_MECH_EDIT', id: m.id }) },
@@ -440,13 +447,13 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
               <div className="v">{m.repairCurrent} / {m.repairMax}</div>
               <button
                 type="button"
-                title={`Купити 1 ремкомплект за ${kitPr()} PR`}
+                title={`Купити 1 ремкомплект за ${costText(costOf('kit'))}`}
                 disabled={repFull || !onSale('kit')}
                 onClick={() =>
-                  spendPr({
+                  spendCost({
                     title: 'КУПІВЛЯ РЕМКОМПЛЕКТУ',
-                    question: `Купити 1 ремкомплект за ${kitPr()} PR?`,
-                    price: kitPr(),
+                    question: `Купити 1 ремкомплект за ${costText(costOf('kit'))}?`,
+                    cost: costOf('kit'),
                     lines: [`Ремкомплекти: ${m.repairCurrent} → ${m.repairCurrent + 1}`],
                     action: { type: 'BUY_KITS', id: m.id, mode: 'one' },
                     done: 'Куплено 1 ремкомплект.',
@@ -461,19 +468,19 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
                 className="btn-ghost sm"
                 type="button"
                 disabled={repFull || !onSale('kitsfull')}
-                title={`Поповнити ремкомплекти до максимуму за ${kitsFullPr()} PR`}
+                title={`Поповнити ремкомплекти до максимуму за ${costText(costOf('kitsfull'))}`}
                 onClick={() =>
-                  spendPr({
+                  spendCost({
                     title: 'КУПІВЛЯ РЕМКОМПЛЕКТІВ',
-                    question: `Поповнити до максимуму за ${kitsFullPr()} PR?`,
-                    price: kitsFullPr(),
+                    question: `Поповнити до максимуму за ${costText(costOf('kitsfull'))}?`,
+                    cost: costOf('kitsfull'),
                     lines: [`Ремкомплекти: ${m.repairCurrent} → ${m.repairMax}`],
                     action: { type: 'BUY_KITS', id: m.id, mode: 'full' },
                     done: 'Ремкомплекти поповнено до максимуму.',
                   })
                 }
               >
-                {repFull ? 'ПОВНІ' : `МАКС · ${kitsFullPr()} PR`}
+                {repFull ? 'ПОВНІ' : `МАКС · ${costText(costOf('kitsfull'))}`}
               </button>
             </div>
           </div>
@@ -530,7 +537,7 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
               const first = prevGroup === null;
               prevGroup = group;
               const lim = isLimited(it);
-              const price = lim ? itemRefillPr(it) : 0;
+              const price = lim ? itemRefillCost(it) : null;
               const sub = [it.mount, lim ? 'LIMITED' : null, it.retained ? 'ЛИШИЛАСЬ ДО РЕМОНТУ / ПОПОВНЕННЯ (немає в новому файлі)' : null].filter(Boolean).join(' · ') || '—';
               return (
                 <div key={i}>
@@ -559,17 +566,17 @@ function MechCard({ mech: m, state, dispatch, ask, art, canEditArt, onUploadArt,
                               type="button"
                               title="Поповнити заряди до максимуму"
                               onClick={() =>
-                                spendPr({
+                                spendCost({
                                   title: 'ПОПОВНЕННЯ ЗАРЯДІВ',
-                                  question: `Поповнити заряди за ${price} PR?`,
-                                  price,
-                                  lines: [`${it.name}: ${it.current} → ${it.max}`, { t: `Базовий запас ${it.base ?? it.max} → ${price} PR`, ink: 'var(--text-dimmer)' }],
+                                  question: `Поповнити заряди за ${costText(price)}?`,
+                                  cost: price,
+                                  lines: [`${it.name}: ${it.current} → ${it.max}`, { t: `Базовий запас ${it.base ?? it.max} → ${costText(price)}`, ink: 'var(--text-dimmer)' }],
                                   action: { type: 'REFILL_ITEM', id: m.id, idx: i },
                                   done: 'Заряди поповнено.',
                                 })
                               }
                             >
-                              ↻ {price} PR
+                              ↻ {costText(price)}
                             </button>
                           )}
                         </>
