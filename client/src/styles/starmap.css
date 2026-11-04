@@ -221,7 +221,7 @@
 .sm-stn { display: flex; color: var(--map-station); }
 .sm-stn .core { fill: var(--accent); stroke: none; }
 .sm-stn.big { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 60%, transparent)); }
-.sm-belt-ic { fill: var(--map-rock); }
+.sm-field-ic { fill: var(--map-rock); }
 .sm-rocks { position: relative; display: block; width: 280px; height: 130px; }
 .sm-rocks i { position: absolute; border-radius: 50%; background: color-mix(in srgb, var(--map-rock) 70%, var(--map-label)); }
 .sm-pair { display: flex; gap: 2px; }

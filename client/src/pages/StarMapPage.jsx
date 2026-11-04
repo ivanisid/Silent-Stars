@@ -24,9 +24,9 @@ function StationIcon({ size = 22, stroke = 1.6 }) {
   );
 }
 
-function BeltIcon({ size = 22 }) {
+function FieldIcon({ size = 22 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className="sm-belt-ic">
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className="sm-field-ic">
       <circle cx="5" cy="14" r="1.6" />
       <circle cx="10" cy="9" r="2.2" />
       <circle cx="15" cy="15" r="1.4" />
@@ -49,11 +49,11 @@ function Orb({ o, size, spin = false }) {
 
 function ObjIcon({ o, size = 22 }) {
   if (o.kind === 'station') return <span className="sm-stn"><StationIcon size={size} /></span>;
-  if (o.kind === 'belt') return <BeltIcon size={size} />;
+  if (o.kind === 'field') return <FieldIcon size={size} />;
   return <Orb o={o} size={size} />;
 }
 
-const BELT_ROCKS = (() => {
+const FIELD_ROCKS = (() => {
   let s = 17;
   const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
   return Array.from({ length: 80 }, () => ({
@@ -75,14 +75,14 @@ function Hero({ o, system }) {
   return (
     <div className="sm-hero">
       {o.kind === 'station' && <span className="sm-stn big"><StationIcon size={110} stroke={0.8} /></span>}
-      {o.kind === 'belt' && (
+      {o.kind === 'field' && (
         <span className="sm-rocks">
-          {BELT_ROCKS.map((r, i) => (
+          {FIELD_ROCKS.map((r, i) => (
             <i key={i} style={{ left: r.left, top: r.top, width: `${r.d}px`, height: `${r.d}px`, opacity: r.op }} />
           ))}
         </span>
       )}
-      {o.kind !== 'station' && o.kind !== 'belt' && <Orb o={o} size={o.kind === 'star' ? 110 : 140} spin />}
+      {o.kind !== 'station' && o.kind !== 'field' && <Orb o={o} size={o.kind === 'star' ? 110 : 140} spin />}
     </div>
   );
 }
@@ -184,7 +184,7 @@ function Layers({ m }) {
           <i /><span>СИСТЕМА</span>
         </button>
         <span className={lv(m.selObj ? 'cur' : '')} aria-current={m.selObj ? 'step' : undefined}>
-          <i /><span>{m.selObj ? TYPE_LABEL[m.selObj.kind] : "ОБ'ЄКТ"}</span>
+          <i /><span>{m.selObj ? (m.selObj.kind === 'field' ? 'ПОЛЕ' : TYPE_LABEL[m.selObj.kind]) : "ОБ'ЄКТ"}</span>
         </span>
       </nav>
       <div className="sm-focus">

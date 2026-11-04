@@ -41,10 +41,6 @@ function makePosAt(system) {
     }
     const o = byId.get(id);
     if (!o) return out.set(0, 0, 0);
-    if (o.kind === 'belt') {
-      const r = (o.inner + o.outer) / 2;
-      return out.set(Math.cos(2.4) * r, 0, Math.sin(2.4) * r);
-    }
     const a = o.phase + (TAU * t) / o.period;
     if (o.parent) {
       posAt(o.parent, t, out);
@@ -255,46 +251,47 @@ function Station({ o, sel, onSelect, themeKey, showLabel, small }) {
   );
 }
 
-function Belt({ o, time, sel, onSelect, themeKey, compact }) {
+// Поле астероїдів — локальне скупчення каменів, що летить по своїй орбіті як окреме тіло.
+function Field({ o, sel, onSelect, themeKey, showLabel, compact }) {
   const color = useVarColor(o.color, themeKey);
   const ref = useRef();
   const g = useRef();
-  const count = compact ? Math.round(o.count * 0.5) : o.count;
+  const count = compact ? Math.round(o.count * 0.6) : o.count;
   useLayoutEffect(() => {
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), sc = new THREE.Vector3();
-    let s = 3;
+    let s = 3 + o.id.length * 7;
     const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
     for (let i = 0; i < count; i++) {
-      const a = rnd() * TAU;
-      const rr = o.inner + (o.outer - o.inner) * (0.5 + (rnd() + rnd() - 1) * 0.5);
-      p.set(Math.cos(a) * rr, (rnd() - 0.5) * 0.5, Math.sin(a) * rr);
+      // щільніше до центру, сплюснуте по вертикалі
+      const u = rnd() * 2 - 1, th = rnd() * TAU, rr = o.size * Math.pow(rnd(), 0.6), qq = Math.sqrt(1 - u * u);
+      p.set(qq * Math.cos(th) * rr * 1.25, u * rr * 0.35, qq * Math.sin(th) * rr);
       e.set(rnd() * TAU, rnd() * TAU, rnd() * TAU);
       q.setFromEuler(e);
-      const k = 0.025 + Math.pow(rnd(), 3) * 0.12;
+      const k = 0.02 + Math.pow(rnd(), 3) * 0.11;
       sc.set(k, k * (0.6 + rnd() * 0.5), k * (0.7 + rnd() * 0.4));
       m.compose(p, q, sc);
       ref.current.setMatrixAt(i, m);
     }
     ref.current.instanceMatrix.needsUpdate = true;
-  }, [count, o.inner, o.outer]);
-  useFrame(() => {
-    if (g.current) g.current.rotation.y = -(TAU * time.current) / o.period;
+  }, [count, o.size, o.id]);
+  useFrame((_, dt) => {
+    if (g.current) g.current.rotation.y += dt * 0.05;
   });
   const on = sel === o.id;
-  const mid = (o.inner + o.outer) / 2;
   return (
     <>
-      <group ref={g}>
+      <group ref={g} onClick={(e) => { e.stopPropagation(); onSelect(o.id); }} onPointerOver={pointer} onPointerOut={unpointer}>
         <instancedMesh ref={ref} args={[undefined, undefined, count]}>
           <dodecahedronGeometry args={[1, 0]} />
           <meshStandardMaterial color={color} roughness={1} flatShading />
         </instancedMesh>
+        <mesh>
+          <sphereGeometry args={[o.size, 12, 8]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
       </group>
-      <OrbitLine r={o.inner} on={on} dashed themeKey={themeKey} />
-      <OrbitLine r={o.outer} on={on} dashed themeKey={themeKey} />
-      <group position={[Math.cos(2.4) * mid, 0, Math.sin(2.4) * mid]}>
-        <Label y={0} name={o.name} on={on} small={compact} onClick={() => onSelect(o.id)} />
-      </group>
+      {on && <SelRing size={o.size} themeKey={themeKey} />}
+      {showLabel && <Label y={-(o.size * 1.5 + 0.12)} name={o.name} on={on} small={compact} onClick={() => onSelect(o.id)} />}
     </>
   );
 }
@@ -359,12 +356,11 @@ function SystemScene({ system, sel, onSelect, paused, compact, themeKey }) {
   const posAt = useMemo(() => makePosAt(system), [system]);
   const selObj = system.stars.find((s) => s.id === sel) || system.objects.find((o) => o.id === sel);
   const parentOf = (o) => (o.parent ? sel === o.parent : false);
-  const top = system.objects.filter((o) => !o.parent && o.kind !== 'belt');
-  const belts = system.objects.filter((o) => o.kind === 'belt');
+  const top = system.objects.filter((o) => !o.parent);
   const kids = system.objects.filter((o) => o.parent);
   const bin = useMemo(() => circlePoints(system.binary.separation, 96), [system]);
   const binColor = useVarColor('--map-star', themeKey);
-  const focusSize = selObj ? (selObj.kind === 'belt' ? 1.2 : selObj.size) : 0;
+  const focusSize = selObj ? (selObj.kind === 'field' ? selObj.size * 0.8 : selObj.size) : 0;
   return (
     <>
       <ambientLight intensity={0.16} />
@@ -377,10 +373,7 @@ function SystemScene({ system, sel, onSelect, paused, compact, themeKey }) {
         </Mover>
       ))}
       {top.map((o) => (
-        <OrbitLine key={`o-${o.id}`} r={o.orbit} on={sel === o.id} themeKey={themeKey} />
-      ))}
-      {belts.map((o) => (
-        <Belt key={o.id} o={o} time={time} sel={sel} onSelect={onSelect} themeKey={themeKey} compact={compact} />
+        <OrbitLine key={`o-${o.id}`} r={o.orbit} on={sel === o.id} dashed={o.kind === 'field'} themeKey={themeKey} />
       ))}
       {kids.map((o) => (
         <Mover key={`ko-${o.id}`} id={o.parent} posAt={posAt} time={time}>
@@ -392,7 +385,9 @@ function SystemScene({ system, sel, onSelect, paused, compact, themeKey }) {
         const small = !!o.parent || compact;
         return (
           <Mover key={o.id} id={o.id} posAt={posAt} time={time}>
-            {o.kind === 'station' ? (
+            {o.kind === 'field' ? (
+              <Field o={o} sel={sel} onSelect={onSelect} themeKey={themeKey} showLabel={showLabel} compact={compact} />
+            ) : o.kind === 'station' ? (
               <Station o={o} sel={sel} onSelect={onSelect} themeKey={themeKey} showLabel={showLabel} small={small} />
             ) : (
               <Planet o={o} sel={sel} onSelect={onSelect} themeKey={themeKey} showLabel={showLabel} small={small} />
