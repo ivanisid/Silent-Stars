@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { start as startCascade } from './cascade/engine.js';
 import { useAuth } from './context/AuthContext.jsx';
@@ -9,6 +9,9 @@ import GmPanelPage from './pages/GmPanelPage.jsx';
 import BoardPage from './pages/BoardPage.jsx';
 import ReservesPage from './pages/ReservesPage.jsx';
 import RulesPage from './pages/RulesPage.jsx';
+
+// Мапа тягне three.js — окремим чанком, лише коли відкривають /map.
+const StarMapPage = lazy(() => import('./pages/StarMapPage.jsx'));
 
 function RequireAuth({ children }) {
   const { isAuthed, ready } = useAuth();
@@ -67,6 +70,16 @@ export default function App() {
         element={
           <RequireAuth>
             <RulesPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/map"
+        element={
+          <RequireAuth>
+            <Suspense fallback={null}>
+              <StarMapPage />
+            </Suspense>
           </RequireAuth>
         }
       />

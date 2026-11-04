@@ -16,6 +16,7 @@ export const NAV_ITEMS = [
   { label: 'ЗАПИС НА ГРУ', desc: 'Слоти ігор та запис на них', to: '/board', code: 'BRD', d: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4' },
   { label: 'РЕЗЕРВИ', desc: 'Довідник: звичайні та рідкісні', to: '/reserves', code: 'RSV', d: 'M4 7l8-4 8 4v10l-8 4-8-4zM4 7l8 4 8-4M12 11v10' },
   { label: 'ПРАВИЛА', desc: 'Правила кампанії', to: '/rules', code: 'RLS', d: 'M5 3h11l3 3v15H5zM9 9h7M9 13h7M9 17h4' },
+  { label: 'ЗОРЯНА МАПА', desc: 'Сектор і системи кампанії', to: '/map', code: 'MAP', d: 'M12 3l2 7 7 2-7 2-2 7-2-7-7-2 7-2z' },
   { label: 'ГМ-ПАНЕЛЬ', desc: 'Персонажі всіх гравців', to: '/gm', code: 'GMP', d: 'M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z', gm: true },
 ];
 

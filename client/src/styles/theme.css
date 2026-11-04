@@ -85,6 +85,21 @@
   --gm-card-border: #3a2733;
   --gm-foot: #5a3d51;
   --gm-ink: #e2b13c;
+
+  /* Зоряна мапа — спільна для всіх тем: космос лишається темним і в світлих темах,
+     а небесні тіла мають власні кольори. Тема дає мапі лише акцент (--accent). */
+  --map-space: #05070b;
+  --map-space-2: #0d1320;
+  --map-label: #e8eaf0;
+  --map-orbit: #8a90a0;
+  --map-star: #ffcf6e;
+  --map-rock: #9a7b62;
+  --map-ocean: #2c5d8a;
+  --map-land: #6f8a4e;
+  --map-gas: #c7975a;
+  --map-ice: #a9c8da;
+  --map-moon: #8f8c86;
+  --map-station: #c4c8d0;
 }
 
 /* GMS Dark — ported from COMP/CON */
