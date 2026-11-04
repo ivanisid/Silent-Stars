@@ -34,6 +34,7 @@ function makePosAt(system) {
   const byId = new Map(system.objects.map((o) => [o.id, o]));
   const { separation, period } = system.binary;
   return function posAt(id, t, out = new THREE.Vector3()) {
+    if (id === system.star.id) return out.set(0, 0, 0);
     const si = system.stars.findIndex((s) => s.id === id);
     if (si >= 0) {
       const a = (TAU * t) / period + si * Math.PI;
@@ -106,7 +107,7 @@ function LabelProjector({ labelsRef, posAt, time, system, sel }) {
   const { camera, size } = useThree();
   const byId = useMemo(() => {
     const m = new Map();
-    system.stars.forEach((o) => m.set(o.id, o));
+    m.set(system.star.id, system.star);
     system.objects.forEach((o) => m.set(o.id, o));
     return m;
   }, [system]);
@@ -134,7 +135,7 @@ function LabelProjector({ labelsRef, posAt, time, system, sel }) {
       v.project(camera);
       const vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
       const family = selO && (o.parent === sel || selO.parent === id || (selO.parent && o.parent === selO.parent));
-      const pr = id === sel ? 0 : family ? 1 : o.kind === 'star' ? 2 : 3;
+      const pr = id === sel ? 0 : family ? 1 : o.kind === 'binary' ? 2 : 3;
       list.push({ el, x: (v.x * 0.5 + 0.5) * size.width, y: (-v.y * 0.5 + 0.5) * size.height, z: v.z, vis, pr, w: el.offsetWidth, h: el.offsetHeight });
     });
     list.sort((a, b) => a.pr - b.pr || a.z - b.z);
@@ -181,7 +182,8 @@ function Mover({ id, posAt, time, children }) {
   return <group ref={g}>{children}</group>;
 }
 
-function Sun({ o, sel, onSelect, themeKey }) {
+// Одна з пари зір; клік вибирає подвійну зорю цілком (pickId).
+function Sun({ o, pickId, onSelect, themeKey }) {
   const tex = useMemo(() => bodyTexture(o), [o]);
   const glow = useMemo(() => glowTexture(o.color), [o.color]);
   const color = useVarColor(o.color, themeKey);
@@ -189,10 +191,9 @@ function Sun({ o, sel, onSelect, themeKey }) {
   useFrame((_, dt) => {
     if (mesh.current) mesh.current.rotation.y += dt * 0.05;
   });
-  const on = sel === o.id;
   return (
     <>
-      <mesh ref={mesh} onClick={(e) => { e.stopPropagation(); onSelect(o.id); }} onPointerOver={pointer} onPointerOut={unpointer}>
+      <mesh ref={mesh} onClick={(e) => { e.stopPropagation(); onSelect(pickId); }} onPointerOver={pointer} onPointerOut={unpointer}>
         <sphereGeometry args={[o.size, 64, 32]} />
         <meshBasicMaterial map={tex.texture} toneMapped={false} />
       </mesh>
@@ -200,7 +201,6 @@ function Sun({ o, sel, onSelect, themeKey }) {
         <spriteMaterial map={glow} transparent opacity={0.85} depthWrite={false} blending={THREE.AdditiveBlending} />
       </sprite>
       <pointLight color={color} intensity={1.6} decay={0} distance={0} />
-      {on && <SelRing size={o.size} themeKey={themeKey} />}
     </>
   );
 }
@@ -393,12 +393,12 @@ function CameraRig({ focus, focusSize, posAt, time, home }) {
 function SystemScene({ system, sel, onSelect, paused, compact, themeKey, labelsRef }) {
   const time = useSimTime(paused);
   const posAt = useMemo(() => makePosAt(system), [system]);
-  const selObj = system.stars.find((s) => s.id === sel) || system.objects.find((o) => o.id === sel);
+  const selObj = sel === system.star.id ? system.star : system.objects.find((o) => o.id === sel);
   const top = system.objects.filter((o) => !o.parent);
   const kids = system.objects.filter((o) => o.parent);
   const bin = useMemo(() => circlePoints(system.binary.separation, 96), [system]);
   const binColor = useVarColor('--map-star', themeKey);
-  const focusSize = selObj ? (selObj.kind === 'field' ? selObj.size * 0.8 : selObj.size) : 0;
+  const focusSize = selObj ? (selObj.kind === 'field' ? selObj.size * 0.8 : selObj.kind === 'binary' ? selObj.size * 0.7 : selObj.size) : 0;
   return (
     <>
       <ambientLight intensity={0.16} />
@@ -407,9 +407,10 @@ function SystemScene({ system, sel, onSelect, paused, compact, themeKey, labelsR
       <Line points={bin} color={binColor} lineWidth={1} transparent opacity={0.35} dashed dashSize={0.2} gapSize={0.2} depthWrite={false} />
       {system.stars.map((s) => (
         <Mover key={s.id} id={s.id} posAt={posAt} time={time}>
-          <Sun o={s} sel={sel} onSelect={onSelect} themeKey={themeKey} />
+          <Sun o={s} pickId={system.star.id} onSelect={onSelect} themeKey={themeKey} />
         </Mover>
       ))}
+      {sel === system.star.id && <SelRing size={system.star.size} themeKey={themeKey} />}
       {top.map((o) => (
         <OrbitLine key={`o-${o.id}`} r={o.orbit} on={sel === o.id} dashed={o.kind === 'field'} themeKey={themeKey} />
       ))}

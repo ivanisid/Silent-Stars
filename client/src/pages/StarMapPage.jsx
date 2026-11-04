@@ -48,6 +48,7 @@ function Orb({ o, size, spin = false }) {
 }
 
 function ObjIcon({ o, size = 22 }) {
+  if (o.kind === 'binary') return <span className="sm-pair"><i /><i /></span>;
   if (o.kind === 'station') return <span className="sm-stn"><StationIcon size={size} /></span>;
   if (o.kind === 'field') return <FieldIcon size={size} />;
   return <Orb o={o} size={size} />;
@@ -65,7 +66,7 @@ const FIELD_ROCKS = (() => {
 })();
 
 function Hero({ o, system }) {
-  if (!o) {
+  if (!o || o.kind === 'binary') {
     return (
       <div className="sm-hero">
         {system.stars.map((s) => <Orb key={s.id} o={s} size={64} spin />)}
@@ -146,7 +147,7 @@ function Details({ view, system, selObj, onPick, onOpenSystem, onShowMap }) {
 // Супутники й станції планети — лише коли вибрано її або їх; на телефоні без вибору — тільки
 // тіла з власною орбітою.
 function MapLabels({ system, sel, onSelect, labelsRef, compact }) {
-  const all = [...system.stars, ...system.objects];
+  const all = [system.star, ...system.objects];
   const selObj = sel ? findObject(system, sel) : null;
   return (
     <div className="sm-labels" ref={labelsRef}>
@@ -212,7 +213,7 @@ function Layers({ m }) {
           <i /><span>СИСТЕМА</span>
         </button>
         <span className={lv(m.selObj ? 'cur' : '')} aria-current={m.selObj ? 'step' : undefined}>
-          <i /><span>{m.selObj ? (m.selObj.kind === 'field' ? 'ПОЛЕ' : TYPE_LABEL[m.selObj.kind]) : "ОБ'ЄКТ"}</span>
+          <i /><span>{m.selObj ? (m.selObj.kind === 'field' ? 'ПОЛЕ' : m.selObj.kind === 'binary' ? 'ЗОРЯ' : TYPE_LABEL[m.selObj.kind]) : "ОБ'ЄКТ"}</span>
         </span>
       </nav>
       <div className="sm-focus">

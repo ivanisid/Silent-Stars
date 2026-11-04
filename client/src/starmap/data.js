@@ -7,6 +7,7 @@
 // tex: тип процедурної текстури (textures.js), color: змінна з theme.css.
 
 export const TYPE_LABEL = {
+  binary: 'ПОДВІЙНА ЗОРЯ',
   star: 'ЗОРЯ',
   planet: 'ПЛАНЕТА',
   moon: 'СУПУТНИК',
@@ -23,6 +24,9 @@ export const SECTOR = {
       pos: [0, 0, 0],
       // Подвійна зоря: обидві однакові, обертаються навколо спільного центру.
       binary: { separation: 1.7, period: 36 },
+      // Пара зір — один об'єкт мапи: один пункт у списку, один підпис, фокус на спільному центрі.
+      // size — радіус пари для кільця вибору й відстані камери.
+      star: { id: 'sAB', kind: 'binary', name: '[ЗОРЯ]', desc: '[ОПИС]', size: 2.0 },
       stars: [
         { id: 'sA', kind: 'star', name: '[ЗОРЯ A]', desc: '[ОПИС]', tex: 'sun', color: '--map-star', size: 0.75 },
         { id: 'sB', kind: 'star', name: '[ЗОРЯ B]', desc: '[ОПИС]', tex: 'sun', color: '--map-star', size: 0.75 },
@@ -46,7 +50,7 @@ export const SECTOR = {
 // Усі об'єкти системи плоским списком у порядку меню: зорі, далі за орбітами, супутники й
 // станції одразу під своїм об'єктом.
 export function flatObjects(system) {
-  const out = [...system.stars];
+  const out = [system.star];
   for (const o of system.objects) {
     if (o.parent) continue;
     out.push(o);
@@ -56,7 +60,8 @@ export function flatObjects(system) {
 }
 
 export function findObject(system, id) {
-  return system.stars.find((o) => o.id === id) || system.objects.find((o) => o.id === id) || null;
+  if (id === system.star.id) return system.star;
+  return system.objects.find((o) => o.id === id) || null;
 }
 
 export function childrenOf(system, id) {
