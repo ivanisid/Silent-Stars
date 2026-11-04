@@ -99,14 +99,57 @@ function Nebula({ themeKey }) {
   );
 }
 
-function Label({ y, name, on, small, onClick }) {
-  return (
-    <Html center position={[0, y, 0]} zIndexRange={[20, 0]} style={{ pointerEvents: 'auto' }}>
-      <button type="button" className={`sm-label${on ? ' on' : ''}${small ? ' sm' : ''}`} onClick={onClick}>
-        {name}
-      </button>
-    </Html>
-  );
+// Шар підписів поверх полотна (DOM, кнопки з data-id рендерить сторінка). Щокадру: проєкція
+// під тілом, без накладань — пріоритет у вибраного, його родини, зір, далі ближчих до камери.
+// Підпис під елементом з [data-sm-avoid] (плашка, панель) ховається.
+function LabelProjector({ labelsRef, posAt, time, system, sel }) {
+  const { camera, size } = useThree();
+  const byId = useMemo(() => {
+    const m = new Map();
+    system.stars.forEach((o) => m.set(o.id, o));
+    system.objects.forEach((o) => m.set(o.id, o));
+    return m;
+  }, [system]);
+  const v = useMemo(() => new THREE.Vector3(), []);
+  const up = useMemo(() => new THREE.Vector3(), []);
+  useFrame(() => {
+    const root = labelsRef?.current;
+    if (!root) return;
+    const base = root.getBoundingClientRect();
+    const scope = root.parentElement || document;
+    const avoid = [];
+    scope.querySelectorAll('[data-sm-avoid]').forEach((a) => {
+      const r = a.getBoundingClientRect();
+      if (r.width) avoid.push([r.left - base.left - 4, r.top - base.top - 4, r.right - base.left + 4, r.bottom - base.top + 4]);
+    });
+    up.set(0, 1, 0).applyQuaternion(camera.quaternion);
+    const selO = sel ? byId.get(sel) : null;
+    const list = [];
+    root.querySelectorAll('[data-id]').forEach((el) => {
+      const id = el.getAttribute('data-id');
+      const o = byId.get(id);
+      if (!o || !el.offsetWidth) return;
+      posAt(id, time.current, v);
+      v.addScaledVector(up, -((o.size || 0.3) * 1.5 + 0.12));
+      v.project(camera);
+      const vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+      const family = selO && (o.parent === sel || selO.parent === id || (selO.parent && o.parent === selO.parent));
+      const pr = id === sel ? 0 : family ? 1 : o.kind === 'star' ? 2 : 3;
+      list.push({ el, x: (v.x * 0.5 + 0.5) * size.width, y: (-v.y * 0.5 + 0.5) * size.height, z: v.z, vis, pr, w: el.offsetWidth, h: el.offsetHeight });
+    });
+    list.sort((a, b) => a.pr - b.pr || a.z - b.z);
+    const placed = [];
+    const hit = (r, q) => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1];
+    for (const L of list) {
+      L.x = Math.min(Math.max(L.x, L.w / 2 + 4), size.width - L.w / 2 - 4);
+      const r = [L.x - L.w / 2 - 3, L.y - L.h / 2 - 1, L.x + L.w / 2 + 3, L.y + L.h / 2 + 1];
+      const ok = L.vis && !placed.some((q) => hit(r, q)) && !avoid.some((q) => hit(r, q));
+      if (ok) placed.push(r);
+      L.el.style.visibility = ok ? 'visible' : 'hidden';
+      L.el.style.transform = `translate(${L.x.toFixed(1)}px, ${L.y.toFixed(1)}px) translate(-50%, -50%)`;
+    }
+  });
+  return null;
 }
 
 function SelRing({ size, themeKey }) {
@@ -138,7 +181,7 @@ function Mover({ id, posAt, time, children }) {
   return <group ref={g}>{children}</group>;
 }
 
-function Sun({ o, sel, onSelect, themeKey, label }) {
+function Sun({ o, sel, onSelect, themeKey }) {
   const tex = useMemo(() => bodyTexture(o), [o]);
   const glow = useMemo(() => glowTexture(o.color), [o.color]);
   const color = useVarColor(o.color, themeKey);
@@ -158,12 +201,11 @@ function Sun({ o, sel, onSelect, themeKey, label }) {
       </sprite>
       <pointLight color={color} intensity={1.6} decay={0} distance={0} />
       {on && <SelRing size={o.size} themeKey={themeKey} />}
-      {label && <Label y={-(o.size * 1.5 + 0.12)} name={o.name} on={on} onClick={() => onSelect(o.id)} />}
     </>
   );
 }
 
-function Planet({ o, sel, onSelect, themeKey, showLabel, small }) {
+function Planet({ o, sel, onSelect, themeKey }) {
   const tex = useMemo(() => bodyTexture(o), [o]);
   const clouds = useMemo(() => (o.tex === 'terra' ? planetTexture('clouds', o.color, 1024, 7) : null), [o.tex, o.color]);
   const atmo = useVarColor(o.tex === 'gas' ? '--map-gas' : o.tex === 'terra' ? '--map-ocean' : '--map-ice', themeKey);
@@ -203,12 +245,11 @@ function Planet({ o, sel, onSelect, themeKey, showLabel, small }) {
         </mesh>
       )}
       {on && <SelRing size={o.size} themeKey={themeKey} />}
-      {showLabel && <Label y={-(o.size * 1.5 + 0.12)} name={o.name} on={on} small={small} onClick={() => onSelect(o.id)} />}
     </>
   );
 }
 
-function Station({ o, sel, onSelect, themeKey, showLabel, small }) {
+function Station({ o, sel, onSelect, themeKey }) {
   const metal = useVarColor('--map-station', themeKey);
   const accent = useVarColor('--accent', themeKey);
   const g = useRef();
@@ -246,13 +287,12 @@ function Station({ o, sel, onSelect, themeKey, showLabel, small }) {
         </mesh>
       </group>
       {on && <SelRing size={s} themeKey={themeKey} />}
-      {showLabel && <Label y={-(s * 1.5 + 0.12)} name={o.name} on={on} small={small} onClick={() => onSelect(o.id)} />}
     </>
   );
 }
 
 // Поле астероїдів — локальне скупчення каменів, що летить по своїй орбіті як окреме тіло.
-function Field({ o, sel, onSelect, themeKey, showLabel, compact }) {
+function Field({ o, sel, onSelect, themeKey, compact }) {
   const color = useVarColor(o.color, themeKey);
   const ref = useRef();
   const g = useRef();
@@ -291,7 +331,6 @@ function Field({ o, sel, onSelect, themeKey, showLabel, compact }) {
         </mesh>
       </group>
       {on && <SelRing size={o.size} themeKey={themeKey} />}
-      {showLabel && <Label y={-(o.size * 1.5 + 0.12)} name={o.name} on={on} small={compact} onClick={() => onSelect(o.id)} />}
     </>
   );
 }
@@ -351,11 +390,10 @@ function CameraRig({ focus, focusSize, posAt, time, home }) {
   return null;
 }
 
-function SystemScene({ system, sel, onSelect, paused, compact, themeKey }) {
+function SystemScene({ system, sel, onSelect, paused, compact, themeKey, labelsRef }) {
   const time = useSimTime(paused);
   const posAt = useMemo(() => makePosAt(system), [system]);
   const selObj = system.stars.find((s) => s.id === sel) || system.objects.find((o) => o.id === sel);
-  const parentOf = (o) => (o.parent ? sel === o.parent : false);
   const top = system.objects.filter((o) => !o.parent);
   const kids = system.objects.filter((o) => o.parent);
   const bin = useMemo(() => circlePoints(system.binary.separation, 96), [system]);
@@ -369,7 +407,7 @@ function SystemScene({ system, sel, onSelect, paused, compact, themeKey }) {
       <Line points={bin} color={binColor} lineWidth={1} transparent opacity={0.35} dashed dashSize={0.2} gapSize={0.2} depthWrite={false} />
       {system.stars.map((s) => (
         <Mover key={s.id} id={s.id} posAt={posAt} time={time}>
-          <Sun o={s} sel={sel} onSelect={onSelect} themeKey={themeKey} label={!compact || sel === s.id} />
+          <Sun o={s} sel={sel} onSelect={onSelect} themeKey={themeKey} />
         </Mover>
       ))}
       {top.map((o) => (
@@ -380,23 +418,20 @@ function SystemScene({ system, sel, onSelect, paused, compact, themeKey }) {
           <OrbitLine r={o.orbit} on={sel === o.id} themeKey={themeKey} />
         </Mover>
       ))}
-      {[...top, ...kids].map((o) => {
-        const showLabel = o.parent ? sel === o.id || parentOf(o) : !compact || sel === o.id || !sel;
-        const small = !!o.parent || compact;
-        return (
-          <Mover key={o.id} id={o.id} posAt={posAt} time={time}>
-            {o.kind === 'field' ? (
-              <Field o={o} sel={sel} onSelect={onSelect} themeKey={themeKey} showLabel={showLabel} compact={compact} />
-            ) : o.kind === 'station' ? (
-              <Station o={o} sel={sel} onSelect={onSelect} themeKey={themeKey} showLabel={showLabel} small={small} />
-            ) : (
-              <Planet o={o} sel={sel} onSelect={onSelect} themeKey={themeKey} showLabel={showLabel} small={small} />
-            )}
-          </Mover>
-        );
-      })}
+      {[...top, ...kids].map((o) => (
+        <Mover key={o.id} id={o.id} posAt={posAt} time={time}>
+          {o.kind === 'field' ? (
+            <Field o={o} sel={sel} onSelect={onSelect} themeKey={themeKey} compact={compact} />
+          ) : o.kind === 'station' ? (
+            <Station o={o} sel={sel} onSelect={onSelect} themeKey={themeKey} />
+          ) : (
+            <Planet o={o} sel={sel} onSelect={onSelect} themeKey={themeKey} />
+          )}
+        </Mover>
+      ))}
       <OrbitControls makeDefault enablePan={false} enableDamping dampingFactor={0.08} minDistance={1.5} maxDistance={80} maxPolarAngle={Math.PI * 0.49} />
       <CameraRig focus={sel} focusSize={focusSize} posAt={posAt} time={time} home={compact ? 52 : 38} />
+      <LabelProjector labelsRef={labelsRef} posAt={posAt} time={time} system={system} sel={sel} />
     </>
   );
 }
@@ -459,7 +494,7 @@ function Background({ themeKey }) {
   return <color attach="background" args={[c]} />;
 }
 
-export default function StarMapScene({ view, sector, system, sel, onSelect, onOpenSystem, paused = false, compact = false, themeKey }) {
+export default function StarMapScene({ view, sector, system, sel, onSelect, onOpenSystem, paused = false, compact = false, themeKey, labelsRef }) {
   return (
     <Canvas
       className="sm-canvas"
@@ -472,7 +507,7 @@ export default function StarMapScene({ view, sector, system, sel, onSelect, onOp
       {view === 'sector' ? (
         <SectorScene sector={sector} onOpen={onOpenSystem} compact={compact} themeKey={themeKey} />
       ) : (
-        <SystemScene system={system} sel={sel} onSelect={onSelect} paused={paused} compact={compact} themeKey={themeKey} />
+        <SystemScene system={system} sel={sel} onSelect={onSelect} paused={paused} compact={compact} themeKey={themeKey} labelsRef={labelsRef} />
       )}
     </Canvas>
   );

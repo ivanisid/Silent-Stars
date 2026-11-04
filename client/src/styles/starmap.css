@@ -13,7 +13,9 @@
 }
 .sm-canvas { position: absolute !important; inset: 0; }
 
-/* Підписи в 3D (drei Html) */
+/* Підписи тіл: шар поверх полотна, позиції ставить LabelProjector */
+.sm-labels { position: absolute; inset: 0; z-index: 10; overflow: hidden; pointer-events: none; }
+.sm-labels .sm-label { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: auto; }
 .sm-label {
   display: block;
   white-space: nowrap;

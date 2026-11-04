@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useState } from 'react';
+import { Suspense, lazy, useMemo, useRef, useState } from 'react';
 import { MobileHead, PageShell } from '../components/kit.jsx';
 import NavDrawer from '../components/NavDrawer.jsx';
 import { useIsMobile } from '../useMobile.js';
@@ -142,6 +142,34 @@ function Details({ view, system, selObj, onPick, onOpenSystem, onShowMap }) {
   );
 }
 
+// Підписи тіл поверх 3D: позиції й видимість щокадру ставить сцена (LabelProjector).
+// Супутники й станції планети — лише коли вибрано її або їх; на телефоні без вибору — тільки
+// тіла з власною орбітою.
+function MapLabels({ system, sel, onSelect, labelsRef, compact }) {
+  const all = [...system.stars, ...system.objects];
+  const selObj = sel ? findObject(system, sel) : null;
+  return (
+    <div className="sm-labels" ref={labelsRef}>
+      {all.map((o) => {
+        const show = o.parent ? sel === o.id || sel === o.parent || selObj?.parent === o.parent : true;
+        if (!show) return null;
+        const small = !!o.parent || compact;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            data-id={o.id}
+            className={`sm-label${sel === o.id ? ' on' : ''}${small ? ' sm' : ''}`}
+            onClick={() => onSelect(o.id)}
+          >
+            {o.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function SceneSlot(props) {
   return (
     <Suspense fallback={null}>
@@ -174,7 +202,7 @@ function Layers({ m }) {
   const lv = (state) => `lv${state ? ` ${state}` : ''}`;
   const focus = !inSystem ? '[СЕКТОР]' : m.selObj ? m.selObj.name : m.system.name;
   return (
-    <header className="sm-head">
+    <header className="sm-head" data-sm-avoid="">
       <h1>ЗОРЯНА МАПА</h1>
       <nav className="sm-layers" aria-label="Рівень мапи">
         <button type="button" className={lv(inSystem ? 'done' : 'cur')} aria-current={inSystem ? undefined : 'step'} onClick={m.toSector}>
@@ -198,6 +226,7 @@ function Layers({ m }) {
 function DesktopMap({ themeKey }) {
   const m = useMapState();
   const [panel, setPanel] = useState(true);
+  const labelsRef = useRef(null);
   const select = (id) => { m.toggle(id); setPanel(true); };
   const pick = (id) => { m.pick(id); setPanel(true); };
   const title = m.view === 'sector' ? 'СЕКТОР' : m.selObj ? m.selObj.name : m.system.name;
@@ -213,10 +242,12 @@ function DesktopMap({ themeKey }) {
           onSelect={select}
           onOpenSystem={m.openSystem}
           themeKey={themeKey}
+          labelsRef={labelsRef}
         />
+        {m.view === 'system' && <MapLabels system={m.system} sel={m.sel} onSelect={select} labelsRef={labelsRef} />}
         <Layers m={m} />
         {panel ? (
-          <aside className="sm-panel" aria-label="Деталі">
+          <aside className="sm-panel" data-sm-avoid="" aria-label="Деталі">
             <div className="sm-panel-head">
               <h2>{title}</h2>
               {m.selObj && <span className="ty">{TYPE_LABEL[m.selObj.kind]}</span>}
@@ -229,7 +260,7 @@ function DesktopMap({ themeKey }) {
             </div>
           </aside>
         ) : (
-          <button type="button" className="sm-ib sm-open" aria-label="Відкрити панель" onClick={() => setPanel(true)}>
+          <button type="button" className="sm-ib sm-open" data-sm-avoid="" aria-label="Відкрити панель" onClick={() => setPanel(true)}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="square" aria-hidden="true"><path d="M3 4h18v16H3zM15 4v16M8 9l-3 3 3 3" /></svg>
           </button>
         )}
@@ -242,6 +273,8 @@ function MobileMap({ themeKey }) {
   const m = useMapState();
   const [full, setFull] = useState(false);
   const [mapSel, setMapSel] = useState(null);
+  const labelsRef = useRef(null);
+  const mapPick = (id) => setMapSel((cur) => (cur === id ? null : id));
   const mapObj = mapSel ? findObject(m.system, mapSel) : null;
   const back = m.selObj
     ? () => (m.selObj.parent ? m.pick(m.selObj.parent) : m.toSystem())
@@ -268,18 +301,20 @@ function MobileMap({ themeKey }) {
             sector={SECTOR}
             system={m.system}
             sel={mapSel}
-            onSelect={(id) => setMapSel((cur) => (cur === id ? null : id))}
+            onSelect={mapPick}
             onOpenSystem={m.openSystem}
             paused={!!mapSel}
             compact
             themeKey={themeKey}
+            labelsRef={labelsRef}
           />
-          <button type="button" className="sm-menu" onClick={() => setFull(false)}>
+          <MapLabels system={m.system} sel={mapSel} onSelect={mapPick} labelsRef={labelsRef} compact />
+          <button type="button" className="sm-menu" data-sm-avoid="" onClick={() => setFull(false)}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="square" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
             МЕНЮ
           </button>
           {mapObj && (
-            <div className="sm-sheet">
+            <div className="sm-sheet" data-sm-avoid="">
               <div className="row">
                 <span className="nm">{mapObj.name}</span>
                 <span className="ty">{TYPE_LABEL[mapObj.kind]}</span>
