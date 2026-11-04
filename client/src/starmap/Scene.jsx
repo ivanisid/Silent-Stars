@@ -162,7 +162,7 @@ function Sun({ o, sel, onSelect, themeKey, label }) {
       </sprite>
       <pointLight color={color} intensity={1.6} decay={0} distance={0} />
       {on && <SelRing size={o.size} themeKey={themeKey} />}
-      {label && <Label y={-(o.size + 0.45)} name={o.name} on={on} onClick={() => onSelect(o.id)} />}
+      {label && <Label y={-(o.size * 1.5 + 0.12)} name={o.name} on={on} onClick={() => onSelect(o.id)} />}
     </>
   );
 }
@@ -207,7 +207,7 @@ function Planet({ o, sel, onSelect, themeKey, showLabel, small }) {
         </mesh>
       )}
       {on && <SelRing size={o.size} themeKey={themeKey} />}
-      {showLabel && <Label y={-(o.size + 0.4)} name={o.name} on={on} small={small} onClick={() => onSelect(o.id)} />}
+      {showLabel && <Label y={-(o.size * 1.5 + 0.12)} name={o.name} on={on} small={small} onClick={() => onSelect(o.id)} />}
     </>
   );
 }
@@ -250,7 +250,7 @@ function Station({ o, sel, onSelect, themeKey, showLabel, small }) {
         </mesh>
       </group>
       {on && <SelRing size={s} themeKey={themeKey} />}
-      {showLabel && <Label y={-(s + 0.4)} name={o.name} on={on} small={small} onClick={() => onSelect(o.id)} />}
+      {showLabel && <Label y={-(s * 1.5 + 0.12)} name={o.name} on={on} small={small} onClick={() => onSelect(o.id)} />}
     </>
   );
 }

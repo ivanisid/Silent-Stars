@@ -167,30 +167,31 @@ function useMapState() {
   };
 }
 
-function Crumbs({ m }) {
+// Плашка рівня: на якому шарі зараз камера (СЕКТОР / СИСТЕМА / тип об'єкта) і що у фокусі.
+function Layers({ m }) {
   const parent = m.selObj?.parent ? findObject(m.system, m.selObj.parent) : null;
+  const inSystem = m.view === 'system';
+  const lv = (state) => `lv${state ? ` ${state}` : ''}`;
+  const focus = !inSystem ? '[СЕКТОР]' : m.selObj ? m.selObj.name : m.system.name;
   return (
-    <nav className="sm-crumbs" aria-label="Рівень мапи">
-      <button type="button" className={m.view === 'sector' ? 'cur' : ''} onClick={m.toSector}>СЕКТОР</button>
-      {m.view === 'system' && (
-        <>
-          <span aria-hidden="true">/</span>
-          <button type="button" className={m.selObj ? '' : 'cur'} onClick={m.toSystem}>{m.system.name}</button>
-        </>
-      )}
-      {parent && (
-        <>
-          <span aria-hidden="true">/</span>
-          <button type="button" onClick={() => m.pick(parent.id)}>{parent.name}</button>
-        </>
-      )}
-      {m.selObj && (
-        <>
-          <span aria-hidden="true">/</span>
-          <span className="cur">{m.selObj.name}</span>
-        </>
-      )}
-    </nav>
+    <header className="sm-head">
+      <h1>ЗОРЯНА МАПА</h1>
+      <nav className="sm-layers" aria-label="Рівень мапи">
+        <button type="button" className={lv(inSystem ? 'done' : 'cur')} aria-current={inSystem ? undefined : 'step'} onClick={m.toSector}>
+          <i /><span>СЕКТОР</span>
+        </button>
+        <button type="button" className={lv(!inSystem ? '' : m.selObj ? 'done' : 'cur')} aria-current={inSystem && !m.selObj ? 'step' : undefined} onClick={inSystem ? m.toSystem : undefined} disabled={!inSystem}>
+          <i /><span>СИСТЕМА</span>
+        </button>
+        <span className={lv(m.selObj ? 'cur' : '')} aria-current={m.selObj ? 'step' : undefined}>
+          <i /><span>{m.selObj ? TYPE_LABEL[m.selObj.kind] : "ОБ'ЄКТ"}</span>
+        </span>
+      </nav>
+      <div className="sm-focus">
+        {parent && <button type="button" className="par" onClick={() => m.pick(parent.id)}>{parent.name}</button>}
+        <span className="nm">{focus}</span>
+      </div>
+    </header>
   );
 }
 
@@ -213,10 +214,7 @@ function DesktopMap({ themeKey }) {
           onOpenSystem={m.openSystem}
           themeKey={themeKey}
         />
-        <header className="sm-head">
-          <h1>ЗОРЯНА МАПА</h1>
-          <Crumbs m={m} />
-        </header>
+        <Layers m={m} />
         {panel ? (
           <aside className="sm-panel" aria-label="Деталі">
             <div className="sm-panel-head">

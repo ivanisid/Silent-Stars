@@ -35,42 +35,55 @@
 .sm-label.sm { font-size: 11px; letter-spacing: 1.5px; }
 .sm-label.lg { font-size: 16px; letter-spacing: 4px; color: var(--map-label); }
 
-/* Плашка навігації */
+/* Плашка рівня (лівий верхній кут) */
 .sm-head {
   position: absolute;
   left: 16px;
   top: 16px;
   z-index: 30;
-  max-width: calc(100% - 440px);
+  width: 340px;
+  max-width: calc(100% - 32px);
   box-sizing: border-box;
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 16px;
-  padding: 4px 16px;
-  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 16px;
+  background: color-mix(in srgb, var(--panel) 84%, transparent);
   border: 1px solid var(--panel-border);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
 }
-.sm-head h1 { margin: 0; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 24px; letter-spacing: 3px; color: var(--text-bright); line-height: 1; }
-.sm-crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--text-dimmer); }
-.sm-crumbs button, .sm-crumbs .cur {
+.sm-head h1 { margin: 0; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 22px; letter-spacing: 3px; color: var(--text-bright); line-height: 1; }
+.sm-layers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.sm-layers .lv {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0;
   background: none;
   border: 0;
-  padding: 6px 0;
-  min-height: 40px;
+  text-align: left;
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 3px;
+  font-size: 12px;
+  letter-spacing: 2px;
   color: var(--text-dimmer);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.sm-crumbs button:hover { color: var(--accent); }
-.sm-crumbs .cur, .sm-crumbs button.cur { color: var(--text-bright); cursor: default; }
+.sm-layers .lv i { display: block; height: 3px; background: var(--panel-border); }
+.sm-layers .lv.done { cursor: pointer; }
+.sm-layers .lv.done i { background: var(--text-dimmer); }
+.sm-layers .lv.done:hover { color: var(--accent); }
+.sm-layers .lv.done:hover i { background: var(--accent); }
+.sm-layers .lv.cur { color: var(--text-bright); }
+.sm-layers .lv.cur i { background: var(--accent); box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent); }
+.sm-focus { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; padding-top: 10px; border-top: 1px solid var(--panel-border); }
+.sm-focus .nm { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 20px; letter-spacing: 3px; color: var(--text-bright); }
+.sm-focus .par { flex: none; background: none; border: 0; padding: 0; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 2px; color: var(--text-dimmer); }
+.sm-focus .par:hover { color: var(--accent); }
 
 /* Панель-оверлей */
 .sm-panel {
