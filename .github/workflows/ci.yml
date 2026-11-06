@@ -43,6 +43,9 @@ jobs:
       - name: Зміни з бази у відкритому профілі
         run: node src/pilot/foundrySync.test.mjs
         working-directory: client
+      - name: Хроніка — розмітка, згадки, фільтр
+        run: node src/chronicle/markup.test.mjs
+        working-directory: client
       - name: Логіка прийняття COMP/CON у модулі Foundry зібрана з поточної апки
         run: node foundry-module/bundle-compcon.mjs --check
       - name: Збірка

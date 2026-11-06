@@ -1844,3 +1844,54 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
   .ss-rule-ed .cards-ed { grid-template-columns: minmax(0, 1fr); }
   .ss-rule-ed .tr { grid-template-columns: minmax(0, 1fr) minmax(0, 96px) auto; }
 }
+
+/* Хроніка (/chronicle): ліворуч список записів із фільтрами, праворуч запис або редактор. */
+.ss-chron { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 22px; }
+.ss-chron-side { flex: 1 1 300px; max-width: 380px; min-width: 0; }
+.ss-chron-main { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 22px; }
+.ss-chron-filters { padding: 12px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--rule); }
+.ss-chron-filters .ss-seg { align-self: flex-start; }
+.ss-chron-filters .ss-input { width: 100%; box-sizing: border-box; }
+.ss-chron-tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ss-chron-tags .add { display: inline-flex; gap: 6px; align-items: center; }
+.ss-chron-tags .add .ss-input { width: 140px; }
+.ss-chron-list { display: flex; flex-direction: column; max-height: calc(100vh - 300px); overflow-y: auto; }
+.ss-chron-list .row { display: flex; flex-direction: column; gap: 4px; padding: 9px 12px; text-align: left; background: transparent; border: none; border-left: 2px solid transparent; color: var(--text); cursor: pointer; font: inherit; min-width: 0; }
+.ss-chron-list .row + .row { border-top: 1px solid var(--rule); }
+.ss-chron-list .row:hover { background: var(--panel-inset); }
+.ss-chron-list .row.on { background: var(--panel-inset); border-left-color: var(--accent); }
+.ss-chron-list .row .t { font-size: 13px; color: var(--text-bright); overflow-wrap: anywhere; }
+.ss-chron-list .row .m { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 10px; letter-spacing: 1px; color: var(--text-dim); }
+.ss-chron-list .row .m .k { color: var(--accent); }
+.ss-chron-list .empty { padding: 14px 12px; font-size: 12px; color: var(--text-dimmer); }
+.ss-chron-meta { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 18px 0; }
+.ss-chron-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0; padding: 12px 18px 0; font-size: 12px; }
+.ss-chron-facts dt { font-size: 10px; letter-spacing: 2px; color: var(--text-dim); padding-top: 2px; }
+.ss-chron-facts dd { margin: 0; color: var(--text-bright); overflow-wrap: anywhere; }
+.ss-chron-refs { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; margin: 0 18px; font-size: 13px; padding: 12px 0 16px; border-top: 1px solid var(--rule); }
+.ss-chron-refs .lbl { width: 100%; font-size: 10px; letter-spacing: 2px; color: var(--text-dim); }
+.ss-mention { display: inline; padding: 0; background: none; border: none; font: inherit; color: var(--accent); text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; cursor: pointer; }
+.ss-mention:hover { color: var(--text-bright); }
+.ss-mention.off { color: var(--text-soft); text-decoration: none; cursor: default; }
+.ss-chron-ed .row { display: flex; flex-wrap: wrap; gap: 14px 24px; }
+.ss-chron-ed .ss-seg { align-self: flex-start; }
+.ss-chron-ed .ss-seg button { height: 28px; padding: 0 14px; }
+.ss-chron-ed > .fld > .ss-input, .ss-chron-ed > .fld > .ss-select { width: 100%; box-sizing: border-box; }
+.ss-chron-ed input[type='date'].ss-input { width: auto; align-self: flex-start; }
+.ss-chron-area { position: relative; }
+.ss-chron-sugg { position: absolute; left: 8px; right: 8px; top: calc(100% + 4px); z-index: 20; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--accent-dim); max-height: 240px; overflow-y: auto; }
+.ss-chron-sugg button { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; background: transparent; border: none; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.ss-chron-sugg button + button { border-top: 1px solid var(--rule); }
+.ss-chron-sugg button.on, .ss-chron-sugg button:hover { background: var(--panel-inset); color: var(--text-bright); }
+.ss-chron-sugg .k { font-size: 10px; letter-spacing: 1px; color: var(--accent); flex: none; }
+@media (max-width: 640px) {
+  .ss-chron { gap: 14px; }
+  .ss-chron-side { max-width: none; flex-basis: 100%; }
+  .ss-chron-list { max-height: none; }
+  .ss-chron-meta { padding: 12px 12px 0; }
+  .ss-chron-facts { padding: 12px 12px 0; }
+  .ss-chron-refs { margin: 0 12px; }
+  .ss-chron-tags .add { width: 100%; }
+  .ss-chron-tags .add .ss-input { flex: 1; width: auto; }
+}
+.ss-chron-acts { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 12px 0; }

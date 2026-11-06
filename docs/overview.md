@@ -17,7 +17,8 @@
 
 Сторінки (`client/src/App.jsx`): `/login`, `/pilots` (вибір пілота, імпорт COMP/CON),
 `/pilots/:id` (профіль), `/board` (дошка ігор, запис), `/reserves` (резерви, рідкісні
-резерви), `/rules` (правила кампанії), `/gm` (панель ГМа).
+резерви), `/rules` (правила кампанії), `/chronicle` (хроніка ГМів: записи з тегами, звіти ігор,
+події; доступ «лише я / ГМи / усі»; специфікація `docs/chronicle-spec.md`), `/gm` (панель ГМа).
 
 Правила (`client/src/pages/RulesPage.jsx`, специфікація `docs/rules-page-spec.md`): розділи в
 таблиці `rule_sections` (міграція `20261016b_rules.sql`, наповнення з `docs/rules-source.md` —
