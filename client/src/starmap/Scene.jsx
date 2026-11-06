@@ -30,24 +30,36 @@ function useSimTime(paused) {
   return t;
 }
 
+// Площина орбіти: нахил incl (навколо X) і поворот вузла node (навколо Y), у радіанах.
+// Без них орбіта лежить у площині XZ.
+const quatCache = new WeakMap();
+function orbitQuat(o) {
+  let q = quatCache.get(o);
+  if (!q) {
+    q = new THREE.Quaternion().setFromEuler(new THREE.Euler(o.incl || 0, o.node || 0, 0, 'YXZ'));
+    quatCache.set(o, q);
+  }
+  return q;
+}
+
 function makePosAt(system) {
   const byId = new Map(system.objects.map((o) => [o.id, o]));
   const { separation, period } = system.binary;
+  const local = new THREE.Vector3();
   return function posAt(id, t, out = new THREE.Vector3()) {
     if (id === system.star.id) return out.set(0, 0, 0);
     const si = system.stars.findIndex((s) => s.id === id);
     if (si >= 0) {
       const a = (TAU * t) / period + si * Math.PI;
-      return out.set(Math.cos(a) * separation, 0, Math.sin(a) * separation);
+      return out.set(Math.cos(a) * separation, 0, Math.sin(a) * separation).applyQuaternion(orbitQuat(system.binary));
     }
     const o = byId.get(id);
     if (!o) return out.set(0, 0, 0);
     const a = o.phase + (TAU * t) / o.period;
-    if (o.parent) {
-      posAt(o.parent, t, out);
-      return out.set(out.x + Math.cos(a) * o.orbit, out.y, out.z + Math.sin(a) * o.orbit);
-    }
-    return out.set(Math.cos(a) * o.orbit, 0, Math.sin(a) * o.orbit);
+    local.set(Math.cos(a) * o.orbit, 0, Math.sin(a) * o.orbit).applyQuaternion(orbitQuat(o));
+    if (o.parent) posAt(o.parent, t, out);
+    else out.set(0, 0, 0);
+    return out.add(local);
   };
 }
 
@@ -404,7 +416,9 @@ function SystemScene({ system, sel, onSelect, paused, compact, themeKey, labelsR
       <ambientLight intensity={0.16} />
       <Starfield count={compact ? 2500 : 5000} />
       <Nebula themeKey={themeKey} />
-      <Line points={bin} color={binColor} lineWidth={1} transparent opacity={0.35} dashed dashSize={0.2} gapSize={0.2} depthWrite={false} />
+      <group quaternion={orbitQuat(system.binary)}>
+        <Line points={bin} color={binColor} lineWidth={1} transparent opacity={0.35} dashed dashSize={0.2} gapSize={0.2} depthWrite={false} />
+      </group>
       {system.stars.map((s) => (
         <Mover key={s.id} id={s.id} posAt={posAt} time={time}>
           <Sun o={s} pickId={system.star.id} onSelect={onSelect} themeKey={themeKey} />
@@ -412,11 +426,15 @@ function SystemScene({ system, sel, onSelect, paused, compact, themeKey, labelsR
       ))}
       {sel === system.star.id && <SelRing size={system.star.size} themeKey={themeKey} />}
       {top.map((o) => (
-        <OrbitLine key={`o-${o.id}`} r={o.orbit} on={sel === o.id} dashed={o.kind === 'field'} themeKey={themeKey} />
+        <group key={`o-${o.id}`} quaternion={orbitQuat(o)}>
+          <OrbitLine r={o.orbit} on={sel === o.id} dashed={o.kind === 'field'} themeKey={themeKey} />
+        </group>
       ))}
       {kids.map((o) => (
         <Mover key={`ko-${o.id}`} id={o.parent} posAt={posAt} time={time}>
-          <OrbitLine r={o.orbit} on={sel === o.id} themeKey={themeKey} />
+          <group quaternion={orbitQuat(o)}>
+            <OrbitLine r={o.orbit} on={sel === o.id} themeKey={themeKey} />
+          </group>
         </Mover>
       ))}
       {[...top, ...kids].map((o) => (
@@ -430,7 +448,7 @@ function SystemScene({ system, sel, onSelect, paused, compact, themeKey, labelsR
           )}
         </Mover>
       ))}
-      <OrbitControls makeDefault enablePan={false} enableDamping dampingFactor={0.08} minDistance={1.5} maxDistance={80} maxPolarAngle={Math.PI * 0.49} />
+      <OrbitControls makeDefault enablePan={false} enableDamping dampingFactor={0.08} minDistance={1.5} maxDistance={80} />
       <CameraRig focus={sel} focusSize={focusSize} posAt={posAt} time={time} home={compact ? 52 : 38} />
       <LabelProjector labelsRef={labelsRef} posAt={posAt} time={time} system={system} sel={sel} />
     </>

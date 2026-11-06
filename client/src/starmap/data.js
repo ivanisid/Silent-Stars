@@ -5,6 +5,8 @@
 // size — його радіус). Супутник чи станція з `parent` обертається
 // навколо свого об'єкта, без `parent` — навколо центру системи.
 // tex: тип процедурної текстури (textures.js), color: змінна з theme.css.
+// incl / node — площина орбіти в радіанах: нахил і поворот навколо вертикалі; орбіти
+// лежать у різних площинах, а не на одному диску.
 
 export const TYPE_LABEL = {
   binary: 'ПОДВІЙНА ЗОРЯ',
@@ -23,7 +25,7 @@ export const SECTOR = {
       desc: '[ОПИС СИСТЕМИ]',
       pos: [0, 0, 0],
       // Подвійна зоря: обидві однакові, обертаються навколо спільного центру.
-      binary: { separation: 1.7, period: 36 },
+      binary: { separation: 1.7, period: 36, incl: 0.25, node: 0.6 },
       // Пара зір — один об'єкт мапи: один пункт у списку, один підпис, фокус на спільному центрі.
       // size — радіус пари для кільця вибору й відстані камери.
       star: { id: 'sAB', kind: 'binary', name: '[ЗОРЯ]', desc: '[ОПИС]', size: 2.0 },
@@ -32,16 +34,16 @@ export const SECTOR = {
         { id: 'sB', kind: 'star', name: '[ЗОРЯ B]', desc: '[ОПИС]', tex: 'sun', color: '--map-star', size: 0.75 },
       ],
       objects: [
-        { id: 'p1', kind: 'planet', name: '[ПЛАНЕТА 01]', desc: '[ОПИС]', tex: 'rock', color: '--map-rock', size: 0.32, orbit: 5.5, period: 50, phase: 0.3 },
-        { id: 'p2', kind: 'planet', name: '[ПЛАНЕТА 02]', desc: '[ОПИС]', tex: 'terra', color: '--map-ocean', size: 0.55, orbit: 8.5, period: 86, phase: 2.1 },
-        { id: 'p2m1', kind: 'moon', parent: 'p2', name: '[СУПУТНИК 01]', desc: '[ОПИС]', tex: 'rock', color: '--map-moon', size: 0.13, orbit: 1.1, period: 14, phase: 0 },
-        { id: 'f1', kind: 'field', name: '[ПОЛЕ АСТЕРОЇДІВ 01]', desc: '[ОПИС]', color: '--map-rock', size: 1.6, orbit: 12, period: 150, phase: 1.0, count: 600 },
-        { id: 'p3', kind: 'planet', name: '[ПЛАНЕТА 03]', desc: '[ОПИС]', tex: 'gas', color: '--map-gas', size: 1.15, orbit: 16.5, period: 190, phase: 4.0 },
-        { id: 'p3m1', kind: 'moon', parent: 'p3', name: '[СУПУТНИК 02]', desc: '[ОПИС]', tex: 'ice', color: '--map-ice', size: 0.18, orbit: 2.0, period: 20, phase: 1.2 },
-        { id: 'p3s1', kind: 'station', parent: 'p3', name: '[СТАНЦІЯ 01]', desc: '[ОПИС]', size: 0.22, orbit: 2.8, period: 34, phase: 3.5 },
-        { id: 's2', kind: 'station', name: '[СТАНЦІЯ 02]', desc: '[ОПИС]', size: 0.32, orbit: 19.5, period: 230, phase: 5.2 },
-        { id: 'f2', kind: 'field', name: '[ПОЛЕ АСТЕРОЇДІВ 02]', desc: '[ОПИС]', color: '--map-rock', size: 1.0, orbit: 21.3, period: 270, phase: 3.4, count: 400 },
-        { id: 'p4', kind: 'planet', name: '[ПЛАНЕТА 04]', desc: '[ОПИС]', tex: 'ice', color: '--map-ice', size: 0.45, orbit: 23, period: 300, phase: 0.9 },
+        { id: 'p1', kind: 'planet', name: '[ПЛАНЕТА 01]', desc: '[ОПИС]', tex: 'rock', color: '--map-rock', size: 0.32, orbit: 5.5, period: 50, phase: 0.3, incl: 0.15, node: 0.5 },
+        { id: 'p2', kind: 'planet', name: '[ПЛАНЕТА 02]', desc: '[ОПИС]', tex: 'terra', color: '--map-ocean', size: 0.55, orbit: 8.5, period: 86, phase: 2.1, incl: 0.4, node: 2.0 },
+        { id: 'p2m1', kind: 'moon', parent: 'p2', name: '[СУПУТНИК 01]', desc: '[ОПИС]', tex: 'rock', color: '--map-moon', size: 0.13, orbit: 1.1, period: 14, phase: 0, incl: 0.9, node: 1.0 },
+        { id: 'f1', kind: 'field', name: '[ПОЛЕ АСТЕРОЇДІВ 01]', desc: '[ОПИС]', color: '--map-rock', size: 1.6, orbit: 12, period: 150, phase: 1.0, incl: 0.3, node: 4.0, count: 600 },
+        { id: 'p3', kind: 'planet', name: '[ПЛАНЕТА 03]', desc: '[ОПИС]', tex: 'gas', color: '--map-gas', size: 1.15, orbit: 16.5, period: 190, phase: 4.0, incl: 0.55, node: 3.0 },
+        { id: 'p3m1', kind: 'moon', parent: 'p3', name: '[СУПУТНИК 02]', desc: '[ОПИС]', tex: 'ice', color: '--map-ice', size: 0.18, orbit: 2.0, period: 20, phase: 1.2, incl: 1.1, node: 0.4 },
+        { id: 'p3s1', kind: 'station', parent: 'p3', name: '[СТАНЦІЯ 01]', desc: '[ОПИС]', size: 0.22, orbit: 2.8, period: 34, phase: 3.5, incl: 0.7, node: 5.0 },
+        { id: 's2', kind: 'station', name: '[СТАНЦІЯ 02]', desc: '[ОПИС]', size: 0.32, orbit: 19.5, period: 230, phase: 5.2, incl: 0.95, node: 1.5 },
+        { id: 'f2', kind: 'field', name: '[ПОЛЕ АСТЕРОЇДІВ 02]', desc: '[ОПИС]', color: '--map-rock', size: 1.0, orbit: 21.3, period: 270, phase: 3.4, incl: 0.45, node: 5.5, count: 400 },
+        { id: 'p4', kind: 'planet', name: '[ПЛАНЕТА 04]', desc: '[ОПИС]', tex: 'ice', color: '--map-ice', size: 0.45, orbit: 23, period: 300, phase: 0.9, incl: 0.75, node: 2.6 },
       ],
     },
   ],
