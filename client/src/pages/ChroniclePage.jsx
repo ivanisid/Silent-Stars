@@ -9,7 +9,8 @@ import {
 } from '../chronicle/markup.js';
 
 // Хроніка ГМів (/chronicle): записи (тип задають теги), звіти ігор і події світу.
-// Доступ запису: лише автор / усі ГМи / усі. Змінює й видаляє лише автор.
+// Доступ запису: лише автор / усі ГМи / усі. Приватний змінює лише автор, спільний — будь-який ГМ;
+// доступ змінює й запис видаляє лише автор.
 // Специфікація — docs/chronicle-spec.md, логіка розмітки й фільтра — chronicle/markup.js.
 
 function Inline({ tokens, byId, onOpen }) {
@@ -40,13 +41,13 @@ function EntryText({ text, byId, onOpen }) {
   );
 }
 
-function EntryView({ entry, mine, tagsById, nicks, byId, entries, roster, onOpen, onEdit, onDelete, busy }) {
+function EntryView({ entry, canEdit, canDelete, tagsById, nicks, byId, entries, roster, onOpen, onEdit, onDelete, busy }) {
   const refs = backlinks(entries, entry.id);
   const mobile = useIsMobile();
-  const actions = mine ? (
+  const actions = canEdit || canDelete ? (
     <>
-      <button type="button" className="btn-ghost sm" disabled={busy} onClick={onEdit}>ЗМІНИТИ</button>
-      <button type="button" className="btn-danger sm" disabled={busy} onClick={onDelete}>ВИДАЛИТИ</button>
+      {canEdit && <button type="button" className="btn-ghost sm" disabled={busy} onClick={onEdit}>ЗМІНИТИ</button>}
+      {canDelete && <button type="button" className="btn-danger sm" disabled={busy} onClick={onDelete}>ВИДАЛИТИ</button>}
     </>
   ) : null;
   return (
@@ -75,7 +76,15 @@ function EntryView({ entry, mine, tagsById, nicks, byId, entries, roster, onOpen
           </>
         )}
         <dt>АВТОР</dt>
-        <dd>{nicks[entry.authorId] || '—'} · {formatDate(entry.updatedAt)}</dd>
+        {entry.updatedBy && entry.updatedBy !== entry.authorId ? (
+          <>
+            <dd>{nicks[entry.authorId] || '—'} · {formatDate(entry.createdAt)}</dd>
+            <dt>ЗМІНИВ</dt>
+            <dd>{nicks[entry.updatedBy] || '—'} · {formatDate(entry.updatedAt)}</dd>
+          </>
+        ) : (
+          <dd>{nicks[entry.authorId] || '—'} · {formatDate(entry.updatedAt)}</dd>
+        )}
       </dl>
       <EntryText text={entry.body} byId={byId} onOpen={onOpen} />
       {refs.length > 0 && (
@@ -185,6 +194,7 @@ function EntryEditor({ entry, entries, tags, games, userId, onCancel, onSave, on
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
+  const isAuthor = !entry || entry.authorId === userId;
   const toggleTag = (id) => set({ tagIds: draft.tagIds.includes(id) ? draft.tagIds.filter((t) => t !== id) : [...draft.tagIds, id] });
 
   async function addTag() {
@@ -234,7 +244,7 @@ function EntryEditor({ entry, entries, tags, games, userId, onCancel, onSave, on
             <span className="lbl">ДОСТУП</span>
             <div className="ss-seg">
               {VISIBILITY.map((v) => (
-                <button key={v.key} type="button" className={draft.visibility === v.key ? 'on' : ''} aria-pressed={draft.visibility === v.key} onClick={() => set({ visibility: v.key })}>{v.label}</button>
+                <button key={v.key} type="button" className={draft.visibility === v.key ? 'on' : ''} aria-pressed={draft.visibility === v.key} disabled={!isAuthor} onClick={() => set({ visibility: v.key })}>{v.label}</button>
               ))}
             </div>
           </div>
@@ -483,7 +493,8 @@ export default function ChroniclePage() {
     main = (
       <EntryView
         entry={selected}
-        mine={selected.authorId === user?.id}
+        canEdit={selected.authorId === user?.id || selected.visibility !== 'private'}
+        canDelete={selected.authorId === user?.id}
         tagsById={tagsById}
         nicks={nicks}
         byId={byId}

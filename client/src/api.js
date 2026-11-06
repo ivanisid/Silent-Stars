@@ -705,7 +705,7 @@ export const api = {
     const [entries, tags, people] = await Promise.all([
       supabase
         .from('chronicle_entries')
-        .select('id, kind, title, body, visibility, author_id, slot_id, event_date, created_at, updated_at, chronicle_entry_tags(tag_id), game_slots(id, title, game_at, status)'),
+        .select('id, kind, title, body, visibility, author_id, updated_by, slot_id, event_date, created_at, updated_at, chronicle_entry_tags(tag_id), game_slots(id, title, game_at, status)'),
       supabase.from('chronicle_tags').select('id, name, created_by').order('name'),
       supabase.from('profiles').select('id, nick'),
     ]);
@@ -719,6 +719,7 @@ export const api = {
         body: e.body || '',
         visibility: e.visibility,
         authorId: e.author_id,
+        updatedBy: e.updated_by,
         slotId: e.slot_id,
         game: e.game_slots || null,
         eventDate: e.event_date,
