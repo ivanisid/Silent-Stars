@@ -705,7 +705,7 @@ export const api = {
     const [entries, tags, people] = await Promise.all([
       supabase
         .from('chronicle_entries')
-        .select('id, kind, title, body, visibility, author_id, updated_by, slot_id, event_date, created_at, updated_at, chronicle_entry_tags(tag_id), game_slots(id, title, game_at, status)'),
+        .select('id, kind, title, body, doc, portrait_path, visibility, author_id, updated_by, slot_id, event_date, created_at, updated_at, chronicle_entry_tags(tag_id), game_slots(id, title, game_at, status)'),
       supabase.from('chronicle_tags').select('id, name, created_by').order('name'),
       supabase.from('profiles').select('id, nick'),
     ]);
@@ -717,6 +717,8 @@ export const api = {
         kind: e.kind,
         title: e.title,
         body: e.body || '',
+        doc: e.doc || null,
+        portrait: e.portrait_path || null,
         visibility: e.visibility,
         authorId: e.author_id,
         updatedBy: e.updated_by,
@@ -756,12 +758,14 @@ export const api = {
       .map((s) => ({ pilotId: s.pilot_id, callsign: s.pilots?.callsign || s.pilots?.name || '—', mech: s.mech_name || '' }));
   },
 
-  saveChronicleEntry: async ({ id, kind, title, body, visibility, slotId, eventDate, tagIds }) => {
+  saveChronicleEntry: async ({ id, kind, title, body, doc, portrait, visibility, slotId, eventDate, tagIds }) => {
     const { data, error } = await supabase.rpc('gm_save_chronicle_entry', {
       p_id: id || null,
       p_kind: kind,
       p_title: title,
       p_body: body,
+      p_doc: doc || null,
+      p_portrait: portrait || null,
       p_visibility: visibility,
       p_slot_id: slotId || null,
       p_event_date: eventDate || null,
@@ -769,6 +773,25 @@ export const api = {
     });
     if (error) throw new Error(error.message);
     return data;
+  },
+
+  // Картинка в сховище хроніки: <uid>/<випадкове ім'я>.<розширення>. Повертає шлях.
+  uploadChronicleImage: async (file, userId) => {
+    const ext = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' })[file.type];
+    if (!ext) throw new Error('Підходять лише PNG, JPG, WEBP або GIF.');
+    if (file.size > 10 * 1024 * 1024) throw new Error('Картинка більша за 10 МБ.');
+    const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from('chronicle').upload(path, file, { contentType: file.type });
+    if (error) throw new Error(error.message);
+    return path;
+  },
+
+  // Тимчасові адреси картинок хроніки (на годину): { шлях: адреса }.
+  chronicleImageUrls: async (paths) => {
+    if (!paths.length) return {};
+    const { data, error } = await supabase.storage.from('chronicle').createSignedUrls(paths, 3600);
+    if (error) throw new Error(error.message);
+    return Object.fromEntries((data || []).filter((x) => x.signedUrl).map((x) => [x.path, x.signedUrl]));
   },
 
   deleteChronicleEntry: async (id) => {

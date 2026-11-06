@@ -3,6 +3,7 @@
 
 import assert from 'node:assert/strict';
 import {
+  docImagePaths, docMentions, docText, entryDoc, fillImageSrc, legacyToDoc, safeHref, stripImageSrc,
   backlinks, filterEntries, formatDate, insertMention, mentionedIds, mentionMarkup, mentionQuery, mentionSuggestions, paragraphs, tokenize,
 } from './markup.js';
 
@@ -87,6 +88,52 @@ test('фільтр: тип, усі теги, пошук; новіші перши
 test('дата: день календаря без зсуву поясу', () => {
   assert.equal(formatDate('2026-11-06'), '06.11.2026');
   assert.equal(formatDate(''), '');
+});
+
+test('старий текст → документ редактора: абзаци, переноси, виділення, посилання, згадки', () => {
+  assert.deepEqual(legacyToDoc(`Раз **два**\nтри\n\n[сайт](https://x.ua) @[Барон](${A})`), {
+    type: 'doc',
+    content: [
+      { type: 'paragraph', content: [{ type: 'text', text: 'Раз ' }, { type: 'text', text: 'два', marks: [{ type: 'bold' }] }, { type: 'hardBreak' }, { type: 'text', text: 'три' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'сайт', marks: [{ type: 'link', attrs: { href: 'https://x.ua' } }] }, { type: 'text', text: ' ' }, { type: 'mention', attrs: { id: A, label: 'Барон' } }] },
+    ],
+  });
+  assert.deepEqual(legacyToDoc(''), { type: 'doc', content: [{ type: 'paragraph' }] });
+  assert.deepEqual(entryDoc({ doc: { type: 'doc', content: [] }, body: 'x' }), { type: 'doc', content: [] });
+});
+
+const DOC = {
+  type: 'doc',
+  content: [
+    { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Барон' }] },
+    { type: 'paragraph', content: [{ type: 'text', text: 'Друг ' }, { type: 'mention', attrs: { id: B.toUpperCase(), label: 'Еш' } }] },
+    { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'пункт' }] }] }] },
+    { type: 'image', attrs: { path: 'u/1.png', src: 'https://signed/1' } },
+    { type: 'image', attrs: { path: null, src: 'https://web/2.png' } },
+  ],
+};
+
+test('документ: простий текст, згадки, картинки зі сховища', () => {
+  assert.equal(docText(DOC), 'Барон\nДруг Еш\nпункт');
+  assert.deepEqual([...docMentions(DOC)], [B]);
+  assert.deepEqual(docImagePaths(DOC), ['u/1.png']);
+});
+
+test('адреса картинки: прибирається перед збереженням і підставляється для редактора', () => {
+  const stripped = stripImageSrc(DOC);
+  assert.equal(stripped.content[3].attrs.src, null);
+  assert.equal(stripped.content[4].attrs.src, 'https://web/2.png');
+  assert.equal(DOC.content[3].attrs.src, 'https://signed/1');
+  assert.equal(fillImageSrc(stripped, { 'u/1.png': 'https://new' }).content[3].attrs.src, 'https://new');
+});
+
+test('зворотні посилання бачать згадки і в документі, і в старому тексті', () => {
+  assert.deepEqual(backlinks([{ id: A, doc: DOC, body: '' }, { id: C, body: `@[x](${B})` }], B).map((e) => e.id), [A, C]);
+});
+
+test('посилання лише http(s)', () => {
+  assert.equal(safeHref('https://a'), 'https://a');
+  assert.equal(safeHref('javascript:alert(1)'), null);
 });
 
 console.log(`\n${n} tests passed`);

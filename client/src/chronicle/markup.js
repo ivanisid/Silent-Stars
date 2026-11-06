@@ -60,7 +60,7 @@ export function mentionedIds(text) {
 // Записи, які згадують запис id (лише серед тих, що бачить користувач).
 export function backlinks(entries, id) {
   const key = String(id).toLowerCase();
-  return entries.filter((e) => e.id !== id && mentionedIds(e.body).has(key));
+  return entries.filter((e) => e.id !== id && (e.doc ? docMentions(e.doc) : mentionedIds(e.body)).has(key));
 }
 
 // Згадка, яку зараз набирають: «@запит» перед курсором (після початку рядка чи пробілу).
@@ -115,3 +115,105 @@ export function formatDate(iso) {
   const pad = (n) => String(n).padStart(2, '0');
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
+
+// ----- Документ візуального редактора (JSON TipTap) -----
+// Зберігається в chronicle_entries.doc. Старі записи (лише body з розміткою) перетворюються
+// на документ при відкритті. body лишається простим текстом документа — для пошуку.
+
+const textNode = (text, marks) => (marks && marks.length ? { type: 'text', text, marks } : { type: 'text', text });
+
+function inlineNodes(tokens, marks = []) {
+  const out = [];
+  tokens.forEach((x) => {
+    if (x.t === 'text') {
+      x.v.split('\n').forEach((part, i) => {
+        if (i > 0) out.push({ type: 'hardBreak' });
+        if (part) out.push(textNode(part, marks));
+      });
+    } else if (x.t === 'bold') out.push(...inlineNodes(x.v, [...marks, { type: 'bold' }]));
+    else if (x.t === 'link') out.push(textNode(x.v, [...marks, { type: 'link', attrs: { href: x.href } }]));
+    else if (x.t === 'mention') out.push({ type: 'mention', attrs: { id: x.id, label: x.v } });
+  });
+  return out;
+}
+
+export function legacyToDoc(body) {
+  const content = paragraphs(body).map((p) => {
+    const nodes = inlineNodes(tokenize(p));
+    return nodes.length ? { type: 'paragraph', content: nodes } : { type: 'paragraph' };
+  });
+  return { type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] };
+}
+
+export const entryDoc = (e) => (e?.doc && e.doc.type === 'doc' ? e.doc : legacyToDoc(e?.body || ''));
+
+function walk(node, fn) {
+  if (!node || typeof node !== 'object') return;
+  fn(node);
+  (node.content || []).forEach((c) => walk(c, fn));
+}
+
+const BLOCKS = new Set(['paragraph', 'heading', 'blockquote', 'listItem', 'codeBlock']);
+
+// Простий текст документа: блоки — окремими рядками, згадка — її назвою.
+export function docText(doc) {
+  const lines = [];
+  let line = '';
+  const flush = () => {
+    if (line.trim()) lines.push(line.trim());
+    line = '';
+  };
+  const go = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (n.type === 'text') line += n.text || '';
+    else if (n.type === 'mention') line += n.attrs?.label || '';
+    else if (n.type === 'hardBreak') line += ' ';
+    if (BLOCKS.has(n.type) && !(n.content || []).some((c) => BLOCKS.has(c.type) || c.type === 'bulletList' || c.type === 'orderedList')) {
+      (n.content || []).forEach(go);
+      flush();
+      return;
+    }
+    (n.content || []).forEach(go);
+  };
+  go(doc);
+  flush();
+  return lines.join('\n');
+}
+
+export function docMentions(doc) {
+  const ids = new Set();
+  walk(doc, (n) => n.type === 'mention' && n.attrs?.id && ids.add(String(n.attrs.id).toLowerCase()));
+  return ids;
+}
+
+export function docImagePaths(doc) {
+  const paths = [];
+  walk(doc, (n) => n.type === 'image' && n.attrs?.path && !paths.includes(n.attrs.path) && paths.push(n.attrs.path));
+  return paths;
+}
+
+// Перед збереженням: у картинок зі сховища лишається шлях, тимчасова адреса прибирається.
+export function stripImageSrc(doc) {
+  const go = (n) => {
+    if (!n || typeof n !== 'object') return n;
+    const next = { ...n };
+    if (n.type === 'image' && n.attrs?.path) next.attrs = { ...n.attrs, src: null };
+    if (n.content) next.content = n.content.map(go);
+    return next;
+  };
+  return go(doc);
+}
+
+// Для редактора: картинкам зі сховища підставляється тимчасова адреса.
+export function fillImageSrc(doc, urls) {
+  const go = (n) => {
+    if (!n || typeof n !== 'object') return n;
+    const next = { ...n };
+    if (n.type === 'image' && n.attrs?.path) next.attrs = { ...n.attrs, src: urls[n.attrs.path] || null };
+    if (n.content) next.content = n.content.map(go);
+    return next;
+  };
+  return go(doc);
+}
+
+export const safeHref = (href) => (/^https?:\/\//i.test(String(href || '')) ? href : null);

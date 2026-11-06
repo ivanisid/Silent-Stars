@@ -1,47 +1,47 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { Menu, Msg, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useIsMobile } from '../useMobile';
 import { api } from '../api';
-import {
-  KINDS, VISIBILITY, backlinks, filterEntries, formatDate, insertMention, kindLabel, mentionQuery, mentionSuggestions, paragraphs, tokenize, visibilityLabel,
-} from '../chronicle/markup.js';
+import { KINDS, backlinks, docText, entryDoc, filterEntries, formatDate, kindLabel, visibilityLabel } from '../chronicle/markup.js';
+import DocView from '../chronicle/DocView.jsx';
+import { useImageUrls } from '../chronicle/images.js';
 
 // Хроніка ГМів (/chronicle): записи (тип задають теги), звіти ігор і події світу.
 // Доступ запису: лише автор / усі ГМи / усі. Приватний змінює лише автор, спільний — будь-який ГМ;
-// доступ змінює й запис видаляє лише автор.
-// Специфікація — docs/chronicle-spec.md, логіка розмітки й фільтра — chronicle/markup.js.
+// доступ змінює й запис видаляє лише автор. Специфікація — docs/chronicle-spec.md.
+//
+// Угорі — пошук, тип, формат перегляду й теги. Формати: СПИСОК (список + запис поруч),
+// КАРТКИ (сітка з портретами), СТРІЧКА (записи повністю, новіші першими).
+// Редактор — окремий екран (?edit=<id|new>), завантажується окремо (chronicle/ChronicleEditor.jsx).
 
-function Inline({ tokens, byId, onOpen }) {
-  return tokens.map((x, i) => {
-    if (x.t === 'bold') return <strong key={i}><Inline tokens={x.v} byId={byId} onOpen={onOpen} /></strong>;
-    if (x.t === 'link') return <a key={i} href={x.href} target="_blank" rel="noopener noreferrer">{x.v}</a>;
-    if (x.t === 'mention') {
-      const target = byId.get(x.id);
-      return target ? (
-        <button key={i} type="button" className="ss-mention" onClick={() => onOpen(target.id)}>{target.title}</button>
-      ) : (
-        <span key={i} className="ss-mention off">{x.v}</span>
-      );
-    }
-    return x.v;
-  });
+const ChronicleEditor = lazy(() => import('../chronicle/ChronicleEditor.jsx'));
+
+const VIEWS = [
+  { key: 'list', label: 'СПИСОК' },
+  { key: 'cards', label: 'КАРТКИ' },
+  { key: 'feed', label: 'СТРІЧКА' },
+];
+const VIEW_KEY = 'ferumvox.chronicle.view';
+
+function readView() {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    return VIEWS.some((x) => x.key === v) ? v : 'list';
+  } catch {
+    return 'list';
+  }
 }
 
-function EntryText({ text, byId, onOpen }) {
-  const ps = paragraphs(text);
-  if (ps.length === 0) return null;
-  return (
-    <div className="ss-prose">
-      {ps.map((p, i) => (
-        <p key={i}><Inline tokens={tokenize(p)} byId={byId} onOpen={onOpen} /></p>
-      ))}
-    </div>
-  );
+const entryDate = (e) => (e.kind === 'report' ? e.game?.game_at : e.kind === 'event' ? e.eventDate : e.updatedAt);
+
+function excerpt(text, n = 160) {
+  const t = String(text || '').replace(/\s+/g, ' ').trim();
+  return t.length > n ? `${t.slice(0, n - 1)}…` : t;
 }
 
-function EntryView({ entry, canEdit, canDelete, tagsById, nicks, byId, entries, roster, onOpen, onEdit, onDelete, busy }) {
+function EntryView({ entry, canEdit, canDelete, tagsById, nicks, byId, entries, roster, portraitUrl, onOpen, onEdit, onDelete, busy, compact }) {
   const refs = backlinks(entries, entry.id);
   const mobile = useIsMobile();
   const actions = canEdit || canDelete ? (
@@ -51,42 +51,47 @@ function EntryView({ entry, canEdit, canDelete, tagsById, nicks, byId, entries, 
     </>
   ) : null;
   return (
-    <Panel title={entry.title} right={mobile ? null : actions}>
+    <Panel id={compact ? `e-${entry.id}` : undefined} title={entry.title} right={mobile ? null : actions}>
       {mobile && actions && <div className="ss-chron-acts">{actions}</div>}
-      <div className="ss-chron-meta">
-        <span className="ss-tag accent">{kindLabel(entry.kind)}</span>
-        <span className="ss-tag gm">{visibilityLabel(entry.visibility)}</span>
-        {entry.tagIds.map((t) => tagsById.get(t)).filter(Boolean).map((t) => (
-          <span key={t.id} className="ss-tag">{t.name}</span>
-        ))}
+      <div className={`ss-chron-head${portraitUrl ? ' has-img' : ''}`}>
+        {portraitUrl && <img className="portrait" src={portraitUrl} alt="" />}
+        <div className="info">
+          <div className="ss-chron-meta">
+            <span className="ss-tag accent">{kindLabel(entry.kind)}</span>
+            <span className="ss-tag gm">{visibilityLabel(entry.visibility)}</span>
+            {entry.tagIds.map((t) => tagsById.get(t)).filter(Boolean).map((t) => (
+              <span key={t.id} className="ss-tag">{t.name}</span>
+            ))}
+          </div>
+          <dl className="ss-chron-facts">
+            {entry.kind === 'report' && (
+              <>
+                <dt>ГРА</dt>
+                <dd>{entry.game ? `${formatDate(entry.game.game_at)} · ${entry.game.title || '—'}` : '—'}</dd>
+                <dt>СКЛАД</dt>
+                <dd>{roster == null ? '…' : roster.length ? roster.map((r) => r.callsign).join(', ') : '—'}</dd>
+              </>
+            )}
+            {entry.kind === 'event' && (
+              <>
+                <dt>ДАТА</dt>
+                <dd>{formatDate(entry.eventDate) || '—'}</dd>
+              </>
+            )}
+            <dt>АВТОР</dt>
+            {entry.updatedBy && entry.updatedBy !== entry.authorId ? (
+              <>
+                <dd>{nicks[entry.authorId] || '—'} · {formatDate(entry.createdAt)}</dd>
+                <dt>ЗМІНИВ</dt>
+                <dd>{nicks[entry.updatedBy] || '—'} · {formatDate(entry.updatedAt)}</dd>
+              </>
+            ) : (
+              <dd>{nicks[entry.authorId] || '—'} · {formatDate(entry.updatedAt)}</dd>
+            )}
+          </dl>
+        </div>
       </div>
-      <dl className="ss-chron-facts">
-        {entry.kind === 'report' && (
-          <>
-            <dt>ГРА</dt>
-            <dd>{entry.game ? `${formatDate(entry.game.game_at)} · ${entry.game.title || '—'}` : '—'}</dd>
-            <dt>СКЛАД</dt>
-            <dd>{roster == null ? '…' : roster.length ? roster.map((r) => r.callsign).join(', ') : '—'}</dd>
-          </>
-        )}
-        {entry.kind === 'event' && (
-          <>
-            <dt>ДАТА</dt>
-            <dd>{formatDate(entry.eventDate) || '—'}</dd>
-          </>
-        )}
-        <dt>АВТОР</dt>
-        {entry.updatedBy && entry.updatedBy !== entry.authorId ? (
-          <>
-            <dd>{nicks[entry.authorId] || '—'} · {formatDate(entry.createdAt)}</dd>
-            <dt>ЗМІНИВ</dt>
-            <dd>{nicks[entry.updatedBy] || '—'} · {formatDate(entry.updatedAt)}</dd>
-          </>
-        ) : (
-          <dd>{nicks[entry.authorId] || '—'} · {formatDate(entry.updatedAt)}</dd>
-        )}
-      </dl>
-      <EntryText text={entry.body} byId={byId} onOpen={onOpen} />
+      <DocView doc={entryDoc(entry)} byId={byId} onOpen={onOpen} />
       {refs.length > 0 && (
         <div className="ss-chron-refs">
           <div className="lbl">ЗГАДКИ</div>
@@ -99,220 +104,16 @@ function EntryView({ entry, canEdit, canDelete, tagsById, nicks, byId, entries, 
   );
 }
 
-// Текст із підказками згадок: «@» + перші літери назви → список записів.
-function MentionArea({ value, onChange, entries, selfId }) {
-  const ref = useRef(null);
-  const [mq, setMq] = useState(null);
-  const [idx, setIdx] = useState(0);
-  const list = mq ? mentionSuggestions(entries, mq.query, selfId) : [];
-  const open = list.length > 0;
-
-  const track = (el) => {
-    const next = el.selectionStart === el.selectionEnd ? mentionQuery(el.value, el.selectionStart) : null;
-    setMq(next);
-    setIdx(0);
-  };
-
-  const pick = (entry) => {
-    const el = ref.current;
-    const r = insertMention(value, mq, entry, el.selectionStart);
-    onChange(r.text);
-    setMq(null);
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(r.caret, r.caret);
-    });
-  };
-
-  const onKeyDown = (e) => {
-    if (!open) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setIdx((i) => (i + 1) % list.length);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setIdx((i) => (i - 1 + list.length) % list.length);
-    } else if (e.key === 'Enter' || e.key === 'Tab') {
-      e.preventDefault();
-      pick(list[Math.min(idx, list.length - 1)]);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      setMq(null);
-    }
-  };
-
+function RowMeta({ e, tagsById }) {
+  const date = formatDate(entryDate(e));
   return (
-    <div className="ss-chron-area">
-      <textarea
-        ref={ref}
-        className="ss-input"
-        rows={12}
-        aria-label="ТЕКСТ"
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value);
-          track(e.target);
-        }}
-        onKeyDown={onKeyDown}
-        onKeyUp={(e) => !['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(e.key) && track(e.target)}
-        onClick={(e) => track(e.target)}
-        onBlur={() => setTimeout(() => setMq(null), 150)}
-      />
-      {open && (
-        <div className="ss-chron-sugg" role="listbox">
-          {list.map((x, i) => (
-            <button
-              key={x.id}
-              type="button"
-              role="option"
-              aria-selected={i === idx}
-              className={i === idx ? 'on' : ''}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => pick(x)}
-            >
-              <span className="t">{x.title}</span>
-              <span className="k">{kindLabel(x.kind)}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function EntryEditor({ entry, entries, tags, games, userId, onCancel, onSave, onAddTag }) {
-  const [draft, setDraft] = useState(() => ({
-    kind: entry?.kind || 'record',
-    title: entry?.title || '',
-    body: entry?.body || '',
-    visibility: entry?.visibility || 'private',
-    slotId: entry?.slotId || '',
-    eventDate: entry?.eventDate || '',
-    tagIds: entry?.tagIds || [],
-  }));
-  const [newTag, setNewTag] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
-  const isAuthor = !entry || entry.authorId === userId;
-  const toggleTag = (id) => set({ tagIds: draft.tagIds.includes(id) ? draft.tagIds.filter((t) => t !== id) : [...draft.tagIds, id] });
-
-  async function addTag() {
-    const name = newTag.trim();
-    if (!name) return;
-    setError('');
-    try {
-      const tag = await onAddTag(name, userId);
-      setNewTag('');
-      setDraft((d) => (d.tagIds.includes(tag.id) ? d : { ...d, tagIds: [...d.tagIds, tag.id] }));
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  function pickGame(slotId) {
-    const g = games.find((x) => x.id === slotId);
-    set({ slotId, ...(g && !draft.title.trim() ? { title: g.title || '' } : null) });
-  }
-
-  async function save(e) {
-    e.preventDefault();
-    if (!draft.title.trim()) return setError('Вкажіть назву.');
-    setBusy(true);
-    setError('');
-    try {
-      await onSave({ ...draft, id: entry?.id || null, title: draft.title.trim() });
-    } catch (err) {
-      setError(err.message);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Panel title={draft.title || ' '} tone="gm">
-      <form className="ss-rule-ed ss-chron-ed" onSubmit={save}>
-        <div className="row">
-          <div className="fld">
-            <span className="lbl">ТИП</span>
-            <div className="ss-seg">
-              {KINDS.map((k) => (
-                <button key={k.key} type="button" className={draft.kind === k.key ? 'on' : ''} aria-pressed={draft.kind === k.key} onClick={() => set({ kind: k.key })}>{k.label}</button>
-              ))}
-            </div>
-          </div>
-          <div className="fld">
-            <span className="lbl">ДОСТУП</span>
-            <div className="ss-seg">
-              {VISIBILITY.map((v) => (
-                <button key={v.key} type="button" className={draft.visibility === v.key ? 'on' : ''} aria-pressed={draft.visibility === v.key} disabled={!isAuthor} onClick={() => set({ visibility: v.key })}>{v.label}</button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {draft.kind === 'report' && (
-          <label className="fld">
-            <span className="lbl">ГРА</span>
-            <select className="ss-select" value={draft.slotId} onChange={(e) => pickGame(e.target.value)}>
-              <option value="">—</option>
-              {games.map((g) => (
-                <option key={g.id} value={g.id}>{`${formatDate(g.game_at)} · ${g.title || '—'}`}</option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {draft.kind === 'event' && (
-          <label className="fld">
-            <span className="lbl">ДАТА</span>
-            <input className="ss-input" type="date" value={draft.eventDate} onChange={(e) => set({ eventDate: e.target.value })} />
-          </label>
-        )}
-
-        <label className="fld">
-          <span className="lbl">НАЗВА</span>
-          <input className="ss-input" type="text" maxLength={120} value={draft.title} onChange={(e) => set({ title: e.target.value })} autoFocus={!entry} />
-        </label>
-
-        <div className="fld">
-          <span className="lbl">ТЕГИ</span>
-          <div className="ss-chron-tags">
-            {tags.map((t) => (
-              <button key={t.id} type="button" className={`ss-chip sm${draft.tagIds.includes(t.id) ? ' on' : ''}`} aria-pressed={draft.tagIds.includes(t.id)} onClick={() => toggleTag(t.id)}>{t.name}</button>
-            ))}
-            <span className="add">
-              <input
-                className="ss-input sm"
-                type="text"
-                maxLength={32}
-                aria-label="НОВИЙ ТЕГ"
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value.toUpperCase())}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addTag();
-                  }
-                }}
-              />
-              <button type="button" className="btn-gm sm" disabled={!newTag.trim()} onClick={addTag}>+ ТЕГ</button>
-            </span>
-          </div>
-        </div>
-
-        <div className="fld">
-          <span className="lbl">ТЕКСТ</span>
-          <MentionArea value={draft.body} onChange={(body) => set({ body })} entries={entries} selfId={entry?.id} />
-        </div>
-
-        {error && <Msg kind="err">{error}</Msg>}
-
-        <div className="foot">
-          <button type="button" className="btn-ghost" onClick={onCancel} disabled={busy}>СКАСУВАТИ</button>
-          <button type="submit" className="btn-gm" disabled={busy}>{busy ? 'ЗБЕРЕЖЕННЯ…' : 'ЗБЕРЕГТИ'}</button>
-        </div>
-      </form>
-    </Panel>
+    <span className="m">
+      <span className="k">{kindLabel(e.kind)}</span>
+      {date && <span>{date}</span>}
+      {e.tagIds.map((t) => tagsById.get(t)?.name).filter(Boolean).map((name) => (
+        <span key={name} className="tg">{name}</span>
+      ))}
+    </span>
   );
 }
 
@@ -326,12 +127,20 @@ export default function ChroniclePage() {
   const [rosters, setRosters] = useState({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  // editing: null — перегляд; { entry: null } — новий запис; { entry } — зміна наявного.
-  const [editing, setEditing] = useState(null);
   const [kind, setKind] = useState('all');
   const [tagFilter, setTagFilter] = useState([]);
   const [q, setQ] = useState('');
+  const [view, setViewState] = useState(readView);
   const [ask, confirmEl] = useConfirm();
+
+  const setView = (v) => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // перегляд просто не запам'ятається
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -346,46 +155,54 @@ export default function ChroniclePage() {
     if (isGm) load();
   }, [isGm, load]);
 
+  const editParam = params.get('edit');
   useEffect(() => {
-    if (editing && games == null) {
+    if (editParam && games == null) {
       api.listChronicleGames().then(setGames).catch((err) => setError(err.message));
     }
-  }, [editing, games]);
+  }, [editParam, games]);
 
   const { entries, tags, nicks } = data;
   const byId = useMemo(() => new Map(entries.map((e) => [e.id.toLowerCase(), e])), [entries]);
   const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
   const shown = useMemo(() => filterEntries(entries, { kind, tagIds: tagFilter, q }), [entries, kind, tagFilter, q]);
+  const portraits = useImageUrls(entries.map((e) => e.portrait));
 
   const paramId = params.get('e');
-  const selectedId = paramId || (!mobile && !editing ? shown[0]?.id : null);
+  const selectedId = paramId || (view === 'list' && !mobile ? shown[0]?.id : null);
   const selected = selectedId ? byId.get(selectedId.toLowerCase()) : null;
 
-  const rosterSlot = selected?.kind === 'report' ? selected.slotId : null;
+  // Склад гри для звітів, які зараз на екрані.
+  const rosterSlots = useMemo(() => {
+    const list = view === 'feed' && !paramId ? shown : selected ? [selected] : [];
+    return [...new Set(list.filter((e) => e.kind === 'report' && e.slotId).map((e) => e.slotId))];
+  }, [view, paramId, shown, selected]);
   useEffect(() => {
-    if (!rosterSlot || rosters[rosterSlot]) return;
-    api
-      .chronicleGameRoster(rosterSlot)
-      .then((r) => setRosters((m) => ({ ...m, [rosterSlot]: r })))
-      .catch((err) => setError(err.message));
-  }, [rosterSlot, rosters]);
+    const need = rosterSlots.filter((s) => !rosters[s]);
+    need.forEach((slot) =>
+      api
+        .chronicleGameRoster(slot)
+        .then((r) => setRosters((m) => ({ ...m, [slot]: r })))
+        .catch((err) => setError(err.message)),
+    );
+  }, [rosterSlots, rosters]);
 
   if (role == null) return null;
   if (!isGm) return <Navigate to="/pilots" replace />;
 
   const open = (id) => {
-    setEditing(null);
     setParams(id ? { e: id } : {});
-    if (mobile) window.scrollTo(0, 0);
+    if (mobile || view !== 'list') window.scrollTo(0, 0);
   };
-
+  const edit = (id) => setParams({ edit: id || 'new' });
   const toggleTagFilter = (id) => setTagFilter((f) => (f.includes(id) ? f.filter((t) => t !== id) : [...f, id]));
+  const canEdit = (e) => e.authorId === user?.id || e.visibility !== 'private';
 
   async function save(draft) {
     const id = await api.saveChronicleEntry(draft);
-    setEditing(null);
     await load();
     setParams({ e: id });
+    window.scrollTo(0, 0);
   }
 
   async function addTag(name, userId) {
@@ -422,89 +239,140 @@ export default function ChroniclePage() {
     }
   }
 
-  const myTags = tags.filter((t) => t.created_by === user?.id);
-  const showMain = !mobile || editing || paramId;
-  const showList = !mobile || (!editing && !paramId);
+  // ----- Редактор: окремий екран -----
+  if (editParam) {
+    const entry = editParam === 'new' ? null : byId.get(editParam.toLowerCase());
+    if (editParam !== 'new' && !loaded) return <PageShell />;
+    return (
+      <PageShell className="ss-ced-page">
+        {editParam !== 'new' && !entry ? (
+          <Msg kind="err">Запис не знайдено.</Msg>
+        ) : (
+          <Suspense fallback={null}>
+            <ChronicleEditor
+              key={editParam}
+              entry={entry}
+              entries={entries}
+              tags={tags}
+              games={games || []}
+              userId={user?.id}
+              onCancel={() => setParams(entry ? { e: entry.id } : {})}
+              onSave={save}
+              onAddTag={addTag}
+            />
+          </Suspense>
+        )}
+        {confirmEl}
+      </PageShell>
+    );
+  }
 
-  const list = (
-    <Panel
-      className="ss-chron-side"
-      title="ЗАПИСИ"
-      sub={String(shown.length)}
-      right={myTags.length > 0 ? (
-        <Menu small title="Теги" items={[{ header: 'ВИДАЛИТИ ТЕГ' }, ...myTags.map((t) => ({ label: t.name, danger: true, onClick: () => removeTag(t) }))]} />
-      ) : null}
-    >
-      <div className="ss-chron-filters">
-        <div className="ss-seg sm">
+  const viewProps = (e) => ({
+    entry: e,
+    canEdit: canEdit(e),
+    canDelete: e.authorId === user?.id,
+    tagsById,
+    nicks,
+    byId,
+    entries,
+    roster: e.slotId ? rosters[e.slotId] : [],
+    portraitUrl: e.portrait ? portraits[e.portrait] : null,
+    busy,
+    onOpen: open,
+    onEdit: () => edit(e.id),
+    onDelete: () => removeEntry(e),
+  });
+
+  const myTags = tags.filter((t) => t.created_by === user?.id);
+  // Окремий запис на всю ширину: телефон, а також КАРТКИ й СТРІЧКА після кліку.
+  const single = paramId && selected && (mobile || view !== 'list');
+
+  const bar = (
+    <Panel className="ss-chron-bar">
+      <div className="r1">
+        <input className="ss-input" type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ пошук" aria-label="Пошук" />
+        <div className="ss-seg">
           <button type="button" className={kind === 'all' ? 'on' : ''} onClick={() => setKind('all')}>ВСЕ</button>
           {KINDS.map((k) => (
             <button key={k.key} type="button" className={kind === k.key ? 'on' : ''} onClick={() => setKind(k.key)}>{k.label}</button>
           ))}
         </div>
-        {tags.length > 0 && (
+        <div className="ss-seg">
+          {VIEWS.map((v) => (
+            <button key={v.key} type="button" className={view === v.key ? 'on' : ''} aria-pressed={view === v.key} onClick={() => setView(v.key)}>{v.label}</button>
+          ))}
+        </div>
+      </div>
+      {tags.length > 0 && (
+        <div className="r2">
           <div className="ss-chron-tags">
             {tags.map((t) => (
               <button key={t.id} type="button" className={`ss-chip sm${tagFilter.includes(t.id) ? ' on' : ''}`} aria-pressed={tagFilter.includes(t.id)} onClick={() => toggleTagFilter(t.id)}>{t.name}</button>
             ))}
           </div>
-        )}
-        <input className="ss-input sm" type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="/ пошук" />
-      </div>
-      <div className="ss-chron-list">
-        {shown.map((e) => {
-          const date = e.kind === 'report' ? e.game?.game_at : e.kind === 'event' ? e.eventDate : e.updatedAt;
-          return (
-            <button key={e.id} type="button" className={`row${selected?.id === e.id && !editing ? ' on' : ''}`} onClick={() => open(e.id)}>
-              <span className="t">{e.title}</span>
-              <span className="m">
-                <span className="k">{kindLabel(e.kind)}</span>
-                {formatDate(date) && <span>{formatDate(date)}</span>}
-                {e.tagIds.map((t) => tagsById.get(t)?.name).filter(Boolean).map((name) => (
-                  <span key={name} className="tg">{name}</span>
-                ))}
-              </span>
-            </button>
-          );
-        })}
-        {loaded && shown.length === 0 && (
-          <div className="empty"><span className="pre">&gt; </span>Нічого не знайдено.</div>
-        )}
-      </div>
+          {myTags.length > 0 && (
+            <Menu small title="Теги" items={[{ header: 'ВИДАЛИТИ ТЕГ' }, ...myTags.map((t) => ({ label: t.name, danger: true, onClick: () => removeTag(t) }))]} />
+          )}
+        </div>
+      )}
     </Panel>
   );
 
-  let main = null;
-  if (editing) {
-    main = (
-      <EntryEditor
-        key={editing.entry?.id || 'new'}
-        entry={editing.entry}
-        entries={entries}
-        tags={tags}
-        games={games || []}
-        userId={user?.id}
-        onCancel={() => setEditing(null)}
-        onSave={save}
-        onAddTag={addTag}
-      />
+  const empty = loaded && shown.length === 0 ? (
+    <div className="ss-chron-empty"><span className="pre">&gt; </span>Нічого не знайдено.</div>
+  ) : null;
+
+  let content;
+  if (single) {
+    content = <div className="ss-chron-main">{selected && <EntryView {...viewProps(selected)} />}</div>;
+  } else if (view === 'cards') {
+    content = (
+      <>
+        <div className="ss-chron-cards">
+          {shown.map((e) => {
+            const img = e.portrait ? portraits[e.portrait] : null;
+            return (
+              <button key={e.id} type="button" className="card" onClick={() => open(e.id)}>
+                <span className={`pic${img ? '' : ' none'}`}>{img ? <img src={img} alt="" loading="lazy" /> : <span>{kindLabel(e.kind)}</span>}</span>
+                <span className="t">{e.title}</span>
+                <RowMeta e={e} tagsById={tagsById} />
+                {e.body && <span className="x">{excerpt(e.doc ? e.body : docText(entryDoc(e)))}</span>}
+              </button>
+            );
+          })}
+        </div>
+        {empty}
+      </>
     );
-  } else if (selected) {
-    main = (
-      <EntryView
-        entry={selected}
-        canEdit={selected.authorId === user?.id || selected.visibility !== 'private'}
-        canDelete={selected.authorId === user?.id}
-        tagsById={tagsById}
-        nicks={nicks}
-        byId={byId}
-        entries={entries}
-        roster={selected.slotId ? rosters[selected.slotId] : []}
-        busy={busy}
-        onOpen={open}
-        onEdit={() => setEditing({ entry: selected })}
-        onDelete={() => removeEntry(selected)}
-      />
+  } else if (view === 'feed') {
+    content = (
+      <div className="ss-chron-main feed">
+        {shown.map((e) => <EntryView key={e.id} compact {...viewProps(e)} />)}
+        {empty}
+      </div>
+    );
+  } else {
+    content = (
+      <div className="ss-chron">
+        <Panel className="ss-chron-side" title="ЗАПИСИ" sub={String(shown.length)}>
+          <div className="ss-chron-list">
+            {shown.map((e) => {
+              const img = e.portrait ? portraits[e.portrait] : null;
+              return (
+                <button key={e.id} type="button" className={`row${selected?.id === e.id ? ' on' : ''}`} onClick={() => open(e.id)}>
+                  {img && <img className="thumb" src={img} alt="" loading="lazy" />}
+                  <span className="txt">
+                    <span className="t">{e.title}</span>
+                    <RowMeta e={e} tagsById={tagsById} />
+                  </span>
+                </button>
+              );
+            })}
+            {empty}
+          </div>
+        </Panel>
+        {!mobile && <div className="ss-chron-main">{selected && <EntryView {...viewProps(selected)} />}</div>}
+      </div>
     );
   }
 
@@ -512,17 +380,13 @@ export default function ChroniclePage() {
     <PageShell>
       <PageHeader
         section="SILENT STARS"
-        sectionTo={mobile && (editing || paramId) ? () => open(null) : undefined}
+        sectionTo={single ? () => open(null) : undefined}
         title="ХРОНІКА"
-        right={!editing ? (
-          <button type="button" className="btn-gm" onClick={() => setEditing({ entry: null })}>+ НОВИЙ</button>
-        ) : null}
+        right={<button type="button" className="btn-gm" onClick={() => edit(null)}>+ НОВИЙ</button>}
       />
       {error && <Msg kind="err">{error}</Msg>}
-      <div className="ss-chron">
-        {showList && list}
-        {showMain && <div className="ss-chron-main">{main}</div>}
-      </div>
+      {!single && bar}
+      {content}
       {confirmEl}
     </PageShell>
   );
