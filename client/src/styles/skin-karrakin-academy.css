@@ -594,3 +594,8 @@
 :root[data-theme='karrakin-academy'] .ss-prose .rcard .ct { font-family: var(--k-cinzel); font-weight: 600; font-size: 11px; letter-spacing: 2px; font-size-adjust: none; }
 :root[data-theme='karrakin-academy'] .ss-prose blockquote { font-family: var(--k-corm); font-weight: 600; font-size: 17px; letter-spacing: .2px; font-size-adjust: none; }
 :root[data-theme='karrakin-academy'] :is(.ss-rule-ed .lbl, .ss-rule-ed .ty, .ss-rule-ed .tr.hd) { font-family: var(--k-cinzel); font-weight: 600; font-size: 10.5px; letter-spacing: 2px; font-size-adjust: none; }
+:root[data-theme='karrakin-academy'] :is(.ss-chron-facts dt, .ss-chron-refs .lbl) { font-family: var(--k-cinzel); font-weight: 600; font-size: 10.5px; letter-spacing: 2px; font-size-adjust: none; }
+:root[data-theme='karrakin-academy'] :is(.ss-chron-list .row .t, .ss-chron-facts dd) { font-family: var(--k-forum); font-size: 15px; }
+/* Кнопка-контур на стрічці заголовка панелі: текст кольору стрічки, а не сторінки (у світлих домах стрічка темна). */
+:root[data-theme='karrakin-academy'] :is(.ss-panel, .card) > .ss-bar:not(.gm):not(.done) .btn-ghost { color: var(--kht); border-color: color-mix(in oklch, var(--kht) 45%, transparent); }
+:root[data-theme='karrakin-academy'] :is(.ss-panel, .card) > .ss-bar:not(.gm):not(.done) .btn-ghost:hover:not(:disabled) { border-color: var(--kht); }

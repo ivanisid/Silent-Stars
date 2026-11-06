@@ -217,7 +217,9 @@ export function PageHeader({ section, sectionTo, title, tag, right }) {
   return (
     <div className="ss-head">
       <HeaderMark />
-      {sectionTo ? (
+      {typeof sectionTo === 'function' ? (
+        <button type="button" className="crumb as-link" onClick={sectionTo}><span className="pre">&gt; </span>{section}<span className="sep"> /</span></button>
+      ) : sectionTo ? (
         <Link to={sectionTo} className="crumb"><span className="pre">&gt; </span>{section}<span className="sep"> /</span></Link>
       ) : (
         <span className="crumb"><span className="pre">&gt; </span>{section}<span className="sep"> /</span></span>
