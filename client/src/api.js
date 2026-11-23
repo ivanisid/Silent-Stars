@@ -698,6 +698,70 @@ export const api = {
     return { ok: true };
   },
 
+  // ----- Документи ГМів (вкладка ДОКУМЕНТИ в ГМ-панелі, docs/gm-documents-spec.md) -----
+  // Таблиця chronicle_entries. Що видно, вирішує RLS: свої документи й документи «Для всіх ГМів».
+
+  listGmDocs: async () => {
+    const [docs, people] = await Promise.all([
+      supabase.from('chronicle_entries').select('id, title, body, doc, visibility, author_id, updated_by, created_at, updated_at'),
+      supabase.from('profiles').select('id, nick'),
+    ]);
+    const err = docs.error || people.error;
+    if (err) throw new Error(err.message);
+    return {
+      docs: (docs.data || []).map((e) => ({
+        id: e.id,
+        title: e.title,
+        body: e.body || '',
+        doc: e.doc || null,
+        visibility: e.visibility,
+        authorId: e.author_id,
+        updatedBy: e.updated_by,
+        createdAt: e.created_at,
+        updatedAt: e.updated_at,
+      })),
+      nicks: Object.fromEntries((people.data || []).map((p) => [p.id, p.nick])),
+    };
+  },
+
+  saveGmDoc: async ({ id, title, body, doc, visibility }) => {
+    const { data, error } = await supabase.rpc('gm_save_document', {
+      p_id: id || null,
+      p_title: title,
+      p_body: body,
+      p_doc: doc || null,
+      p_visibility: visibility,
+    });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  deleteGmDoc: async (id) => {
+    const { data, error } = await supabase.from('chronicle_entries').delete().eq('id', id).select('id');
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) throw new Error('Документ не видалено. Оновіть сторінку.');
+    return { ok: true };
+  },
+
+  // Картинка документа в сховище chronicle: <uid>/<випадкове ім'я>.<розширення>. Повертає шлях.
+  uploadGmDocImage: async (file, userId) => {
+    const ext = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' })[file.type];
+    if (!ext) throw new Error('Підходять лише PNG, JPG, WEBP або GIF.');
+    if (file.size > 10 * 1024 * 1024) throw new Error('Картинка більша за 10 МБ.');
+    const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from('chronicle').upload(path, file, { contentType: file.type });
+    if (error) throw new Error(error.message);
+    return path;
+  },
+
+  // Тимчасові адреси картинок документів (на годину): { шлях: адреса }.
+  gmDocImageUrls: async (paths) => {
+    if (!paths.length) return {};
+    const { data, error } = await supabase.storage.from('chronicle').createSignedUrls(paths, 3600);
+    if (error) throw new Error(error.message);
+    return Object.fromEntries((data || []).filter((x) => x.signedUrl).map((x) => [x.path, x.signedUrl]));
+  },
+
   // Locking the line-up and paying for a played game are separate steps: a slot sits in
   // 'approved' in between, where signup is shut but nothing has been awarded yet.
   gmApproveRoster: async (slotId, approvedSignupIds) => {

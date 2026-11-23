@@ -1844,3 +1844,76 @@ button.ss-tile:hover { border-color: var(--accent-dim); }
   .ss-rule-ed .cards-ed { grid-template-columns: minmax(0, 1fr); }
   .ss-rule-ed .tr { grid-template-columns: minmax(0, 1fr) minmax(0, 96px) auto; }
 }
+
+/* ГМ-панель, вкладка ДОКУМЕНТИ: пошук і «+ НОВИЙ ДОКУМЕНТ», ліворуч список, праворуч документ. */
+.ss-gdocs-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ss-gdocs-bar .ss-input { flex: 1 1 240px; }
+.ss-gdocs { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 22px; }
+.ss-gdocs-side { flex: 1 1 280px; max-width: 360px; min-width: 0; }
+.ss-gdocs-main { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 22px; }
+.ss-gdocs-list { display: flex; flex-direction: column; max-height: calc(100vh - 260px); overflow-y: auto; }
+.ss-gdocs-list .row { display: flex; flex-direction: column; gap: 4px; padding: 9px 12px; text-align: left; background: transparent; border: none; border-left: 2px solid transparent; color: var(--text); cursor: pointer; font: inherit; min-width: 0; }
+.ss-gdocs-list .row + .row { border-top: 1px solid var(--rule); }
+.ss-gdocs-list .row:hover { background: var(--panel-inset); }
+.ss-gdocs-list .row.on { background: var(--panel-inset); border-left-color: var(--gm); }
+.ss-gdocs-list .row .t { font-size: 13px; color: var(--text-bright); overflow-wrap: anywhere; }
+.ss-gdocs-list .row .m { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 10px; letter-spacing: 1px; color: var(--text-dim); }
+.ss-gdocs-list .row .m .v { color: var(--gm-ink); }
+.ss-gdocs-list .empty { padding: 14px 12px; font-size: 12px; color: var(--text-dimmer); }
+.ss-gdocs-acts { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 12px 0; }
+.ss-gdocs-acts > :first-child { margin-right: auto; }
+.ss-gdocs-meta { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 18px 0; }
+.ss-gdocs-meta dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 12px; }
+.ss-gdocs-meta dt { font-size: 10px; letter-spacing: 2px; color: var(--text-dim); padding-top: 2px; }
+.ss-gdocs-meta dd { margin: 0; color: var(--text-bright); overflow-wrap: anywhere; }
+.ss-gdocs-refs { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; margin: 0 18px; padding: 12px 0 16px; border-top: 1px solid var(--rule); font-size: 13px; }
+.ss-gdocs-refs .lbl { width: 100%; font-size: 10px; letter-spacing: 2px; color: var(--text-dim); }
+.ss-mention { display: inline; padding: 0; background: none; border: none; font: inherit; color: var(--accent); text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; cursor: pointer; }
+.ss-mention:hover { color: var(--text-bright); }
+.ss-mention.off { color: var(--text-soft); text-decoration: none; cursor: default; }
+@media (max-width: 640px) {
+  .ss-gdocs { gap: 14px; }
+  .ss-gdocs-side { max-width: none; flex-basis: 100%; }
+  .ss-gdocs-list { max-height: none; }
+  .ss-gdocs-meta { padding: 12px 12px 0; }
+  .ss-gdocs-refs { margin: 0 12px; }
+}
+
+/* Текст документа в перегляді й у редакторі. Пробіли не склеюються: редактор читає текст з DOM. */
+.ss-doc p, .ss-doc li, .ss-doc h2, .ss-doc h3, .ss-doc h4, .ss-doc blockquote { white-space: pre-wrap; }
+.ss-doc h2, .ss-doc h3, .ss-doc h4 { margin: 6px 0 0; color: var(--text-bright); letter-spacing: 1px; line-height: 1.3; }
+.ss-doc h2 { font-size: 18px; }
+.ss-doc h3, .ss-doc h4 { font-size: 15px; }
+.ss-doc ul, .ss-doc ol { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; }
+.ss-doc li > p { margin: 0; }
+.ss-doc hr { width: 100%; border: none; border-top: 1px solid var(--rule); margin: 4px 0; }
+.ss-doc em { font-style: italic; }
+.ss-doc img { display: block; max-width: 100%; max-height: 520px; height: auto; border: 1px solid var(--rule); }
+
+/* Редактор документа: назва, доступ, панель кнопок, текст; підказка згадок. */
+.ss-ced-main { min-width: 0; }
+.ss-ced-title { display: block; width: 100%; box-sizing: border-box; padding: 16px 18px 12px; background: transparent; border: none; border-bottom: 1px solid var(--rule); color: var(--text-bright); font: inherit; font-size: 22px; letter-spacing: 1px; outline: none; }
+.ss-ced-title::placeholder { color: var(--text-dimmer); }
+.ss-ced-access { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 18px; border-bottom: 1px solid var(--rule); }
+.ss-ced-access .lbl { font-size: 10px; letter-spacing: 2px; color: var(--gm-ink); }
+.ss-ced-tools { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--rule); }
+.ss-ced-tools .row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 8px 12px; }
+.ss-ced-tools .row.link { border-top: 1px solid var(--rule); gap: 8px; }
+.ss-ced-tools .row.link .ss-input { flex: 1 1 220px; }
+.ss-ced-tools .tb { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 32px; padding: 0 6px; background: transparent; border: 1px solid transparent; color: var(--text-dim); font: inherit; font-size: 13px; cursor: pointer; }
+.ss-ced-tools .tb:hover { border-color: var(--input-border); color: var(--text-bright); }
+.ss-ced-tools .tb.on { background: var(--header); color: var(--btn-text); border-color: var(--accent); }
+.ss-ced-tools .sep { width: 1px; height: 20px; margin: 0 4px; background: var(--rule); }
+.ss-ced-tools .up { margin-left: 8px; font-size: 10px; letter-spacing: 2px; color: var(--gm-ink); }
+.ss-ced-area .ProseMirror { min-height: 55vh; outline: none; }
+.ss-ced-area .ProseMirror img.ProseMirror-selectednode { outline: 2px solid var(--accent); }
+.ss-ced-area .ProseMirror .ss-mention { cursor: default; }
+.ss-ced-pop { position: fixed; z-index: 1000; }
+.ss-mention-sugg { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--accent-dim); max-height: 240px; overflow-y: auto; }
+.ss-mention-sugg button { display: flex; padding: 8px 12px; background: transparent; border: none; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.ss-mention-sugg button + button { border-top: 1px solid var(--rule); }
+.ss-mention-sugg button.on, .ss-mention-sugg button:hover { background: var(--panel-inset); color: var(--text-bright); }
+@media (max-width: 640px) {
+  .ss-ced-tools { top: 56px; }
+  .ss-ced-area .ProseMirror { min-height: 40vh; }
+}
