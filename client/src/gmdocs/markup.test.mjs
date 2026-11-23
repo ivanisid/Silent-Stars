@@ -1,10 +1,10 @@
-// Хроніка: розмітка, згадки, зворотні посилання, фільтр.
-// Запуск: node client/src/chronicle/markup.test.mjs
+// Документи ГМів: старий текст, документ редактора, згадки, пошук.
+// Запуск: node client/src/gmdocs/markup.test.mjs
 
 import assert from 'node:assert/strict';
 import {
-  docImagePaths, docMentions, docText, entryDoc, fillImageSrc, legacyToDoc, safeHref, stripImageSrc,
-  backlinks, filterEntries, formatDate, insertMention, mentionedIds, mentionMarkup, mentionQuery, mentionSuggestions, paragraphs, tokenize,
+  backlinks, docImagePaths, docMentions, docText, entryDoc, fillImageSrc, filterDocs, formatDate, legacyToDoc,
+  mentionedIds, mentionSuggestions, paragraphs, safeHref, stripImageSrc, tokenize, visibilityLabel,
 } from './markup.js';
 
 let n = 0;
@@ -52,37 +52,25 @@ test('зворотні посилання: хто згадує запис', () =
   assert.deepEqual(backlinks(entries, B), []);
 });
 
-test('набір згадки: «@запит» перед курсором', () => {
-  assert.deepEqual(mentionQuery('Зустріли @Бар', 13), { start: 9, query: 'Бар' });
-  assert.deepEqual(mentionQuery('@', 1), { start: 0, query: '' });
-  assert.deepEqual(mentionQuery('Барон @Еш дру', 13), { start: 6, query: 'Еш дру' });
-  assert.equal(mentionQuery('mail@host', 9), null);
-  assert.equal(mentionQuery('@a\nb', 4), null);
-});
-
-test('вставка згадки замінює «@запит» і ставить курсор після неї', () => {
-  const text = 'Зустріли @Бар і пішли';
-  const mq = mentionQuery(text, 13);
-  const r = insertMention(text, mq, { id: A, title: 'Барон [Еш]' }, 13);
-  assert.equal(r.text, `Зустріли @[Барон  Еш](${A})  і пішли`);
-  assert.equal(r.caret, 9 + mentionMarkup('Барон [Еш]', A).length + 1);
-});
-
 test('підказки: спершу ті, що починаються з запиту; без себе', () => {
   const entries = [{ id: A, title: 'Старий Барон' }, { id: B, title: 'Барон Еш' }, { id: C, title: 'Бар «Зірка»' }];
   assert.deepEqual(mentionSuggestions(entries, 'бар', C).map((e) => e.id), [B, A]);
 });
 
-test('фільтр: тип, усі теги, пошук; новіші першими', () => {
-  const entries = [
-    { id: 'r', kind: 'record', title: 'Барон', body: '', tagIds: ['npc', 'fr'], updatedAt: '2026-01-01T00:00:00Z' },
-    { id: 'g', kind: 'report', title: 'Гра 1', body: 'барон утік', tagIds: ['npc'], game: { game_at: '2026-03-01T19:00:00Z' } },
-    { id: 'e', kind: 'event', title: 'Падіння', body: '', tagIds: [], eventDate: '2026-02-01' },
+test('пошук у назві й тексті; новіші зміни першими', () => {
+  const docs = [
+    { id: 'a', title: 'Барон', body: '', updatedAt: '2026-01-01T00:00:00Z' },
+    { id: 'b', title: 'Гра 1', body: 'барон утік', updatedAt: '2026-03-01T00:00:00Z' },
+    { id: 'c', title: 'Станція', body: '', updatedAt: '2026-02-01T00:00:00Z' },
   ];
-  assert.deepEqual(filterEntries(entries).map((e) => e.id), ['g', 'e', 'r']);
-  assert.deepEqual(filterEntries(entries, { kind: 'event' }).map((e) => e.id), ['e']);
-  assert.deepEqual(filterEntries(entries, { tagIds: ['npc', 'fr'] }).map((e) => e.id), ['r']);
-  assert.deepEqual(filterEntries(entries, { q: 'БАРОН' }).map((e) => e.id), ['g', 'r']);
+  assert.deepEqual(filterDocs(docs).map((d) => d.id), ['b', 'c', 'a']);
+  assert.deepEqual(filterDocs(docs, ' БАРОН ').map((d) => d.id), ['b', 'a']);
+});
+
+test('доступ: два варіанти', () => {
+  assert.equal(visibilityLabel('gms'), 'ДЛЯ ВСІХ ГМІВ');
+  assert.equal(visibilityLabel('private'), 'ЛИШЕ ДЛЯ МЕНЕ');
+  assert.equal(visibilityLabel('players'), '');
 });
 
 test('дата: день календаря без зсуву поясу', () => {

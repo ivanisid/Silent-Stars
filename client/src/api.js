@@ -698,85 +698,53 @@ export const api = {
     return { ok: true };
   },
 
-  // ----- Хроніка (міграція 20261106_chronicle.sql, docs/chronicle-spec.md) -----
-  // Що видно, вирішує RLS: свої записи, записи «ГМИ» (для ГМів) і «УСІ».
+  // ----- Документи ГМів (вкладка ДОКУМЕНТИ в ГМ-панелі, docs/gm-documents-spec.md) -----
+  // Таблиця chronicle_entries. Що видно, вирішує RLS: свої документи й документи «Для всіх ГМів».
 
-  listChronicle: async () => {
-    const [entries, tags, people] = await Promise.all([
-      supabase
-        .from('chronicle_entries')
-        .select('id, kind, title, body, doc, portrait_path, visibility, author_id, updated_by, slot_id, event_date, created_at, updated_at, chronicle_entry_tags(tag_id), game_slots(id, title, game_at, status)'),
-      supabase.from('chronicle_tags').select('id, name, created_by').order('name'),
+  listGmDocs: async () => {
+    const [docs, people] = await Promise.all([
+      supabase.from('chronicle_entries').select('id, title, body, doc, visibility, author_id, updated_by, created_at, updated_at'),
       supabase.from('profiles').select('id, nick'),
     ]);
-    const err = entries.error || tags.error || people.error;
+    const err = docs.error || people.error;
     if (err) throw new Error(err.message);
     return {
-      entries: (entries.data || []).map((e) => ({
+      docs: (docs.data || []).map((e) => ({
         id: e.id,
-        kind: e.kind,
         title: e.title,
         body: e.body || '',
         doc: e.doc || null,
-        portrait: e.portrait_path || null,
         visibility: e.visibility,
         authorId: e.author_id,
         updatedBy: e.updated_by,
-        slotId: e.slot_id,
-        game: e.game_slots || null,
-        eventDate: e.event_date,
         createdAt: e.created_at,
         updatedAt: e.updated_at,
-        tagIds: (e.chronicle_entry_tags || []).map((t) => t.tag_id),
       })),
-      tags: tags.data || [],
       nicks: Object.fromEntries((people.data || []).map((p) => [p.id, p.nick])),
     };
   },
 
-  // Ігри для звіту: усі, крім скасованих, новіші першими.
-  listChronicleGames: async () => {
-    const { data, error } = await supabase
-      .from('game_slots')
-      .select('id, title, game_at, status')
-      .neq('status', 'cancelled')
-      .order('game_at', { ascending: false });
-    if (error) throw new Error(error.message);
-    return data || [];
-  },
-
-  // Затверджений склад гри: позивні пілотів (ті, хто звільнив місце, — не в складі).
-  chronicleGameRoster: async (slotId) => {
-    const { data, error } = await supabase
-      .from('game_signups')
-      .select('pilot_id, mech_name, released_at, pilots(callsign, name)')
-      .eq('slot_id', slotId)
-      .eq('approved', true);
-    if (error) throw new Error(error.message);
-    return (data || [])
-      .filter((s) => !s.released_at)
-      .map((s) => ({ pilotId: s.pilot_id, callsign: s.pilots?.callsign || s.pilots?.name || '—', mech: s.mech_name || '' }));
-  },
-
-  saveChronicleEntry: async ({ id, kind, title, body, doc, portrait, visibility, slotId, eventDate, tagIds }) => {
-    const { data, error } = await supabase.rpc('gm_save_chronicle_entry', {
+  saveGmDoc: async ({ id, title, body, doc, visibility }) => {
+    const { data, error } = await supabase.rpc('gm_save_document', {
       p_id: id || null,
-      p_kind: kind,
       p_title: title,
       p_body: body,
       p_doc: doc || null,
-      p_portrait: portrait || null,
       p_visibility: visibility,
-      p_slot_id: slotId || null,
-      p_event_date: eventDate || null,
-      p_tag_ids: tagIds || [],
     });
     if (error) throw new Error(error.message);
     return data;
   },
 
-  // Картинка в сховище хроніки: <uid>/<випадкове ім'я>.<розширення>. Повертає шлях.
-  uploadChronicleImage: async (file, userId) => {
+  deleteGmDoc: async (id) => {
+    const { data, error } = await supabase.from('chronicle_entries').delete().eq('id', id).select('id');
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) throw new Error('Документ не видалено. Оновіть сторінку.');
+    return { ok: true };
+  },
+
+  // Картинка документа в сховище chronicle: <uid>/<випадкове ім'я>.<розширення>. Повертає шлях.
+  uploadGmDocImage: async (file, userId) => {
     const ext = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' })[file.type];
     if (!ext) throw new Error('Підходять лише PNG, JPG, WEBP або GIF.');
     if (file.size > 10 * 1024 * 1024) throw new Error('Картинка більша за 10 МБ.');
@@ -786,39 +754,12 @@ export const api = {
     return path;
   },
 
-  // Тимчасові адреси картинок хроніки (на годину): { шлях: адреса }.
-  chronicleImageUrls: async (paths) => {
+  // Тимчасові адреси картинок документів (на годину): { шлях: адреса }.
+  gmDocImageUrls: async (paths) => {
     if (!paths.length) return {};
     const { data, error } = await supabase.storage.from('chronicle').createSignedUrls(paths, 3600);
     if (error) throw new Error(error.message);
     return Object.fromEntries((data || []).filter((x) => x.signedUrl).map((x) => [x.path, x.signedUrl]));
-  },
-
-  deleteChronicleEntry: async (id) => {
-    const { data, error } = await supabase.from('chronicle_entries').delete().eq('id', id).select('id');
-    if (error) throw new Error(error.message);
-    if (!data || data.length === 0) throw new Error('Запис не видалено. Оновіть сторінку.');
-    return { ok: true };
-  },
-
-  addChronicleTag: async (name, userId) => {
-    const { data, error } = await supabase
-      .from('chronicle_tags')
-      .insert({ name: name.trim().toUpperCase(), created_by: userId })
-      .select('id, name, created_by')
-      .single();
-    if (error) {
-      if (error.code === '23505') throw new Error('Такий тег уже є.');
-      throw new Error(error.message);
-    }
-    return data;
-  },
-
-  deleteChronicleTag: async (id) => {
-    const { data, error } = await supabase.from('chronicle_tags').delete().eq('id', id).select('id');
-    if (error) throw new Error(error.message);
-    if (!data || data.length === 0) throw new Error('Тег не видалено. Оновіть сторінку.');
-    return { ok: true };
   },
 
   // Locking the line-up and paying for a played game are separate steps: a slot sits in

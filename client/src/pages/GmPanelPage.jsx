@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext.jsx';
 import { llTier } from '../pilot/logic';
 import { ConfirmDialog, Menu, Msg, MobileHead, PageHeader, PageShell, Panel, useConfirm } from '../components/kit.jsx';
 import { useIsMobile } from '../useMobile';
 import GmShopSection from './GmShopEditor.jsx';
+import GmDocsSection from './GmDocsSection.jsx';
 
 function formatDate(iso) {
   if (!iso) return '—';
@@ -67,7 +68,13 @@ export default function GmPanelPage() {
   const [roleNote, setRoleNote] = useState('');
   const [deleting, setDeleting] = useState(null); // група, яку збираються видалити
   const mobile = useIsMobile();
-  const [section, setSection] = useState('players');
+  const [params, setParams] = useSearchParams();
+  // Відкритий документ або редактор (?doc= / ?edit=) — одразу вкладка ДОКУМЕНТИ.
+  const [section, setSectionState] = useState(() => (params.get('doc') || params.get('edit') ? 'docs' : 'players'));
+  const setSection = (s) => {
+    setSectionState(s);
+    if (s !== 'docs' && (params.get('doc') || params.get('edit'))) setParams({});
+  };
 
   async function deleteUser(group) {
     setDeleting(null);
@@ -207,6 +214,7 @@ export default function GmPanelPage() {
     <div className="ss-seg sm" style={{ alignSelf: 'flex-start' }}>
       <button type="button" className={section === 'players' ? 'on' : ''} onClick={() => setSection('players')}>ГРАВЦІ</button>
       <button type="button" className={section === 'shop' ? 'on' : ''} onClick={() => setSection('shop')}>МАГАЗИН</button>
+      <button type="button" className={section === 'docs' ? 'on' : ''} onClick={() => setSection('docs')}>ДОКУМЕНТИ</button>
     </div>
   );
 
@@ -221,7 +229,7 @@ export default function GmPanelPage() {
           right={<span className="ss-tag gm">ГМ</span>}
         />
         {sectionSeg}
-        {section === 'shop' ? <GmShopSection /> : <>
+        {section === 'docs' ? <GmDocsSection /> : section === 'shop' ? <GmShopSection /> : <>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>
           <span>ГРАВЦІВ <span style={{ color: 'var(--text-bright)' }}>{groups.length}</span></span>
           <span>ПЕРСОНАЖІВ <span style={{ color: 'var(--text-bright)' }}>{pilots.length}</span></span>
@@ -312,7 +320,7 @@ export default function GmPanelPage() {
       />
 
       {sectionSeg}
-      {section === 'shop' ? <GmShopSection /> : <>
+      {section === 'docs' ? <GmDocsSection /> : section === 'shop' ? <GmShopSection /> : <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>ГРАВЦІВ <span style={{ color: 'var(--text-bright)' }}>{groups.length}</span></div>
         <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1 }}>ПЕРСОНАЖІВ <span style={{ color: 'var(--text-bright)' }}>{pilots.length}</span></div>

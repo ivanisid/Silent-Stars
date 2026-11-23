@@ -9,7 +9,6 @@ import GmPanelPage from './pages/GmPanelPage.jsx';
 import BoardPage from './pages/BoardPage.jsx';
 import ReservesPage from './pages/ReservesPage.jsx';
 import RulesPage from './pages/RulesPage.jsx';
-import ChroniclePage from './pages/ChroniclePage.jsx';
 
 function RequireAuth({ children }) {
   const { isAuthed, ready } = useAuth();
@@ -68,14 +67,6 @@ export default function App() {
         element={
           <RequireAuth>
             <RulesPage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/chronicle"
-        element={
-          <RequireAuth>
-            <ChroniclePage />
           </RequireAuth>
         }
       />

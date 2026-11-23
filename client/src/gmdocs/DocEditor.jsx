@@ -3,16 +3,13 @@ import { EditorContent, ReactRenderer, useEditor, useEditorState } from '@tiptap
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Mention from '@tiptap/extension-mention';
-import { Msg, PageHeader, Panel } from '../components/kit.jsx';
-import { useIsMobile } from '../useMobile';
+import { Msg, Panel } from '../components/kit.jsx';
 import { api } from '../api';
-import {
-  KINDS, VISIBILITY, docImagePaths, docText, entryDoc, fillImageSrc, formatDate, kindLabel, mentionSuggestions, stripImageSrc,
-} from './markup.js';
-import { imageUrls, useImageUrls } from './images.js';
+import { VISIBILITY, docImagePaths, docText, entryDoc, fillImageSrc, mentionSuggestions, stripImageSrc } from './markup.js';
+import { imageUrls } from './images.js';
 
-// Редактор запису хроніки — окремий екран (/chronicle?edit=<id|new>), завантажується окремо.
-// Ліворуч назва й текст (візуальний редактор TipTap), праворуч параметри запису.
+// Редактор документа ГМа (вкладка ДОКУМЕНТИ в ГМ-панелі), завантажується окремим файлом.
+// Назва, «Хто має доступ до цього файлу», панель кнопок і текст (візуальний редактор TipTap).
 // Документ зберігається як JSON (chronicle_entries.doc), простий текст — у body для пошуку.
 
 const ImageWithPath = Image.extend({
@@ -52,7 +49,7 @@ const MentionList = forwardRef(function MentionList({ items, command }, ref) {
   }));
   if (!items.length) return null;
   return (
-    <div className="ss-chron-sugg" role="listbox">
+    <div className="ss-mention-sugg" role="listbox">
       {items.map((x, i) => (
         <button
           key={x.id}
@@ -64,7 +61,6 @@ const MentionList = forwardRef(function MentionList({ items, command }, ref) {
           onClick={() => command({ id: x.id, label: x.title })}
         >
           <span className="t">{x.title}</span>
-          <span className="k">{kindLabel(x.kind)}</span>
         </button>
       ))}
     </div>
@@ -218,81 +214,42 @@ function Toolbar({ editor, onImage, uploading }) {
   );
 }
 
-function Portrait({ path, onPick, onClear, busy }) {
-  const urls = useImageUrls(path ? [path] : []);
-  const ref = useRef(null);
-  return (
-    <div className="ss-ced-portrait">
-      {path && urls[path] ? <img src={urls[path]} alt="" /> : <div className="ph" />}
-      <div className="acts">
-        <button type="button" className="btn-gm sm" disabled={busy} onClick={() => ref.current?.click()}>{path ? 'ЗАМІНИТИ' : 'ЗАВАНТАЖИТИ'}</button>
-        {path && <button type="button" className="btn-ghost sm" disabled={busy} onClick={onClear}>ПРИБРАТИ</button>}
-      </div>
-      <input
-        ref={ref}
-        type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif"
-        hidden
-        onChange={(e) => {
-          if (e.target.files[0]) onPick(e.target.files[0]);
-          e.target.value = '';
-        }}
-      />
-    </div>
-  );
-}
-
-function Editor({ entry, initialDoc, entries, tags, games, userId, onCancel, onSave, onAddTag }) {
-  const mobile = useIsMobile();
+function Editor({ entry, initialDoc, entries, userId, onCancel, onSave }) {
   const isAuthor = !entry || entry.authorId === userId;
-  const [meta, setMeta] = useState(() => ({
-    kind: entry?.kind || 'record',
-    title: entry?.title || '',
-    visibility: entry?.visibility || 'private',
-    slotId: entry?.slotId || '',
-    eventDate: entry?.eventDate || '',
-    tagIds: entry?.tagIds || [],
-    portrait: entry?.portrait || null,
-  }));
-  const [newTag, setNewTag] = useState('');
+  const [title, setTitle] = useState(entry?.title || '');
+  const [visibility, setVisibility] = useState(entry?.visibility || 'gms');
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(0);
   const [error, setError] = useState('');
-  const set = (patch) => setMeta((m) => ({ ...m, ...patch }));
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
+  const editorRef = useRef(null);
 
-  async function upload(files) {
+  async function insertImages(files, pos) {
     const imgs = files.filter((f) => f.type.startsWith('image/'));
-    if (!imgs.length) return [];
+    if (!imgs.length) return;
     setUploading((n) => n + 1);
     setError('');
     try {
-      const out = [];
+      const got = [];
       for (const f of imgs) {
-        const path = await api.uploadChronicleImage(f, userId);
+        const path = await api.uploadGmDocImage(f, userId);
         const urls = await imageUrls([path]);
-        out.push({ path, src: urls[path] });
+        got.push({ path, src: urls[path] });
       }
-      return out;
+      const ed = editorRef.current;
+      if (!ed) return;
+      const chain = ed.chain().focus();
+      if (pos != null) chain.setTextSelection(pos);
+      got.forEach((g) => chain.setImage({ src: g.src, path: g.path }));
+      chain.run();
     } catch (err) {
       setError(err.message);
-      return [];
     } finally {
       setUploading((n) => n - 1);
     }
   }
 
-  const insertImages = async (files, pos) => {
-    const got = await upload(files);
-    if (!got.length || !editorRef.current) return;
-    const chain = editorRef.current.chain().focus();
-    if (pos != null) chain.setTextSelection(pos);
-    got.forEach((g) => chain.setImage({ src: g.src, path: g.path }));
-    chain.run();
-  };
-
-  const editorRef = useRef(null);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -331,37 +288,14 @@ function Editor({ entry, initialDoc, entries, tags, games, userId, onCancel, onS
   });
   editorRef.current = editor;
 
-  async function addTag() {
-    const name = newTag.trim();
-    if (!name) return;
-    setError('');
-    try {
-      const tag = await onAddTag(name, userId);
-      setNewTag('');
-      setMeta((m) => (m.tagIds.includes(tag.id) ? m : { ...m, tagIds: [...m.tagIds, tag.id] }));
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  function pickGame(slotId) {
-    const g = games.find((x) => x.id === slotId);
-    set({ slotId, ...(g && !meta.title.trim() ? { title: g.title || '' } : null) });
-  }
-
-  async function pickPortrait(file) {
-    const [got] = await upload([file]);
-    if (got) set({ portrait: got.path });
-  }
-
   async function save() {
-    if (!meta.title.trim()) return setError('Вкажіть назву.');
+    if (!title.trim()) return setError('Вкажіть назву.');
     if (uploading) return setError('Зачекайте, картинка ще завантажується.');
     const doc = stripImageSrc(editor.getJSON());
     setBusy(true);
     setError('');
     try {
-      await onSave({ ...meta, id: entry?.id || null, title: meta.title.trim(), doc, body: docText(doc) });
+      await onSave({ id: entry?.id || null, title: title.trim(), visibility, doc, body: docText(doc) });
     } catch (err) {
       setError(err.message);
       setBusy(false);
@@ -383,110 +317,44 @@ function Editor({ entry, initialDoc, entries, tags, games, userId, onCancel, onS
   }, []);
 
   return (
-    <>
-      <PageHeader
-        section="ХРОНІКА"
-        sectionTo={onCancel}
-        title={entry ? 'ЗМІНИ' : 'НОВИЙ ЗАПИС'}
-        right={(
-          <>
-            {!mobile && <button type="button" className="btn-ghost" disabled={busy} onClick={onCancel}>СКАСУВАТИ</button>}
-            <button type="button" className="btn-gm" disabled={busy || !editor} onClick={save}>{busy ? 'ЗБЕРЕЖЕННЯ…' : 'ЗБЕРЕГТИ'}</button>
-          </>
-        )}
+    <Panel
+      className="ss-ced-main"
+      tone="gm"
+      title={entry ? 'ДОКУМЕНТ' : 'НОВИЙ ДОКУМЕНТ'}
+      right={(
+        <>
+          <button type="button" className="btn-ghost sm" disabled={busy} onClick={onCancel}>СКАСУВАТИ</button>
+          <button type="button" className="btn-gm sm" disabled={busy || !editor} onClick={save}>{busy ? 'ЗБЕРЕЖЕННЯ…' : 'ЗБЕРЕГТИ'}</button>
+        </>
+      )}
+    >
+      <input
+        className="ss-ced-title"
+        type="text"
+        maxLength={120}
+        aria-label="НАЗВА"
+        placeholder="НАЗВА"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        autoFocus={!entry}
       />
-      {error && <Msg kind="err">{error}</Msg>}
-      <div className="ss-ced">
-        <Panel className="ss-ced-main" tone="gm">
-          <input
-            className="ss-ced-title"
-            type="text"
-            maxLength={120}
-            aria-label="НАЗВА"
-            placeholder="НАЗВА"
-            value={meta.title}
-            onChange={(e) => set({ title: e.target.value })}
-            autoFocus={!entry}
-          />
-          {editor && <Toolbar editor={editor} onImage={(files) => insertImages(files)} uploading={uploading > 0} />}
-          <EditorContent editor={editor} className="ss-ced-area" />
-        </Panel>
-
-        <aside className="ss-ced-side">
-          <Panel title="ЗАПИС" tone="gm">
-            <div className="ss-rule-ed ss-chron-ed">
-              <div className="fld">
-                <span className="lbl">ТИП</span>
-                <div className="ss-seg">
-                  {KINDS.map((k) => (
-                    <button key={k.key} type="button" className={meta.kind === k.key ? 'on' : ''} aria-pressed={meta.kind === k.key} onClick={() => set({ kind: k.key })}>{k.label}</button>
-                  ))}
-                </div>
-              </div>
-              <div className="fld">
-                <span className="lbl">ДОСТУП</span>
-                <div className="ss-seg">
-                  {VISIBILITY.map((v) => (
-                    <button key={v.key} type="button" className={meta.visibility === v.key ? 'on' : ''} aria-pressed={meta.visibility === v.key} disabled={!isAuthor} onClick={() => set({ visibility: v.key })}>{v.label}</button>
-                  ))}
-                </div>
-              </div>
-              {meta.kind === 'report' && (
-                <label className="fld">
-                  <span className="lbl">ГРА</span>
-                  <select className="ss-select" value={meta.slotId} onChange={(e) => pickGame(e.target.value)}>
-                    <option value="">—</option>
-                    {games.map((g) => (
-                      <option key={g.id} value={g.id}>{`${formatDate(g.game_at)} · ${g.title || '—'}`}</option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              {meta.kind === 'event' && (
-                <label className="fld">
-                  <span className="lbl">ДАТА</span>
-                  <input className="ss-input" type="date" value={meta.eventDate} onChange={(e) => set({ eventDate: e.target.value })} />
-                </label>
-              )}
-              <div className="fld">
-                <span className="lbl">ПОРТРЕТ</span>
-                <Portrait path={meta.portrait} busy={uploading > 0} onPick={pickPortrait} onClear={() => set({ portrait: null })} />
-              </div>
-              <div className="fld">
-                <span className="lbl">ТЕГИ</span>
-                <div className="ss-chron-tags">
-                  {tags.map((t) => (
-                    <button key={t.id} type="button" className={`ss-chip sm${meta.tagIds.includes(t.id) ? ' on' : ''}`} aria-pressed={meta.tagIds.includes(t.id)} onClick={() => set({ tagIds: meta.tagIds.includes(t.id) ? meta.tagIds.filter((x) => x !== t.id) : [...meta.tagIds, t.id] })}>{t.name}</button>
-                  ))}
-                </div>
-                <div className="ss-chron-tags add">
-                  <input
-                    className="ss-input sm"
-                    type="text"
-                    maxLength={32}
-                    aria-label="НОВИЙ ТЕГ"
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value.toUpperCase())}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addTag();
-                      }
-                    }}
-                  />
-                  <button type="button" className="btn-gm sm" disabled={!newTag.trim()} onClick={addTag}>+ ТЕГ</button>
-                </div>
-              </div>
-            </div>
-          </Panel>
-        </aside>
+      <div className="ss-ced-access">
+        <span className="lbl">ХТО МАЄ ДОСТУП ДО ЦЬОГО ФАЙЛУ</span>
+        <div className="ss-seg sm">
+          {VISIBILITY.map((v) => (
+            <button key={v.key} type="button" className={visibility === v.key ? 'on' : ''} aria-pressed={visibility === v.key} disabled={!isAuthor} onClick={() => setVisibility(v.key)}>{v.label}</button>
+          ))}
+        </div>
       </div>
-    </>
+      {error && <Msg kind="err" style={{ margin: '10px 18px 0' }}>{error}</Msg>}
+      {editor && <Toolbar editor={editor} onImage={(files) => insertImages(files)} uploading={uploading > 0} />}
+      <EditorContent editor={editor} className="ss-ced-area" />
+    </Panel>
   );
 }
 
 // Обгортка: перед створенням редактора отримуємо адреси картинок зі сховища.
-export default function ChronicleEditor(props) {
+export default function DocEditor(props) {
   const [doc, setDoc] = useState(null);
   useEffect(() => {
     let off = false;

@@ -1,20 +1,13 @@
-// Хроніка: розбір тексту запису й згадок, зворотні посилання, сортування й фільтр списку.
+// Документи ГМів: розбір старого тексту, документ візуального редактора, згадки, пошук.
 // Чиста логіка без React — тести в markup.test.mjs.
 //
-// Розмітка тексту: **виділення**, [текст](https://…) і згадка @[Назва](<uuid запису>).
-// HTML з бази ніколи не вставляється як є — текст розбирається на вузли.
-
-export const KINDS = [
-  { key: 'record', label: 'ЗАПИС' },
-  { key: 'report', label: 'ЗВІТ' },
-  { key: 'event', label: 'ПОДІЯ' },
-];
-export const kindLabel = (k) => KINDS.find((x) => x.key === k)?.label || '';
+// Старий текст (до візуального редактора) — розмітка **виділення**, [текст](https://…) і
+// згадка @[Назва](<uuid документа>); при відкритті він перетворюється на документ редактора.
+// HTML з бази ніколи не вставляється як є.
 
 export const VISIBILITY = [
-  { key: 'private', label: 'ЛИШЕ Я' },
-  { key: 'gms', label: 'ГМИ' },
-  { key: 'players', label: 'УСІ' },
+  { key: 'gms', label: 'ДЛЯ ВСІХ ГМІВ' },
+  { key: 'private', label: 'ЛИШЕ ДЛЯ МЕНЕ' },
 ];
 export const visibilityLabel = (v) => VISIBILITY.find((x) => x.key === v)?.label || '';
 
@@ -44,8 +37,6 @@ export const paragraphs = (text) =>
     .map((p) => p.replace(/^\n+|\n+$/g, ''))
     .filter((p) => p.trim() !== '');
 
-export const mentionMarkup = (title, id) => `@[${String(title).replace(/[[\]\n]/g, ' ').trim()}](${id})`;
-
 export function mentionedIds(text) {
   const ids = new Set();
   const walk = (tokens) =>
@@ -57,19 +48,10 @@ export function mentionedIds(text) {
   return ids;
 }
 
-// Записи, які згадують запис id (лише серед тих, що бачить користувач).
+// Документи, які згадують документ id (лише серед тих, що бачить користувач).
 export function backlinks(entries, id) {
   const key = String(id).toLowerCase();
   return entries.filter((e) => e.id !== id && (e.doc ? docMentions(e.doc) : mentionedIds(e.body)).has(key));
-}
-
-// Згадка, яку зараз набирають: «@запит» перед курсором (після початку рядка чи пробілу).
-// Повертає { start, query } або null. start — позиція «@».
-export function mentionQuery(text, caret) {
-  const before = String(text ?? '').slice(0, caret);
-  const m = before.match(/(^|\s)@([^@\n[\]()]{0,40})$/);
-  if (!m) return null;
-  return { start: before.length - m[2].length - 1, query: m[2] };
 }
 
 export function mentionSuggestions(entries, query, excludeId, limit = 6) {
@@ -84,28 +66,16 @@ export function mentionSuggestions(entries, query, excludeId, limit = 6) {
     .slice(0, limit);
 }
 
-// Вставити згадку замість «@запит»: повертає { text, caret }.
-export function insertMention(text, mq, entry, caret) {
-  const markup = `${mentionMarkup(entry.title, entry.id)} `;
-  const next = text.slice(0, mq.start) + markup + text.slice(caret);
-  return { text: next, caret: mq.start + markup.length };
-}
-
-// Дата для сортування: звіт — дата гри, подія — дата події, запис — остання зміна.
-export function sortTime(e) {
-  const iso = e.kind === 'report' ? e.game?.game_at : e.kind === 'event' ? e.eventDate : null;
-  const t = Date.parse(iso || e.updatedAt || e.createdAt || '');
-  return Number.isNaN(t) ? 0 : t;
-}
-
-// Фільтр списку: тип, усі вибрані теги разом, пошук у назві й тексті.
-export function filterEntries(entries, { kind = 'all', tagIds = [], q = '' } = {}) {
+// Пошук у назві й тексті; новіші зміни першими.
+export function filterDocs(docs, q = '') {
   const needle = q.trim().toLowerCase();
-  return entries
-    .filter((e) => kind === 'all' || e.kind === kind)
-    .filter((e) => tagIds.every((t) => e.tagIds.includes(t)))
-    .filter((e) => !needle || e.title.toLowerCase().includes(needle) || e.body.toLowerCase().includes(needle))
-    .sort((a, b) => sortTime(b) - sortTime(a));
+  const time = (d) => {
+    const t = Date.parse(d.updatedAt || d.createdAt || '');
+    return Number.isNaN(t) ? 0 : t;
+  };
+  return docs
+    .filter((d) => !needle || d.title.toLowerCase().includes(needle) || d.body.toLowerCase().includes(needle))
+    .sort((a, b) => time(b) - time(a));
 }
 
 export function formatDate(iso) {
@@ -117,7 +87,7 @@ export function formatDate(iso) {
 }
 
 // ----- Документ візуального редактора (JSON TipTap) -----
-// Зберігається в chronicle_entries.doc. Старі записи (лише body з розміткою) перетворюються
+// Зберігається в chronicle_entries.doc. Старі документи (лише body з розміткою) перетворюються
 // на документ при відкритті. body лишається простим текстом документа — для пошуку.
 
 const textNode = (text, marks) => (marks && marks.length ? { type: 'text', text, marks } : { type: 'text', text });
